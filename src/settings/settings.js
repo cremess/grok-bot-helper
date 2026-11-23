@@ -10,6 +10,15 @@ const record = document.getElementById('record');
 const save = document.getElementById('save');
 const launchAtLogin = document.getElementById('launch-at-login');
 const status = document.getElementById('status');
+const welcomeMode = new URLSearchParams(location.search).get('welcome') === '1';
+const welcomeCard = document.getElementById('welcome');
+const welcomeMessage = document.getElementById('welcome-message');
+let preselectFirstBot = false;
+if (welcomeMode) {
+  document.body.classList.add('welcome');
+  welcomeCard.hidden = false;
+  save.textContent = 'Salvar e começar';
+}
 let bots = [];
 let selection = { mode: 'default', botId: '', botName: '' };
 let currentShortcut;
@@ -37,6 +46,7 @@ function showError(error) {
 }
 
 function renderShortcut() {
+  renderWelcome();
   shortcut.replaceChildren();
   if (recording) {
     shortcut.textContent = 'Pressione a combinação…';
@@ -47,6 +57,24 @@ function renderShortcut() {
     kbd.textContent = key;
     shortcut.append(kbd);
   }
+}
+
+function renderWelcome() {
+  if (!welcomeMode) return;
+  welcomeMessage.replaceChildren();
+  if (bots.length === 0) {
+    welcomeMessage.textContent = 'Não encontrei o Grok Bot neste computador. Instale e abra o Grok Bot, depois clique em Atualizar lista.';
+    return;
+  }
+  const kbd = document.createElement('kbd');
+  kbd.textContent = currentShortcut || '';
+  welcomeMessage.append('Escolha para qual bot do Grok Bot suas mensagens vão. Depois é só apertar ', kbd, ' em qualquer lugar.');
+}
+
+function preselectBot() {
+  if (!preselectFirstBot || bots.length === 0) return;
+  selectSavedBot(bots[0].id);
+  preselectFirstBot = false;
 }
 
 function stopRecording() {
@@ -145,7 +173,10 @@ function renderBots() {
     check.setAttribute('aria-hidden', 'true');
     check.textContent = '\u2713';
     button.append(check);
-    button.addEventListener('click', () => selectOption(option));
+    button.addEventListener('click', () => {
+      preselectFirstBot = false;
+      selectOption(option);
+    });
     botList.append(button);
   }
   selectOption(selection);
@@ -185,10 +216,12 @@ async function loadBots() {
     refresh.disabled = false;
   }
   warning.hidden = bots.length > 0;
+  renderWelcome();
 }
 
 refresh.addEventListener('click', async () => {
   await loadBots();
+  preselectBot();
   if (selection.mode === 'list') {
     const selectedBot = bots.find((item) => item.id === selection.botId);
     if (selectedBot) selection.botName = selectedBot.name;
@@ -219,6 +252,7 @@ form.addEventListener('submit', async (event) => {
     renderShortcut();
     launchAtLogin.checked = result.settings.launchAtLogin;
     showToast('Configurações salvas');
+    if (welcomeMode) setTimeout(() => window.close(), 800);
   } catch {
     showError();
   } finally {
@@ -231,6 +265,8 @@ async function initialize() {
   try {
     const [settings] = await Promise.all([window.grokbotSettings.get(), loadBots()]);
     selectSavedBot(settings.botId);
+    preselectFirstBot = welcomeMode && !settings.botId;
+    preselectBot();
     renderBots();
     currentShortcut = settings.shortcut;
     defaultShortcut = settings.defaultShortcut;

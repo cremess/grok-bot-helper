@@ -1,11 +1,14 @@
 const path = require('node:path');
+const fs = require('node:fs');
 const { app, BrowserWindow, globalShortcut, ipcMain, Menu, nativeTheme, screen, shell, Tray } = require('electron');
+app.setPath('userData', path.join(app.getPath('appData'), 'grokbot-assistant'));
 const { createTrayIcon, appIconPath } = require('./icon');
 const { buildPromptLink, parseBotId, isValidBotId } = require('./lib/link');
 const { listBots } = require('./lib/roster');
 const { avatarColor, avatarInitial } = require('./lib/avatar');
 const { loadSettings, saveSettings, isValidShortcut, DEFAULT_SETTINGS } = require('./lib/settings');
 const { promptPosition } = require('./lib/position');
+const { pickShortcut, isFirstRun } = require('./lib/first-run');
 
 // Mantém o ícone vivo durante a execução do app.
 let tray;
@@ -18,7 +21,7 @@ const GROK_BOT_DIRECTORY = path.join(app.getPath('appData'), 'Grok Bot', 'sand-c
 let hideTimer;
 let sendingPrompt = false;
 
-function openSettings() {
+function openSettings({ welcome = false } = {}) {
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     settingsWindow.show();
     settingsWindow.focus();
@@ -44,13 +47,16 @@ function openSettings() {
     },
   });
   settingsWindow.setMenu(null);
+  if (welcome) settingsWindow.setSize(520, 780);
   settingsWindow.webContents.on('will-navigate', (event) => event.preventDefault());
   settingsWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   settingsWindow.on('closed', () => {
     settingsWindow = undefined;
     applyShortcut(settings.shortcut);
   });
-  settingsWindow.loadFile(path.join(__dirname, 'settings', 'settings.html'));
+  settingsWindow.loadFile(path.join(__dirname, 'settings', 'settings.html'), {
+    query: welcome ? { welcome: '1' } : {},
+  });
 }
 
 function togglePrompt() {
@@ -104,8 +110,10 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.whenReady().then(async () => {
+    app.setAppUserModelId('app.grokbot.assistant');
     Object.assign(settingsLocation, { path: path.join(app.getPath('userData'), 'settings.json') });
     Object.freeze(settingsLocation);
+    const firstRun = isFirstRun(fs.existsSync(settingsLocation.path));
     settings = loadSettings(settingsLocation.path);
     tray = new Tray(createTrayIcon());
     tray.setToolTip('GrokBot Assistant');
@@ -113,7 +121,7 @@ if (!app.requestSingleInstanceLock()) {
       { label: 'Abrir prompt', click: () => {
         if (promptWindow && !promptWindow.isVisible()) togglePrompt();
       } },
-      { label: 'Configurações…', click: openSettings },
+      { label: 'Configurações…', click: () => openSettings() },
       { type: 'separator' },
       { label: 'Sair', click: () => app.quit() },
     ]));
@@ -236,6 +244,33 @@ if (!app.requestSingleInstanceLock()) {
     });
 
     await promptWindow.loadFile(path.join(__dirname, 'prompt', 'prompt.html'));
+    if (firstRun) {
+      const chosen = pickShortcut(settings.shortcut, (accelerator) => {
+        try {
+          return globalShortcut.register(accelerator, togglePrompt);
+        } catch {
+          return false;
+        } finally {
+          // As tentativas são temporárias; applyShortcut mantém apenas o escolhido.
+          globalShortcut.unregister(accelerator);
+        }
+      });
+      if (chosen.changed) settings.shortcut = chosen.shortcut;
+      applyShortcut(settings.shortcut);
+      if (app.isPackaged) {
+        app.setLoginItemSettings({ openAtLogin: true });
+        settings.launchAtLogin = true;
+      }
+      settings = saveSettings(settingsLocation.path, settings);
+      openSettings({ welcome: true });
+      tray.displayBalloon({
+        title: 'GrokBot Assistant está pronto',
+        content: `Use ${settings.shortcut} para abrir o prompt. O ícone fica aqui na bandeja.`,
+      });
+      return;
+    }
+    // Mantém a inicialização com o Windows apontando para o executável instalado.
+    if (app.isPackaged && settings.launchAtLogin) app.setLoginItemSettings({ openAtLogin: true });
     applyShortcut(settings.shortcut);
   });
 

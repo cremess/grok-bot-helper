@@ -9,13 +9,30 @@ O app gera o link `grokbot://app/v1/prompt?id=<bot>&text=<texto>`, com o texto c
 
 Antes de adicionar a mensagem, o Grok Bot pede confirmação: "Adicionar mensagem para Grok?". A opção "Não mostrar novamente" fica no próprio Grok Bot. Ao ativá-la, qualquer link `grokbot://` passa a adicionar texto sem perguntar; considere esse risco antes de desativar a confirmação.
 
-## Requisitos
+## Instalar (para quem só quer usar)
+
+1. Rode `GrokBot-Assistant-Setup-<versão>.exe`. A instalação é de um clique, só para o seu usuário, sem pedir administrador.
+2. Como o instalador não é assinado digitalmente, o Windows pode mostrar "O Windows protegeu o computador". Clique em **Mais informações** e depois em **Executar assim mesmo**.
+3. Na primeira abertura aparece a tela de boas-vindas com a lista dos seus bots do Grok Bot (o mais usado já vem marcado). Clique em **Salvar e começar**.
+4. Pronto: use o atalho indicado (padrão `Alt+Space`; se estiver ocupado, o app escolhe outro e avisa) em qualquer lugar. O app inicia junto com o Windows e fica na bandeja.
+
+Requisitos: Windows 10 ou 11 (64 bits) e o Grok Bot instalado e aberto pelo menos uma vez. Para desinstalar, use **Configurações do Windows > Aplicativos**.
+
+## Gerar o instalador
+
+```powershell
+npm run dist
+```
+
+O arquivo sai em `dist/GrokBot-Assistant-Setup-<versão>.exe`. Para refazer os ícones a partir dos SVGs, rode `npm run icons` antes.
+
+## Requisitos para desenvolvimento
 
 - Windows 10 ou 11.
 - Grok Bot instalado.
 - Node.js e npm. A versão do Node.js usada no projeto foi a 26.
 
-## Instalação
+## Instalação para desenvolvimento
 
 Na pasta do projeto, execute:
 

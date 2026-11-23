@@ -1,5 +1,7 @@
 {
   "name": "grokbot-assistant",
+  "productName": "GrokBot Assistant",
+  "author": "GrokBot Assistant",
   "version": "0.1.0",
   "private": true,
   "description": "App companheiro do Grok Bot para Windows.",
@@ -7,9 +9,29 @@
   "scripts": {
     "start": "electron .",
     "test": "node --test",
-    "icons": "electron scripts/build-icons.js"
+    "icons": "electron scripts/build-icons.js",
+    "dist": "electron-builder --win nsis --x64"
   },
   "devDependencies": {
-    "electron": "45.2.3"
+    "electron": "45.2.3",
+    "electron-builder": "26.18.1"
+  },
+  "build": {
+    "appId": "app.grokbot.assistant",
+    "productName": "GrokBot Assistant",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["src/**/*", "assets/icons/**/*", "package.json"],
+    "asar": true,
+    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }], "icon": "build/icon.ico" },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "runAfterFinish": true,
+      "createStartMenuShortcut": true,
+      "createDesktopShortcut": false,
+      "shortcutName": "GrokBot Assistant",
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "GrokBot-Assistant-Setup-${version}.exe"
+    }
   }
 }
