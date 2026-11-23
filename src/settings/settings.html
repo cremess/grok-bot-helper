@@ -35,13 +35,26 @@
         <section class="section-card" aria-labelledby="general-title">
           <h2 id="general-title">Geral</h2>
           <label class="switch-row" for="launch-at-login"><span>Iniciar com o Windows<small>Abre o GrokBot Assistant ao entrar no Windows</small></span><input id="launch-at-login" type="checkbox" role="switch"></label>
-          <div class="after-send" role="group" aria-labelledby="after-send-title">
-            <p id="after-send-title">Depois de enviar</p>
+          <label class="switch-row" for="notify-on-reply"><span>Notificar quando a resposta chegar<small>Mostra uma notificação do Windows se o prompt estiver fechado.</small></span><input id="notify-on-reply" type="checkbox" role="switch"></label>
+          <div class="general-row" role="group" aria-labelledby="after-send-title">
+            <div><p id="after-send-title">Depois de enviar</p><p id="after-send-help"></p></div>
             <div class="segmented">
               <label><input type="radio" name="after-send" value="wait" checked aria-describedby="after-send-help"><span>Esperar a resposta</span></label>
               <label><input type="radio" name="after-send" value="hide" aria-describedby="after-send-help"><span>Fechar e avisar</span></label>
             </div>
-            <p id="after-send-help"></p>
+          </div>
+          <div class="general-row" role="group" aria-labelledby="theme-title">
+            <div><p id="theme-title">Tema</p><small>Aparência do aplicativo.</small></div>
+            <div class="segmented">
+              <label><input type="radio" name="theme" value="system" checked><span>Sistema</span></label>
+              <label><input type="radio" name="theme" value="dark"><span>Escuro</span></label>
+              <label><input type="radio" name="theme" value="light"><span>Claro</span></label>
+            </div>
+          </div>
+          <div class="general-row">
+            <span>Histórico de envios<small>Guarda até 50 mensagens enviadas.</small></span>
+            <button id="clear-history" class="quiet small" type="button">Limpar histórico de envios</button>
+            <span id="clear-confirmation" role="group" aria-label="Confirmar limpeza do histórico" hidden>Limpar? <button id="clear-yes" class="small" type="button">Sim</button> <button id="clear-no" class="small" type="button">Não</button></span>
           </div>
         </section>
       </fieldset>

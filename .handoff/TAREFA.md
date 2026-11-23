@@ -1,76 +1,57 @@
-# Tarefa 13 — Painel de resposta no prompt, modos "Depois de enviar" e aviso na bandeja
+# Tarefa 14 — Novas opções: trocar de bot no prompt, copiar/abrir resposta, histórico, notificação e tema
 
 ## Objetivo
-"Notch sob demanda": ao abrir o prompt, o usuário vê a **última resposta do bot** (e pode expandir para a conversa recente). Depois de enviar, o comportamento segue a opção `afterSend` (já existe em `src/lib/settings.js`):
-- `'wait'` (padrão) — o prompt fica aberto, mostra "<bot> está respondendo…" e exibe a resposta quando ela chegar.
-- `'hide'` — o prompt fecha; quando a resposta chegar, o ícone da bandeja ganha um pontinho e o tooltip vira "Nova resposta de <bot>"; ao abrir o prompt, a resposta está lá e o pontinho some.
-
-Leia antes: `src/main.js`, `src/preload.js`, `src/settings-preload.js`, `src/prompt/*`, `src/settings/*`, `src/lib/transcript.js`, `src/lib/markdown.js`, `src/lib/settings.js`, `src/icon.js`, `scripts/build-icons.js`, `assets/tray.svg`.
+Deixar o app mais prático no dia a dia. Leia antes: `src/main.js`, `src/preload.js`, `src/settings-preload.js`, `src/prompt/*`, `src/settings/*`, `src/lib/settings.js`, `src/lib/roster.js`, `src/lib/avatar.js`, `src/ui/tokens.css`.
 
 ## Arquivos envolvidos
-- Alterar: `src/main.js`, `src/preload.js`, `src/settings-preload.js`, `src/prompt/prompt.html|css|js`, `src/settings/settings.html|css|js`, `src/icon.js`, `scripts/build-icons.js`
-- Criar: `assets/tray-unread.svg`, `src/lib/relative-time.js`, `test/relative-time.test.js`
+- Alterar: `src/main.js`, `src/preload.js`, `src/settings-preload.js`, `src/prompt/*`, `src/settings/*`, `src/lib/settings.js` + `test/settings.test.js`
+- Criar: `src/lib/history.js`, `test/history.test.js`
 
-## 1. `src/lib/relative-time.js` (puro, exportação dupla como `accelerator.js`)
-- `relativeTime(timestampMs, nowMs)` em pt-BR: `< 60 s` → "agora"; `< 60 min` → "há N min"; mesmo dia → "há N h"; dia anterior → "ontem, HH:MM"; mais antigo → "DD/MM, HH:MM". Testes cobrindo cada faixa (usar datas fixas; fuso local).
+## 1. Trocar de bot direto no prompt
+- A pílula "Para <bot>" vira um **botão** (`aria-haspopup="listbox"`). Clique ou `Ctrl+K` abre um **menu suspenso** logo abaixo dela, dentro do cartão, com: os bots de `listBots` (avatar + nome, o atual com ✓) e no fim "Bot padrão do Grok Bot". Navegação por setas, `Enter` escolhe, `Esc` fecha só o menu (não o prompt), clique fora fecha o menu.
+- Escolher um bot **salva** como destino (mesmo efeito de salvar nas configurações: `botId`, `botName`), atualiza a pílula e recarrega a área de resposta com a conversa desse bot. Se houver espera pendente, ela é encerrada (mesma regra de trocar o bot nas configurações).
+- Novo IPC `prompt:bots` (lista com avatar, igual a `settings:bots`) e `prompt:select-bot` (`{ botId, botName }`, validar com `isValidBotId` ou vazio para padrão; resposta `{ ok, conversation, bot: { botId, botName, botColor, botInitial } }`).
+- O cartão cresce para caber o menu (pedir `prompt:resize`); o menu rola se tiver muitos bots (máx. ~240 px).
 
-## 2. Ícone de "não lido"
-- `assets/tray-unread.svg`: cópia de `assets/tray.svg` com um ponto de destaque no canto superior direito (círculo ~9/32 do tamanho, cor `#ff5a5f`, contorno de 2 px na cor de fundo escura `#1b1b1f` para separar do ícone).
-- `scripts/build-icons.js`: gerar também `assets/icons/tray-unread.png` (16) e `assets/icons/tray-unread@2x.png` (32). NÃO rodar o script (o Claude Code roda).
-- `src/icon.js`: exportar `createTrayIcon({ unread = false } = {})` que carrega `tray-unread.png` quando `unread` (com o mesmo fallback atual se vier vazio). Chamadas existentes sem argumento continuam funcionando.
+## 2. Ações na resposta
+- Na linha de título da área de resposta, à direita (antes de "Conversa"), dois botões só com ícone SVG inline (16 px, `currentColor`, com `aria-label` e `title`):
+  - **Copiar** (`title="Copiar resposta"`): copia o texto da última resposta (markdown original) via IPC `prompt:copy` → `clipboard.writeText` no main (limitar a 20.000 caracteres). Feedback: o ícone vira ✓ por ~1,2 s.
+  - **Abrir no Grok Bot** (`title="Abrir conversa no Grok Bot"`): IPC `prompt:open-bot` → `shell.openExternal('grokbot://app/v1/agent?id=<agentId>')` usando o `agentId` resolvido da conversa (validar com `isValidBotId`); sem id → `grokbot://app/v1/open`. Depois esconde o prompt.
+- "Ver mais"/degradê **só aparecem se o conteúdo realmente passar** da altura recolhida (medir `scrollHeight > clientHeight` após renderizar; reavaliar ao redimensionar/trocar de resposta).
 
-## 3. `src/main.js`
-### Conversa
-- Constante da pasta do Grok Bot já existe (reutilizar). Função `loadConversation()` → usa `readConversation(dir, settings.botId)`; retorna `{ ok, entries: recentExchanges(entries, 6), latest: latestReply(entries) }` ou `{ ok: false }`.
-- `prompt:show` passa a incluir `conversation: loadConversation()` e `waiting` (boolean, ver abaixo) e `botName` já existente.
-- Novo IPC `prompt:open-link` (string) → só abre se `new URL(url).protocol` for `http:` ou `https:` (`shell.openExternal`); senão ignora.
+## 3. Histórico de envios (`src/lib/history.js`, puro + `node:fs`)
+- `loadHistory(file)` → array de strings (até 50; arquivo ausente/corrompido → `[]`, nunca lança).
+- `addToHistory(list, text, max = 50)` → nova lista com `text` (trim) no fim, removendo duplicata anterior idêntica; ignora vazio.
+- `saveHistory(file, list)` → escrita atômica (`.tmp` + `rename`), cria a pasta.
+- Testes em `test/history.test.js` (pasta temporária).
+- No main: arquivo `path.join(app.getPath('userData'), 'history.json')`; ao enviar com sucesso, adicionar e salvar. Enviar a lista no `prompt:show` (`history`).
+- No prompt: com o campo **vazio** (ou navegando no histórico e sem edição), `↑` mostra o envio anterior e `↓` o seguinte (no fim, volta ao campo vazio). Digitar algo sai do modo histórico. Cursor no fim do texto.
+- Nas configurações (cartão Geral): botão de texto "Limpar histórico de envios" → IPC `settings:clear-history` (esvazia e salva), com confirmação inline ("Limpar? Sim / Não") — sem `confirm()` nativo.
 
-### Espera pela resposta (os dois modos)
-- Ao enviar com sucesso, guardar `pending = { sentAt: Date.now(), botId: settings.botId, mode: settings.afterSend }` e iniciar um **poll** a cada 1000 ms (um único `setInterval`; nunca dois ao mesmo tempo) que chama `readConversation` e procura `latestReply(entries, { afterMs: pending.sentAt - 2000 })`.
-- Encerrar a espera quando: achar resposta, passar 10 minutos, ou o usuário trocar de bot nas configurações. Ao expirar, enviar ao prompt `prompt:conversation` com `{ ...conversa, waiting: false, timedOut: true }`.
-- **Modo `'wait'`**:
-  - Não esconder o prompt depois do envio (remover o `setTimeout` de 280 ms nesse modo) e enviar `prompt:conversation` com `{ ...conversa, waiting: true }`.
-  - Enquanto espera: `promptWindow.setAlwaysOnTop(false)` (para a janela de confirmação do Grok Bot poder ficar por cima) e **não esconder no `blur`**.
-  - Ao chegar a resposta: `setAlwaysOnTop(true)`, enviar `prompt:conversation` com `{ ...conversa, waiting: false }`; se a janela não estiver visível, `showInactive()` (não roubar o foco); a partir daí o `blur` volta a esconder normalmente.
-  - `Esc`/esconder durante a espera NÃO cancela a espera: a resposta, quando chegar, liga o ponto de não lido (como no modo `'hide'`) se o prompt estiver escondido nessa hora.
-- **Modo `'hide'`**: manter o comportamento atual de esconder após ~280 ms. Ao chegar a resposta com o prompt escondido: `tray.setImage(createTrayIcon({ unread: true }))` e `tray.setToolTip('GrokBot Assistant — Nova resposta de <bot>')`.
-- Ao abrir o prompt (`togglePrompt`/abrir pelo menu): limpar o não lido (`tray.setImage(createTrayIcon())`, tooltip normal).
-- Clique esquerdo no ícone da bandeja continua abrindo o prompt.
-- `prompt:resize`: aumentar o limite máximo de altura para 600 px.
+## 4. Notificação do Windows (opcional, padrão desligado)
+- `src/lib/settings.js`: novo campo `notifyOnReply: false` (boolean).
+- No main, quando uma resposta chega e o prompt **não está visível**: se `notifyOnReply` e `Notification.isSupported()`, mostrar `new Notification({ title: <bot>, body: <primeiros 140 caracteres do texto sem marcação markdown simples **, *, `, #>, silent: false, icon: appIconPath() })`. Clique na notificação → abre o prompt (e limpa o não lido). O ponto na bandeja continua acontecendo independentemente da notificação.
+- Configurações (Geral): interruptor "Notificar quando a resposta chegar" com ajuda "Mostra uma notificação do Windows se o prompt estiver fechado."
 
-### Configurações
-- `settings:get` inclui `afterSend`. `settings:save` aceita `afterSend` (`'wait'`/`'hide'`; outro valor → `invalid-after-send`) e salva junto. Se o `botId` mudar, encerrar a espera pendente e limpar o não lido.
+## 5. Tema
+- `src/lib/settings.js`: novo campo `theme: 'system'` com valores `'system' | 'dark' | 'light'`.
+- No main: aplicar com `nativeTheme.themeSource = settings.theme` ao iniciar e ao salvar (isso já faz o `prefers-color-scheme` das páginas seguir a escolha). Atualizar o `backgroundColor` da janela de configurações conforme o tema efetivo.
+- Configurações (Geral): controle segmentado "Tema": Sistema · Escuro · Claro.
 
-## 4. Prompt — interface
-- Carregar `../lib/markdown.js` e `../lib/relative-time.js` com `<script src>` antes de `prompt.js`.
-- **Área de resposta** entre o cabeçalho e o campo de texto (só aparece se `conversation.ok` e houver `latest`):
-  - Linha de título discreta: avatar pequeno (18 px) + "**<bot>** · <tempo relativo>".
-  - Corpo: o markdown renderizado com `createElement`/`textContent` a partir da árvore de `parseMarkdown` (parágrafos, títulos, listas, citações, blocos de código com fundo `var(--surface)` e fonte monoespaçada `Cascadia Mono, Consolas, monospace`, código inline, negrito, itálico; links como `<a>` que ao clicar chamam `openLink(href)` com `preventDefault`).
-  - **Recolhido** por padrão: altura máxima ~5 linhas com degradê no fim e botão de texto "Ver mais"; expandido: até ~320 px com rolagem interna (mesma barra de rolagem fina das configurações) e "Ver menos".
-  - Botão de texto "Conversa" (à direita do título) alterna para a visão das **últimas 6 mensagens** em bolhas: usuário à direita (fundo `color-mix(in srgb, var(--accent) 22%, var(--surface))`), bot à esquerda (`var(--surface)`), cada uma com markdown e tempo relativo pequeno. "Conversa" ↔ "Última resposta".
-  - Se `waiting`: mostrar a mensagem enviada como bolha do usuário e, abaixo, "<bot> está respondendo…" com três pontinhos animados (respeitar `prefers-reduced-motion`). Se `timedOut`: "A resposta está demorando. Confira no Grok Bot." em cor secundária.
-  - Quando chegar a resposta com a janela visível: animação sutil de entrada (fade + 4 px).
-- O campo e o rodapé continuam como estão; o envio limpa o campo e mantém o foco no campo no modo `'wait'`.
-- Pedir `prompt:resize` sempre que a altura do cartão mudar (troca de visão, expandir, nova resposta).
-- Atualizar o tempo relativo a cada 30 s enquanto visível.
-- `preload.js`: expor `onConversation(callback)` e `openLink(url)`.
-- Tudo com `textContent`/`createElement` (sem `innerHTML`); CSP inalterada.
-
-## 5. Configurações — interface
-- No cartão **Geral**, abaixo do "Iniciar com o Windows", um grupo "Depois de enviar" com controle segmentado acessível (dois `<input type="radio">` estilizados lado a lado):
-  - "Esperar a resposta" — ajuda: "O prompt fica aberto e mostra a resposta quando chegar."
-  - "Fechar e avisar" — ajuda: "O prompt fecha e o ícone da bandeja ganha um ponto quando a resposta chegar."
-  (mostrar só a ajuda da opção selecionada).
-- Salvar envia `afterSend`. A janela continua sem rolagem na página (pode subir a altura normal para até 780 e a de boas-vindas para até 840 no `main.js`, só se necessário).
+## 6. Configurações — layout
+- Organizar o cartão Geral em linhas consistentes (rótulo + ajuda à esquerda, controle à direita), na ordem: Iniciar com o Windows · Notificar quando a resposta chegar · Depois de enviar · Tema · Limpar histórico.
+- Se não couber, pode aumentar a altura da janela até 860 (normal) / 900 (boas-vindas); se ainda assim não couber, a **área do meio** rola (cabeçalho e rodapé fixos, barra de rolagem fina já existente). Nada de rolagem dupla na lista de bots + página ao mesmo tempo sem necessidade.
+- `settings:get`/`settings:save` passam a incluir `notifyOnReply` e `theme` (validar: boolean e um dos três valores; inválido → erro `invalid-option`).
 
 ## Critérios de aceite
 - `npm test` passa (antigos + novos); `node --check` em todos os `.js` alterados/criados.
-- Um único `setInterval` de espera ativo por vez; sempre limpo ao terminar.
-- Segurança mantida (CSP, isolamento, sem `innerHTML`, links só http/https via main).
+- Segurança mantida: CSP inalterada, sem `innerHTML`, links/deep links só montados no main com IDs validados, clipboard só no main.
+- Acessibilidade: menus e botões navegáveis por teclado, `aria-*` coerentes.
+- Tudo em português do Brasil.
 
 ## O que NÃO fazer
-- NÃO alterar `src/lib/transcript.js`, `markdown.js`, `roster.js`, `settings.js`, `link.js`, `accelerator.js`, `avatar.js`, `first-run.js`, `package.json`.
-- NÃO rodar o app, o gerador de ícones nem o `dist`. NÃO instalar dependências.
+- NÃO alterar `src/lib/transcript.js`, `markdown.js`, `roster.js`, `link.js`, `accelerator.js`, `avatar.js`, `first-run.js`, `relative-time.js`, `assets/`, `scripts/`, `package.json`.
+- NÃO rodar o app nem gerar instalador/ícones. NÃO instalar dependências.
 - NÃO fazer commit nem push. NÃO alterar `AGENTS.md`, `.gitignore` nem `.handoff/HISTORICO.md`.
 
 ## Ao terminar

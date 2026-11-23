@@ -8,6 +8,8 @@ const DEFAULT_SETTINGS = Object.freeze({
   shortcut: 'Alt+Space',
   launchAtLogin: false,
   afterSend: 'wait',
+  notifyOnReply: false,
+  theme: 'system',
 });
 
 const MODIFIERS = new Set([
@@ -48,6 +50,8 @@ function normalizeSettings(raw) {
   if (isValidShortcut(raw.shortcut)) settings.shortcut = raw.shortcut;
   if (typeof raw.launchAtLogin === 'boolean') settings.launchAtLogin = raw.launchAtLogin;
   if (raw.afterSend === 'wait' || raw.afterSend === 'hide') settings.afterSend = raw.afterSend;
+  if (typeof raw.notifyOnReply === 'boolean') settings.notifyOnReply = raw.notifyOnReply;
+  if (['system', 'dark', 'light'].includes(raw.theme)) settings.theme = raw.theme;
   return settings;
 }
 

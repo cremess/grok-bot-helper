@@ -9,6 +9,34 @@ const shortcut = document.getElementById('shortcut');
 const record = document.getElementById('record');
 const save = document.getElementById('save');
 const launchAtLogin = document.getElementById('launch-at-login');
+const notifyOnReply = document.getElementById('notify-on-reply');
+const themeOptions = [...document.querySelectorAll('input[name="theme"]')];
+function renderGeneral(settings) {
+  notifyOnReply.checked = settings.notifyOnReply;
+  for (const option of themeOptions) option.checked = option.value === settings.theme;
+}
+const clearHistory = document.getElementById('clear-history');
+const clearConfirmation = document.getElementById('clear-confirmation');
+function closeClearConfirmation() {
+  clearHistory.hidden = false;
+  clearConfirmation.hidden = true;
+  clearHistory.focus();
+}
+clearHistory.addEventListener('click', () => {
+  clearHistory.hidden = true;
+  clearConfirmation.hidden = false;
+  document.getElementById('clear-no').focus();
+});
+document.getElementById('clear-no').addEventListener('click', closeClearConfirmation);
+document.getElementById('clear-yes').addEventListener('click', async (event) => {
+  event.target.disabled = true;
+  try {
+    const result = await window.grokbotSettings.clearHistory();
+    if (result.ok) { closeClearConfirmation(); showToast('Histórico de envios limpo'); }
+    else showError();
+  } catch { showError(); }
+  finally { event.target.disabled = false; }
+});
 const afterSendOptions = [...document.querySelectorAll('input[name="after-send"]')];
 const afterSendHelp = document.getElementById('after-send-help');
 function renderAfterSend(value) {
@@ -37,6 +65,7 @@ let recording = false;
 let toastTimer;
 
 const errors = {
+  'invalid-option': 'Selecione opções válidas para notificação e tema.',
   'invalid-bot': 'Link ou ID do bot inválido.',
   'invalid-shortcut': 'Atalho inválido.',
   'invalid-after-send': 'Selecione uma opção válida para depois de enviar.',
@@ -252,6 +281,8 @@ form.addEventListener('submit', async (event) => {
       mode: selection.mode, botId: selection.botId, botName: selection.botName,
       botInput: bot.value, shortcut: currentShortcut, launchAtLogin: launchAtLogin.checked,
       afterSend: afterSendOptions.find((option) => option.checked)?.value,
+      notifyOnReply: notifyOnReply.checked,
+      theme: themeOptions.find((option) => option.checked)?.value,
     });
     if (!result.ok) {
       showError(result.error);
@@ -263,6 +294,7 @@ form.addEventListener('submit', async (event) => {
     renderShortcut();
     launchAtLogin.checked = result.settings.launchAtLogin;
     renderAfterSend(result.settings.afterSend);
+    renderGeneral(result.settings);
     showToast('Configurações salvas');
     if (welcomeMode) setTimeout(() => window.close(), 800);
   } catch {
@@ -285,6 +317,7 @@ async function initialize() {
     renderShortcut();
     launchAtLogin.checked = settings.launchAtLogin;
     renderAfterSend(settings.afterSend);
+    renderGeneral(settings);
     fields.disabled = false;
     save.disabled = false;
   } catch {

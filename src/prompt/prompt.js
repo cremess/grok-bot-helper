@@ -30,6 +30,140 @@ let sent;
 let conversationView = false;
 let expanded = false;
 let relativeTimer;
+const destinationButton = document.getElementById('destination-button');
+const botMenu = document.getElementById('bot-menu');
+let currentBotId = '';
+let history = [];
+let historyIndex = null;
+let menuVersion = 0;
+let copyTimer;
+
+function setBot({ botId, botName, botColor, botInitial }) {
+  currentBotId = botId;
+  destination.textContent = botName || (botId ? `bot ${botId.slice(0, 8)}` : 'bot padrão');
+  avatar.textContent = botInitial;
+  avatar.style.backgroundColor = botColor;
+}
+
+function closeBotMenu(focus = false) {
+  menuVersion += 1;
+  botMenu.hidden = true;
+  destinationButton.setAttribute('aria-expanded', 'false');
+  if (focus) destinationButton.focus();
+  updateLayout();
+}
+
+async function openBotMenu() {
+  if (!botMenu.hidden) { closeBotMenu(true); return; }
+  const version = ++menuVersion;
+  try {
+    const result = await window.grokbot.bots();
+    if (version !== menuVersion) return;
+    const options = result.ok ? [...result.bots] : [];
+    options.push({ id: '', name: 'Bot padrão do Grok Bot', avatar: { color: '#1080f3', initial: 'G' } });
+    botMenu.replaceChildren();
+    for (const bot of options) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.setAttribute('role', 'option');
+      button.setAttribute('aria-selected', String(bot.id === currentBotId));
+      button.tabIndex = bot.id === currentBotId ? 0 : -1;
+      const image = document.createElement('span');
+      image.className = 'avatar';
+      image.textContent = bot.avatar.initial;
+      image.style.backgroundColor = bot.avatar.color;
+      image.setAttribute('aria-hidden', 'true');
+      const name = document.createElement('span');
+      name.className = 'menu-name';
+      name.textContent = bot.name;
+      const check = document.createElement('span');
+      check.textContent = bot.id === currentBotId ? '✓' : '';
+      check.setAttribute('aria-hidden', 'true');
+      button.append(image, name, check);
+      button.addEventListener('click', async () => {
+        if (submitting) return;
+        try {
+          const selected = await window.grokbot.selectBot({ botId: bot.id, botName: bot.name });
+          if (!selected.ok) { showError('Não foi possível trocar de bot.'); return; }
+          setBot(selected.bot);
+          conversation = selected.conversation;
+          waiting = false;
+          timedOut = false;
+          sent = undefined;
+          conversationView = false;
+          expanded = false;
+          closeBotMenu();
+          renderConversation();
+          textarea.focus();
+        } catch { showError('Não foi possível trocar de bot.'); }
+      });
+      botMenu.append(button);
+    }
+    botMenu.hidden = false;
+    destinationButton.setAttribute('aria-expanded', 'true');
+    (botMenu.querySelector('[aria-selected="true"]') || botMenu.firstElementChild)?.focus();
+    updateLayout();
+  } catch { showError('Não foi possível carregar os bots.'); }
+}
+
+destinationButton.addEventListener('click', openBotMenu);
+botMenu.addEventListener('keydown', (event) => {
+  const items = [...botMenu.children];
+  const index = items.indexOf(document.activeElement);
+  let next;
+  if (event.key === 'ArrowDown') next = (index + 1) % items.length;
+  else if (event.key === 'ArrowUp') next = (index + items.length - 1) % items.length;
+  else if (event.key === 'Home') next = 0;
+  else if (event.key === 'End') next = items.length - 1;
+  else return;
+  event.preventDefault();
+  for (const item of items) item.tabIndex = -1;
+  items[next].tabIndex = 0;
+  items[next].focus();
+});
+document.addEventListener('pointerdown', (event) => {
+  if (!botMenu.contains(event.target) && !destinationButton.contains(event.target)) closeBotMenu();
+});
+document.addEventListener('focusin', (event) => {
+  if (!botMenu.hidden && !botMenu.contains(event.target) && event.target !== destinationButton) closeBotMenu();
+});
+document.getElementById('copy-response').addEventListener('click', async () => {
+  if (!conversation.latest) return;
+  try {
+    const result = await window.grokbot.copy(conversation.latest.text);
+    if (!result.ok) return;
+    clearTimeout(copyTimer);
+    document.getElementById('copy-icon').setAttribute('hidden', '');
+    document.getElementById('copy-check').removeAttribute('hidden');
+    copyTimer = setTimeout(() => {
+      document.getElementById('copy-icon').removeAttribute('hidden');
+      document.getElementById('copy-check').setAttribute('hidden', '');
+    }, 1200);
+  } catch { showError('Não foi possível copiar a resposta.'); }
+});
+document.getElementById('open-bot').addEventListener('click', async () => {
+  try {
+    const result = await window.grokbot.openBot();
+    if (!result.ok) showError(errors['open-failed']);
+  } catch { showError(errors['open-failed']); }
+});
+
+function measureResponse() {
+  if (response.hidden || conversationView) {
+    expandResponse.hidden = true;
+    responseBody.classList.remove('overflowing');
+    return;
+  }
+  // Mede sempre na altura recolhida, inclusive depois de expandir.
+  responseBody.classList.remove('expanded');
+  responseBody.classList.add('collapsed');
+  const overflowing = responseBody.scrollHeight > responseBody.clientHeight;
+  responseBody.classList.toggle('collapsed', !expanded);
+  responseBody.classList.toggle('expanded', expanded);
+  responseBody.classList.toggle('overflowing', overflowing && !expanded);
+  expandResponse.hidden = !overflowing;
+}
+window.addEventListener('resize', updateLayout);
 
 function renderInline(parent, nodes) {
   const tags = { text: 'span', break: 'br', code: 'code', strong: 'strong', em: 'em', link: 'a' };
@@ -161,6 +295,11 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden) updateTimes();
 });
 window.grokbot.onConversation((data) => {
+  if (data.bot) {
+    setBot(data.bot);
+    conversationView = false;
+    expanded = false;
+  }
   const changed = data.latest && (data.latest.id !== conversation.latest?.id || data.latest.text !== conversation.latest?.text);
   conversation = data;
   waiting = Boolean(data.waiting);
@@ -178,6 +317,7 @@ function updateLayout() {
   resizeFrame = requestAnimationFrame(() => {
     textarea.style.height = 'auto';
     textarea.style.height = `${Math.min(192, textarea.scrollHeight)}px`;
+    measureResponse();
     window.grokbot.resize(card.offsetHeight + 40).catch(() => {});
   });
 }
@@ -191,13 +331,17 @@ function showError(message) {
 async function submit() {
   if (submitting) return;
   const version = showVersion;
+  const submittedText = textarea.value;
   submitting = true;
   send.disabled = true;
   showError('');
   try {
-    const result = await window.grokbot.submit(textarea.value);
+    const result = await window.grokbot.submit(submittedText);
     if (version !== showVersion) return;
     if (result.ok) {
+      const text = submittedText.trim();
+      if (text) history = [...history.filter((item) => item !== text), text].slice(-50);
+      historyIndex = null;
       textarea.value = '';
       send.textContent = 'Enviado ✓';
       send.classList.add('sent');
@@ -224,9 +368,23 @@ async function submit() {
 
 send.addEventListener('click', submit);
 document.getElementById('settings').addEventListener('click', () => window.grokbot.openSettings());
-textarea.addEventListener('input', updateLayout);
+textarea.addEventListener('input', () => { historyIndex = null; updateLayout(); });
 document.addEventListener('keydown', (event) => {
-  if (event.ctrlKey && event.key === ',' && !event.altKey && !event.shiftKey) {
+  if (event.ctrlKey && event.key.toLowerCase() === 'k' && !event.altKey && !event.shiftKey) {
+    event.preventDefault();
+    openBotMenu();
+  } else if (event.key === 'Escape' && !botMenu.hidden) {
+    event.preventDefault();
+    closeBotMenu(true);
+  } else if (event.target === textarea && !event.isComposing && !event.ctrlKey && !event.altKey && !event.shiftKey
+      && (event.key === 'ArrowUp' || event.key === 'ArrowDown') && (textarea.value === '' || historyIndex !== null)) {
+    event.preventDefault();
+    const index = historyIndex === null ? history.length : historyIndex;
+    historyIndex = Math.max(0, Math.min(history.length, index + (event.key === 'ArrowUp' ? -1 : 1)));
+    textarea.value = history[historyIndex] || '';
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    updateLayout();
+  } else if (event.ctrlKey && event.key === ',' && !event.altKey && !event.shiftKey) {
     event.preventDefault();
     window.grokbot.openSettings();
   } else if (event.key === 'Escape') {
@@ -238,15 +396,18 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
-window.grokbot.onShow(({ botId, botName, botColor, botInitial, conversation: data, waiting: isWaiting, sent: sentMessage }) => {
+window.grokbot.onShow(({ botId, botName, botColor, botInitial, history: savedHistory, conversation: data, waiting: isWaiting, sent: sentMessage }) => {
+  closeBotMenu();
+  const navigatingHistory = historyIndex !== null;
+  history = savedHistory || [];
+  const previousIndex = history.indexOf(textarea.value);
+  historyIndex = navigatingHistory && previousIndex !== -1 ? previousIndex : null;
   showVersion += 1;
   submitting = false;
   send.disabled = false;
   send.textContent = 'Enviar ↵';
   send.classList.remove('sent');
-  destination.textContent = botName || (botId ? `bot ${botId.slice(0, 8)}` : 'bot padrão');
-  avatar.textContent = botInitial;
-  avatar.style.backgroundColor = botColor;
+  setBot({ botId, botName, botColor, botInitial });
   conversation = data || { ok: false };
   waiting = Boolean(isWaiting);
   timedOut = false;

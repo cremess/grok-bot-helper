@@ -10,7 +10,7 @@ const {
 const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'grokbot-'));
 after(() => fs.rmSync(temporaryDirectory, { recursive: true, force: true }));
 
-const validSettings = { botId: 'bot_123-ABC', botName: '', shortcut: 'Ctrl+Shift+G', launchAtLogin: true, afterSend: 'wait' };
+const validSettings = { botId: 'bot_123-ABC', botName: '', shortcut: 'Ctrl+Shift+G', launchAtLogin: true, afterSend: 'wait', notifyOnReply: false, theme: 'system' };
 
 test('carregar arquivo inexistente, vazio ou inválido retorna os padrões', () => {
   assert.deepEqual(loadSettings(path.join(temporaryDirectory, 'ausente.json')), DEFAULT_SETTINGS);
@@ -60,7 +60,7 @@ test('normalização exige objeto simples e preserva os padrões e a entrada', (
     assert.deepEqual(normalizeSettings(raw), DEFAULT_SETTINGS);
   }
   assert.deepEqual(normalizeSettings(Object.assign(Object.create(null), validSettings)), validSettings);
-  const snapshot = { botId: '', botName: '', shortcut: 'Alt+Space', launchAtLogin: false, afterSend: 'wait' };
+  const snapshot = { botId: '', botName: '', shortcut: 'Alt+Space', launchAtLogin: false, afterSend: 'wait', notifyOnReply: false, theme: 'system' };
   const input = { ...validSettings };
   const result = normalizeSettings(input);
   result.botId = 'outro';
@@ -139,5 +139,28 @@ test('rejeita tipos, teclas, separadores e modificadores fora do formato', () =>
   for (const shortcut of [null, undefined, 123, {}, 'Alt+k', 'Alt+F0', 'Alt+F25', 'Alt+F01',
     'Alt+', '+K', 'Alt++K', 'Meta+K', 'K+Alt', 'Alt+K\n', 'Alt+\tK']) {
     assert.equal(isValidShortcut(shortcut), false, String(shortcut));
+  }
+});
+
+
+test('notificação e tema preservam padrões em arquivos antigos e valores inválidos', () => {
+  const { notifyOnReply, theme, ...legacy } = validSettings;
+  assert.deepEqual(normalizeSettings(legacy), validSettings);
+  for (const value of [undefined, null, 'true', 1, {}, []]) {
+    assert.equal(normalizeSettings({ notifyOnReply: value }).notifyOnReply, false);
+  }
+  for (const value of [undefined, null, '', 'DARK', 'auto', true, {}, []]) {
+    assert.equal(normalizeSettings({ theme: value }).theme, 'system');
+  }
+});
+
+test('notificação e todos os temas válidos são persistidos', () => {
+  for (const theme of ['system', 'dark', 'light']) {
+    for (const notifyOnReply of [true, false]) {
+      const expected = { ...validSettings, theme, notifyOnReply };
+      const file = path.join(temporaryDirectory, 'opcoes.json');
+      assert.deepEqual(saveSettings(file, expected), expected);
+      assert.deepEqual(loadSettings(file), expected);
+    }
   }
 });

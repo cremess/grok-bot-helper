@@ -1,10 +1,11 @@
 const path = require('node:path');
 const fs = require('node:fs');
-const { app, BrowserWindow, globalShortcut, ipcMain, Menu, nativeTheme, screen, shell, Tray } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain, Menu, nativeTheme, screen, shell, Tray, clipboard, Notification } = require('electron');
 app.setPath('userData', path.join(app.getPath('appData'), 'grokbot-assistant'));
 const { createTrayIcon, appIconPath } = require('./icon');
 const { buildPromptLink, parseBotId, isValidBotId } = require('./lib/link');
 const { listBots } = require('./lib/roster');
+const { loadHistory, addToHistory, saveHistory } = require('./lib/history');
 const { readConversation, recentExchanges, latestReply } = require('./lib/transcript');
 const { avatarColor, avatarInitial } = require('./lib/avatar');
 const { loadSettings, saveSettings, isValidShortcut, DEFAULT_SETTINGS } = require('./lib/settings');
@@ -23,6 +24,31 @@ let hideTimer;
 let sendingPrompt = false;
 let pending;
 let responsePoll;
+const historyFile = path.join(app.getPath('userData'), 'history.json');
+let history = [];
+
+function botDetails() {
+  const roster = listBots(GROK_BOT_DIRECTORY);
+  const bot = roster.ok ? roster.bots.find((item) => item.id === settings.botId) : undefined;
+  const botName = settings.botName || bot?.name || '';
+  return { botId: settings.botId, botName,
+    botColor: settings.botId ? avatarColor(bot?.color, settings.botId) : '#1080f3',
+    botInitial: settings.botId ? avatarInitial(botName) : 'G' };
+}
+
+function updateSettingsBackground() {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#1b1b1f' : '#f6f6f8');
+  }
+}
+
+function resetDestination() {
+  clearTimeout(hideTimer);
+  sendingPrompt = false;
+  stopWaiting();
+  clearUnread();
+  promptWindow.webContents.send('prompt:conversation', { ...loadConversation(), waiting: false, bot: botDetails() });
+}
 
 function loadConversation() {
   const result = readConversation(GROK_BOT_DIRECTORY, settings.botId);
@@ -63,8 +89,17 @@ function startWaiting(request) {
       const name = settings.botName || (roster.ok && roster.bots.find((bot) => bot.id === result.agentId)?.name)
         || (settings.botId ? `bot ${settings.botId.slice(0, 8)}` : 'bot padrão');
       tray.setImage(createTrayIcon({ unread: true }));
-      // Prompt escondido (Esc ou modo 'hide'): só avisa na bandeja, sem reabrir a janela.
       tray.setToolTip(`GrokBot Assistant — Nova resposta de ${name}`);
+      if (settings.notifyOnReply && Notification.isSupported()) {
+        const notification = new Notification({ title: name,
+          body: [...reply.text.replace(/[*`#]/g, '')].slice(0, 140).join(''),
+          silent: false, icon: appIconPath() });
+        notification.on('click', () => {
+          if (!promptWindow.isVisible()) togglePrompt();
+          else { clearUnread(); promptWindow.focus(); }
+        });
+        notification.show();
+      }
     }
   }, 1000);
 }
@@ -79,7 +114,7 @@ function openSettings({ welcome = false } = {}) {
   settingsWindow = new BrowserWindow({
     icon: appIconPath(),
     width: 520,
-    height: 780,
+    height: 860,
     resizable: false,
     minimizable: false,
     maximizable: false,
@@ -95,7 +130,7 @@ function openSettings({ welcome = false } = {}) {
     },
   });
   settingsWindow.setMenu(null);
-  if (welcome) settingsWindow.setSize(520, 840);
+  if (welcome) settingsWindow.setSize(520, 900);
   settingsWindow.webContents.on('will-navigate', (event) => event.preventDefault());
   settingsWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   settingsWindow.on('closed', () => {
@@ -127,6 +162,7 @@ function togglePrompt() {
   const bot = roster.ok ? roster.bots.find((item) => item.id === settings.botId) : undefined;
   const botName = settings.botName || bot?.name || '';
   promptWindow.webContents.send('prompt:show', {
+    history,
     botId: settings.botId, botName,
     conversation: loadConversation(), waiting: Boolean(pending), sent: pending?.sent,
     botColor: settings.botId ? avatarColor(bot?.color, settings.botId) : '#1080f3',
@@ -165,6 +201,9 @@ if (!app.requestSingleInstanceLock()) {
     Object.freeze(settingsLocation);
     const firstRun = isFirstRun(fs.existsSync(settingsLocation.path));
     settings = loadSettings(settingsLocation.path);
+    history = loadHistory(historyFile);
+    nativeTheme.themeSource = settings.theme;
+    nativeTheme.on('updated', updateSettingsBackground);
     tray = new Tray(createTrayIcon());
     tray.setToolTip('GrokBot Assistant');
     tray.setContextMenu(Menu.buildFromTemplate([
@@ -183,13 +222,15 @@ if (!app.requestSingleInstanceLock()) {
       ...settings,
       defaultShortcut: DEFAULT_SETTINGS.shortcut,
     }));
-    ipcMain.handle('settings:bots', () => {
+    const botsWithAvatars = () => {
       const result = listBots(GROK_BOT_DIRECTORY);
       if (!result.ok) return result;
       return { ok: true, bots: result.bots.map((bot) => ({
         ...bot, avatar: { color: avatarColor(bot.color, bot.id), initial: avatarInitial(bot.name) },
       })) };
-    });
+    };
+    ipcMain.handle('settings:bots', botsWithAvatars);
+    ipcMain.handle('prompt:bots', botsWithAvatars);
     ipcMain.handle('settings:recording', (_event, isRecording) => {
       if (isRecording === true) {
         if (registeredShortcut) globalShortcut.unregister(registeredShortcut);
@@ -210,7 +251,10 @@ if (!app.requestSingleInstanceLock()) {
       } else if (payload?.mode !== 'default') {
         return { ok: false, error: 'invalid-bot' };
       }
-      const { shortcut, launchAtLogin, afterSend } = payload;
+      const { shortcut, launchAtLogin, afterSend, notifyOnReply, theme } = payload;
+      if (typeof notifyOnReply !== 'boolean' || !['system', 'dark', 'light'].includes(theme)) {
+        return { ok: false, error: 'invalid-option' };
+      }
       if (afterSend !== 'wait' && afterSend !== 'hide') return { ok: false, error: 'invalid-after-send' };
       if (!isValidShortcut(shortcut)) return { ok: false, error: 'invalid-shortcut' };
       const previousSettings = settings;
@@ -224,20 +268,50 @@ if (!app.requestSingleInstanceLock()) {
           ...(!app.isPackaged ? { path: process.execPath, args: [app.getAppPath()] } : {}),
         });
         settings = saveSettings(settingsLocation.path, {
-          botId, botName, shortcut, launchAtLogin: Boolean(launchAtLogin), afterSend,
+          botId, botName, shortcut, launchAtLogin: Boolean(launchAtLogin), afterSend, notifyOnReply, theme,
         });
+        nativeTheme.themeSource = settings.theme;
+        updateSettingsBackground();
         if (botId !== previousSettings.botId) {
-          clearTimeout(hideTimer);
-          sendingPrompt = false;
-          stopWaiting();
-          clearUnread();
-          promptWindow.webContents.send('prompt:conversation', { ...loadConversation(), waiting: false });
+          resetDestination();
         }
         return { ok: true, settings };
       } catch {
         if (shortcut !== previousSettings.shortcut) applyShortcut(previousSettings.shortcut);
         return { ok: false, error: 'unexpected' };
       }
+    });
+
+    ipcMain.handle('settings:clear-history', () => {
+      try {
+        saveHistory(historyFile, []);
+        history = [];
+        return { ok: true };
+      } catch { return { ok: false, error: 'unexpected' }; }
+    });
+    ipcMain.handle('prompt:select-bot', (_event, payload) => {
+      if (payload?.botId !== '' && !isValidBotId(payload?.botId)) return { ok: false, error: 'invalid-bot' };
+      try {
+        settings = saveSettings(settingsLocation.path, { ...settings, botId: payload.botId,
+          botName: typeof payload.botName === 'string' ? payload.botName.trim().slice(0, 80) : '' });
+        resetDestination();
+        return { ok: true, conversation: loadConversation(), bot: botDetails() };
+      } catch { return { ok: false, error: 'unexpected' }; }
+    });
+    ipcMain.handle('prompt:copy', (_event, text) => {
+      if (typeof text !== 'string') return { ok: false };
+      clipboard.writeText(text.slice(0, 20000));
+      return { ok: true };
+    });
+    ipcMain.handle('prompt:open-bot', async () => {
+      const result = readConversation(GROK_BOT_DIRECTORY, settings.botId);
+      const url = result.ok && isValidBotId(result.agentId)
+        ? `grokbot://app/v1/agent?id=${encodeURIComponent(result.agentId)}` : 'grokbot://app/v1/open';
+      try {
+        await shell.openExternal(url);
+        promptWindow.hide();
+        return { ok: true };
+      } catch { return { ok: false, error: 'open-failed' }; }
     });
 
     promptWindow = new BrowserWindow({
@@ -294,6 +368,8 @@ if (!app.requestSingleInstanceLock()) {
       try {
         sendingPrompt = true;
         await shell.openExternal(result.url);
+        history = addToHistory(history, text);
+        try { saveHistory(historyFile, history); } catch { /* O envio já ocorreu; mantém o histórico em memória. */ }
         clearTimeout(hideTimer);
         sendingPrompt = false;
         if (request.botId !== settings.botId) return { ok: true, afterSend: request.mode };

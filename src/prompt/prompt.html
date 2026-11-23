@@ -14,7 +14,7 @@
 <body>
   <main id="card">
     <header>
-      <span class="destination"><span id="avatar" class="avatar" aria-hidden="true">G</span><span>Para <strong id="destination">bot padrão</strong></span></span>
+      <button id="destination-button" type="button" class="destination" aria-haspopup="listbox" aria-expanded="false" aria-controls="bot-menu" title="Trocar de bot (Ctrl+K)"><span id="avatar" class="avatar" aria-hidden="true">G</span><span>Para <strong id="destination">bot padrão</strong></span></button>
       <button id="settings" type="button" aria-label="Abrir configurações" title="Configurações (Ctrl+,)">
         <svg width="16" height="16" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="m9.5 3-.6 2.5-1.5.9L5 5.7 2.5 10l1.8 1.8v1.7l-1.8 1.8L5 19.6l2.4-.7 1.5.9.6 2.2h5l.6-2.2 1.5-.9 2.4.7 2.5-4.3-1.8-1.8v-1.7l1.8-1.8L19 5.7l-2.4.7-1.5-.9L14.5 3Z"/>
@@ -22,10 +22,17 @@
         </svg>
       </button>
     </header>
+    <div id="bot-menu" role="listbox" aria-label="Bot de destino" hidden></div>
     <section id="response" aria-label="Resposta do bot" hidden>
       <div class="response-heading">
         <span id="response-avatar" class="avatar" aria-hidden="true">G</span>
         <strong id="response-name"></strong><span id="response-time"></span>
+        <button id="copy-response" class="icon-button" type="button" aria-label="Copiar resposta" title="Copiar resposta">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><g id="copy-icon"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></g><path id="copy-check" d="m5 12 4 4L19 6" hidden/></svg>
+        </button>
+        <button id="open-bot" class="icon-button" type="button" aria-label="Abrir conversa no Grok Bot" title="Abrir conversa no Grok Bot">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M14 3h7v7m0-7L10 14m0-10H4v16h16v-6"/></svg>
+        </button>
         <button id="conversation-toggle" class="text-button" type="button" aria-pressed="false">Conversa</button>
       </div>
       <div id="response-body" class="collapsed"></div>

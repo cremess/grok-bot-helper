@@ -1,39 +1,46 @@
-# Resultado — Tarefa 13
+﻿# Resultado — Tarefa 14
 
 ## Arquivos alterados
+
 - `src/main.js`
 - `src/preload.js`
+- `src/settings-preload.js`
 - `src/prompt/prompt.html`
 - `src/prompt/prompt.css`
 - `src/prompt/prompt.js`
 - `src/settings/settings.html`
 - `src/settings/settings.css`
 - `src/settings/settings.js`
-- `src/icon.js`
-- `scripts/build-icons.js`
+- `src/lib/settings.js`
+- `test/settings.test.js`
 - `.handoff/RESULTADO.md`
 
 ## Arquivos criados
-- `assets/tray-unread.svg`
-- `src/lib/relative-time.js`
-- `test/relative-time.test.js`
+
+- `src/lib/history.js`
+- `test/history.test.js`
 
 ## Resumo das mudanças
-- O prompt recebe a última resposta e as seis mensagens recentes. O painel renderiza a árvore Markdown usando elementos e texto, permite expandir/recolher e alternar a visão de conversa, mostra bolha enviada, espera animada e aviso de expiração. Tempos relativos são atualizados a cada 30 segundos enquanto a janela está visível.
-- Implementados os modos `wait` e `hide`, com um único intervalo de consulta a cada segundo. A espera termina por resposta, após dez minutos, na troca de bot ou na saída do aplicativo; um novo envio substitui a espera anterior. Esc e ocultação não cancelam a espera.
-- No modo `wait`, o prompt permanece aberto sem ficar sempre no topo durante a espera e ignora blur; a resposta restaura o comportamento normal. Se estiver oculto, recebe aviso de não lido e reaparece via `showInactive()`. No modo `hide`, mantém a ocultação após 280 ms e avisa na bandeja ao receber resposta com o prompt oculto. A abertura pelo atalho/menu/bandeja limpa o aviso.
-- Criado SVG com ponto de destaque; o gerador foi preparado para produzir PNGs de 16 e 32 px. `createTrayIcon` aceita `unread` e mantém o fallback existente. Os PNGs não foram gerados, conforme solicitado.
-- Adicionado controle segmentado com rádios acessíveis, ajuda da opção selecionada e persistência/validação de `afterSend`. Alturas das configurações ajustadas para 780 px e 840 px nas boas-vindas; rolagem fica restrita à lista de bots. Limite do prompt aumentado para 600 px, com rolagem interna na resposta.
-- Expostos `onConversation` e `openLink` no preload do prompt. Links externos são validados no processo principal e restritos a HTTP/HTTPS. CSP e isolamento preservados; sem `innerHTML`.
-- `src/settings-preload.js` não precisou de alteração: os métodos genéricos `get` e `save` existentes já transportam `afterSend`.
 
-## Testes executados e resultado
-- `npm test`: 76 testes aprovados, zero falhas. Os quatro novos testes cobrem faixas de tempo, limites de segundos/minutos/horas, datas locais, viradas de dia/mês/ano e exportação de navegador sem CommonJS.
-- `node --check`: aprovado em todos os JavaScript alterados/criados; também verificado `src/settings-preload.js`.
-- Simulação isolada em `node:vm`, com Electron, relógio, arquivos e temporizadores simulados: aprovados envio nos dois modos, substituição da espera sem duplicar intervalos, blur durante espera, ocultação sem cancelamento, resposta e aviso de não lido, reapresentação sem foco via `showInactive`, limpeza do aviso ao abrir, expiração, troca de bot, encerramento, validação de `afterSend`, bloqueio de protocolos indevidos e limite de altura. Nenhum processo Electron foi iniciado e a persistência real do Grok Bot não foi acessada.
-- `git diff --check`: sem erros de whitespace. Revisão confirmou CSP inalterada e ausência de `innerHTML` nos arquivos envolvidos.
+- A pílula de destino virou botão com menu de bots, avatares, seleção atual e opção de bot padrão no fim. Abre por clique ou Ctrl+K; aceita setas, Home, End, Enter e Esc, fecha ao clicar fora e ajusta a altura do prompt. A seleção persiste o destino, encerra a espera anterior e carrega a conversa correspondente.
+- Acrescentados os botões SVG para copiar a última resposta em markdown e abrir a conversa no Grok Bot. Clipboard limitado a 20.000 caracteres no main; abertura usa ID validado ou o link genérico. A cópia exibe uma marca de confirmação por 1,2 segundo.
+- O degradê e o botão de expansão dependem da medição real do conteúdo recolhido, recalculada após renderização e redimensionamento.
+- Histórico de até 50 envios com trim, deduplicação, arquivo em userData e gravação atômica. Setas percorrem os envios quando o campo está vazio ou já está navegando; edição encerra a navegação. Configurações permitem limpar com confirmação inline.
+- Incluída notificação opcional, desligada por padrão, quando a resposta chega com o prompt fechado. O texto remove marcação simples e fica limitado a 140 caracteres; clicar abre o prompt e limpa o indicador de não lido.
+- Incluídos os temas Sistema, Escuro e Claro, persistidos e aplicados pelo nativeTheme. O fundo da janela de configurações acompanha o tema efetivo.
+- Cartão Geral reorganizado na ordem solicitada, com controles à direita. Configurações usam altura de 860 px, ou 900 px nas boas-vindas, com rolagem apenas na área central e sem rolagem interna concorrente da lista de bots.
+- Novas opções validadas no IPC de configurações com erro `invalid-option`; arquivos antigos continuam recebendo os padrões.
 
-## Dúvidas ou bloqueios
-- Nenhum bloqueio de implementação.
-- Validação visual e integração real com Grok Bot permanecem para o Claude Code: não executei o app, o gerador de ícones nem o dist, conforme a tarefa. É necessário gerar os PNGs para conferir o ponto de não lido na bandeja.
-- Sem instalação de dependências, exclusão de arquivos, commit ou push. Arquivos proibidos e a alteração preexistente em `.handoff/TAREFA.md` foram preservados.
+## Testes e verificações
+
+- `npm test`: **82 testes aprovados, 0 falhas**, incluindo os novos testes de histórico e as verificações de padrão, normalização e persistência de tema/notificação.
+- `node --check`: aprovado nos nove arquivos JavaScript alterados ou criados (`main.js`, os dois preloads, os dois renderers, `settings.js` e `history.js` da biblioteca, e os dois arquivos de teste).
+- `git diff --check`: aprovado.
+- Revisão estática: CSP preservada; nenhum uso de `innerHTML` introduzido; clipboard e montagem dos novos deep links restritos ao main, com validação de ID.
+
+## Dúvidas, bloqueios e limites da validação
+
+- Sem dúvidas ou bloqueios de implementação.
+- O app não foi executado, conforme a tarefa. Permanecem para validação manual pelo orquestrador: layout nos tamanhos e temas efetivos, navegação por teclado, interação com o Grok Bot, notificações reais do Windows e comportamento do clipboard.
+- Se a gravação do histórico falhar após a abertura bem-sucedida do Grok Bot, o envio continua sendo considerado realizado e o histórico permanece em memória durante a sessão.
+- Nenhuma dependência instalada, instalador gerado, commit ou push realizado. As alterações preexistentes em `.handoff/TAREFA.md` e `.handoff/HISTORICO.md` foram preservadas.
