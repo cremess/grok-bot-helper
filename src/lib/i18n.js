@@ -1,7 +1,7 @@
 (() => {
   const STRINGS = { en: {
     'app.tagline': "Your Grok Bot, one shortcut away.",
-    'prompt.empty': "No replies yet ? say hi to {bot}.",
+    'prompt.empty': "No replies yet. Say hi to {bot}.",
     'prompt.notFound': "Couldn't find Grok Bot on this PC.",
     'app.name': "Grok Bot Helper",
     'settings.windowTitle': "Grok Bot Helper — Settings",

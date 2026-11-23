@@ -401,7 +401,8 @@ async function submit(force = false, retryText) {
       const text = submittedText.trim();
       if (text) history = [...history.filter((item) => item !== text), text].slice(-50);
       historyIndex = null;
-      textarea.value = '';
+      // A retry resends an earlier message; keep whatever the user is typing now.
+      if (retryText === undefined) textarea.value = '';
       send.setAttribute('aria-label', t('prompt.sent'));
       send.title = t('prompt.sent');
       send.classList.add('sent');
