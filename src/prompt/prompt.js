@@ -1,6 +1,40 @@
 const textarea = document.getElementById('message');
 let destinationDetails = {};
 const card = document.getElementById('card');
+const content = document.getElementById('content');
+const pin = document.getElementById('pin');
+let pinned = false;
+let userSized = false;
+
+function setUserSized(value) {
+  userSized = Boolean(value);
+  card.classList.toggle('user-sized', userSized);
+}
+
+window.grokbot.onUserSized((value) => {
+  setUserSized(value);
+  renderConversation();
+});
+
+function showPinned(value) {
+  pinned = value;
+  pin.setAttribute('aria-pressed', String(pinned));
+  pin.setAttribute('aria-label', pinned ? 'Desafixar' : 'Fixar');
+  pin.title = pinned ? 'Desafixar' : 'Fixar (não fecha ao clicar fora)';
+}
+
+pin.addEventListener('click', async () => {
+  const value = !pinned;
+  try {
+    await window.grokbot.setPinned(value);
+    showPinned(value);
+  } catch { showError('Não foi possível alterar a fixação.'); }
+});
+document.getElementById('close').addEventListener('click', () => window.grokbot.hide());
+document.querySelector('header').addEventListener('dblclick', (event) => {
+  if (!event.target.closest('button, input, #destination-picker')) window.grokbot.resetBounds();
+});
+window.grokbot.onBoundsReset(() => { picker.close(); updateLayout(); });
 const counter = document.getElementById('counter');
 const errorArea = document.getElementById('error');
 const send = document.getElementById('send');
@@ -115,6 +149,11 @@ document.getElementById('open-bot').addEventListener('click', async () => {
 });
 
 function measureResponse() {
+  if (userSized) {
+    expandResponse.hidden = true;
+    responseBody.classList.remove('collapsed', 'expanded', 'overflowing');
+    return;
+  }
   if (response.hidden || conversationView) {
     expandResponse.hidden = true;
     responseBody.classList.remove('overflowing');
@@ -205,9 +244,9 @@ function renderConversation(animate = false) {
   responseAvatar.style.backgroundColor = destinationDetails.botColor || '#1080f3';
   conversationToggle.textContent = conversationView ? 'Última resposta' : 'Conversa';
   conversationToggle.setAttribute('aria-pressed', String(conversationView));
-  responseBody.classList.toggle('collapsed', !expanded && !conversationView);
-  responseBody.classList.toggle('expanded', expanded || conversationView);
-  expandResponse.hidden = conversationView;
+  responseBody.classList.toggle('collapsed', !userSized && !expanded && !conversationView);
+  responseBody.classList.toggle('expanded', !userSized && (expanded || conversationView));
+  expandResponse.hidden = userSized || conversationView;
   expandResponse.textContent = expanded ? 'Ver menos' : 'Ver mais';
   expandResponse.setAttribute('aria-expanded', String(expanded));
   if (!response.hidden) {
@@ -314,9 +353,19 @@ function updateLayout() {
     textarea.style.height = 'auto';
     textarea.style.height = `${Math.min(192, textarea.scrollHeight)}px`;
     measureResponse();
+    if (userSized) return;
     const popover = pickerContainer.querySelector('.bot-picker-popover');
-    const bottom = popover.hidden ? 0 : popover.getBoundingClientRect().bottom + 20;
-    window.grokbot.resize(Math.ceil(Math.max(card.offsetHeight + 40, bottom))).catch(() => {});
+    const bottom = popover.hidden ? 0 : popover.getBoundingClientRect().bottom + 14;
+    // Mede a altura natural, sem usar a altura já esticada da janela flexível.
+    const fixedHeight = [...card.children].filter((element) => element !== content && !element.hidden)
+      .reduce((total, element) => {
+        const style = getComputedStyle(element);
+        const height = element === textarea ? Math.min(192, textarea.scrollHeight) : element.offsetHeight;
+        return total + height + parseFloat(style.marginTop) + parseFloat(style.marginBottom);
+      }, 28);
+    const contentHeight = [...content.children].filter((element) => !element.hidden)
+      .reduce((total, element) => total + element.offsetHeight + parseFloat(getComputedStyle(element).marginBottom), 0);
+    window.grokbot.resize(Math.ceil(Math.max(fixedHeight + contentHeight, bottom))).catch(() => {});
   });
 }
 
@@ -396,7 +445,9 @@ document.addEventListener('keydown', (event) => {
 });
 
 window.grokbot.onShow(({ botId, botName, botColor, botInitial, history: savedHistory, conversation: data, waiting: isWaiting, sent: sentMessage,
-  usage: usageData, notDelivered: failedDelivery, awaitingDelivery: awaitingReceipt }) => {
+  usage: usageData, notDelivered: failedDelivery, awaitingDelivery: awaitingReceipt, pinned: isPinned, userSized: isUserSized }) => {
+  showPinned(Boolean(isPinned));
+  setUserSized(isUserSized);
   picker.close();
   loadPickerBots();
   const navigatingHistory = historyIndex !== null;
@@ -421,9 +472,9 @@ window.grokbot.onShow(({ botId, botName, botColor, botInitial, history: savedHis
   renderConversation();
   startRelativeTimer();
   showError('');
-  card.classList.remove('opening');
-  void card.offsetWidth;
-  card.classList.add('opening');
+  document.body.classList.remove('opening');
+  void document.body.offsetWidth;
+  document.body.classList.add('opening');
   textarea.focus();
   textarea.select();
 });

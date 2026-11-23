@@ -11,4 +11,13 @@ function promptPosition(workArea, size) {
   };
 }
 
-module.exports = { promptPosition };
+function isBoundsVisible(bounds, workAreas, minVisible = { width: 80, height: 40 }) {
+  if (!bounds) return false;
+  return workAreas.some((area) => {
+    const width = Math.min(bounds.x + bounds.width, area.x + area.width) - Math.max(bounds.x, area.x);
+    const height = Math.min(bounds.y + bounds.height, area.y + area.height) - Math.max(bounds.y, area.y);
+    return width >= minVisible.width && height >= minVisible.height;
+  });
+}
+
+module.exports = { promptPosition, isBoundsVisible };

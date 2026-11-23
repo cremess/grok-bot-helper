@@ -16,7 +16,12 @@
 <body>
   <main id="card">
     <header>
+      <span class="drag-handle" aria-hidden="true"></span>
       <div id="destination-picker"></div>
+      <button id="pin" class="icon-button" type="button" aria-label="Fixar" aria-pressed="false" title="Fixar (não fecha ao clicar fora)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5-3 1-4 4v4l-3-3-7 7 7-7-4-4h4l4-4Z"/></svg>
+      </button>
+      <button id="close" class="icon-button" type="button" aria-label="Fechar" title="Fechar (Esc)">×</button>
       <button id="settings" type="button" aria-label="Abrir configurações" title="Configurações (Ctrl+,)">
         <svg width="16" height="16" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="m9.5 3-.6 2.5-1.5.9L5 5.7 2.5 10l1.8 1.8v1.7l-1.8 1.8L5 19.6l2.4-.7 1.5.9.6 2.2h5l.6-2.2 1.5-.9 2.4.7 2.5-4.3-1.8-1.8v-1.7l1.8-1.8L19 5.7l-2.4.7-1.5-.9L14.5 3Z"/>
@@ -24,6 +29,7 @@
         </svg>
       </button>
     </header>
+    <div id="content">
     <div id="usage-warning" role="status" hidden></div>
     <section id="response" aria-label="Resposta do bot" hidden>
       <div class="response-heading">
@@ -41,6 +47,7 @@
       <button id="expand-response" class="text-button" type="button" aria-expanded="false">Ver mais</button>
     </section>
     <section id="waiting-area" aria-live="polite" hidden></section>
+    </div>
     <textarea id="message" rows="1" aria-label="Mensagem para o Grok Bot" placeholder="Pergunte ou peça algo…"></textarea>
     <div id="error" role="alert" hidden></div>
     <footer>

@@ -10,7 +10,7 @@ const { readConversation, recentExchanges, latestReply, userMessageSince } = req
 const { readUsage, isBlocked, formatReset } = require('./lib/usage');
 const { avatarColor, avatarInitial } = require('./lib/avatar');
 const { loadSettings, saveSettings, isValidShortcut, DEFAULT_SETTINGS } = require('./lib/settings');
-const { promptPosition } = require('./lib/position');
+const { promptPosition, isBoundsVisible } = require('./lib/position');
 const { pickShortcut, isFirstRun } = require('./lib/first-run');
 
 // Mantém o ícone vivo durante a execução do app.
@@ -28,6 +28,49 @@ let responsePoll;
 let deliveryFailure;
 const historyFile = path.join(app.getPath('userData'), 'history.json');
 let history = [];
+let pinned = false;
+let settingPromptBounds = false;
+let userChangingBounds = false;
+let boundsSaveTimer;
+let autoHeight = 160;
+
+function setPromptBounds(bounds) {
+  settingPromptBounds = true;
+  try { promptWindow.setBounds(bounds); }
+  finally { settingPromptBounds = false; }
+}
+
+function positionPrompt() {
+  const saved = settings.promptBounds;
+  if (isBoundsVisible(saved, screen.getAllDisplays().map((display) => display.workArea))) {
+    setPromptBounds(saved);
+    return;
+  }
+  const { workArea } = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+  const size = { width: saved?.width || 680, height: saved?.height || autoHeight };
+  setPromptBounds({ ...size, ...promptPosition(workArea, size) });
+}
+
+function resetPromptBounds() {
+  clearTimeout(boundsSaveTimer);
+  userChangingBounds = false;
+  settings = saveSettings(settingsLocation.path, { ...settings, promptBounds: null });
+  positionPrompt();
+  promptWindow.webContents.send('prompt:user-sized', false);
+  promptWindow.webContents.send('prompt:bounds-reset');
+}
+
+function rememberPromptBounds() {
+  if (settingPromptBounds || !userChangingBounds) return;
+  userChangingBounds = false;
+  settings.promptBounds = promptWindow.getBounds();
+  clearTimeout(boundsSaveTimer);
+  boundsSaveTimer = setTimeout(() => {
+    try { settings = saveSettings(settingsLocation.path, settings); }
+    catch { /* Mantém os limites em memória se não for possível salvar. */ }
+    promptWindow.webContents.send('prompt:user-sized', Boolean(settings.promptBounds));
+  }, 400);
+}
 
 function botDetails() {
   const roster = listBots(GROK_BOT_DIRECTORY);
@@ -39,6 +82,9 @@ function botDetails() {
 }
 
 function updateSettingsBackground() {
+  if (promptWindow && !promptWindow.isDestroyed()) {
+    promptWindow.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#1c1c20' : '#fafafc');
+  }
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     settingsWindow.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#1b1b1f' : '#f6f6f8');
   }
@@ -82,7 +128,7 @@ function startWaiting(request) {
   stopWaiting();
   deliveryFailure = undefined;
   pending = request;
-  if (pending.mode === 'wait') promptWindow.setAlwaysOnTop(false);
+  if (pending.mode === 'wait' && !pinned) promptWindow.setAlwaysOnTop(false);
   promptWindow.webContents.send('prompt:conversation', {
     ...loadConversation(), waiting: true, sent: pending.sent,
   });
@@ -182,10 +228,7 @@ function togglePrompt() {
     return;
   }
 
-  const { workArea } = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-  const [width, height] = promptWindow.getSize();
-  const { x, y } = promptPosition(workArea, { width, height });
-  promptWindow.setPosition(x, y);
+  positionPrompt();
   clearUnread();
   promptWindow.show();
   promptWindow.focus();
@@ -194,6 +237,8 @@ function togglePrompt() {
   const botName = settings.botName || bot?.name || '';
   promptWindow.webContents.send('prompt:show', {
     history,
+    pinned,
+    userSized: Boolean(settings.promptBounds),
     botId: settings.botId, botName,
     conversation: loadConversation(), waiting: Boolean(pending), sent: pending?.sent,
     ...deliveryFailure,
@@ -245,6 +290,7 @@ if (!app.requestSingleInstanceLock()) {
         if (promptWindow && !promptWindow.isVisible()) togglePrompt();
       } },
       { label: 'Configurações…', click: () => openSettings() },
+      { label: 'Restaurar posição do prompt', click: resetPromptBounds },
       { type: 'separator' },
       { label: 'Sair', click: () => app.quit() },
     ]));
@@ -302,6 +348,7 @@ if (!app.requestSingleInstanceLock()) {
           ...(!app.isPackaged ? { path: process.execPath, args: [app.getAppPath()] } : {}),
         });
         settings = saveSettings(settingsLocation.path, {
+          ...settings,
           botId, botName, shortcut, launchAtLogin: Boolean(launchAtLogin), afterSend, notifyOnReply, theme,
         });
         nativeTheme.themeSource = settings.theme;
@@ -351,19 +398,23 @@ if (!app.requestSingleInstanceLock()) {
     promptWindow = new BrowserWindow({
       icon: appIconPath(),
       width: 680,
-      height: 128,
+      height: 160,
       frame: false,
-      transparent: true,
-      hasShadow: false,
-      resizable: false,
-      movable: false,
+      thickFrame: true,
+      resizable: true,
+      movable: true,
+      roundedCorners: true,
+      minWidth: 460,
+      minHeight: 160,
+      maxWidth: 1400,
+      maxHeight: 1200,
       minimizable: false,
       maximizable: false,
       fullscreenable: false,
       skipTaskbar: true,
       alwaysOnTop: true,
       show: false,
-      backgroundColor: '#00000000',
+      backgroundColor: nativeTheme.shouldUseDarkColors ? '#1c1c20' : '#fafafc',
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
         contextIsolation: true,
@@ -374,12 +425,34 @@ if (!app.requestSingleInstanceLock()) {
     promptWindow.webContents.on('will-navigate', (event) => event.preventDefault());
     promptWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     promptWindow.on('blur', () => {
-      if (!sendingPrompt && pending?.mode !== 'wait') promptWindow.hide();
+      if (!pinned && !sendingPrompt && pending?.mode !== 'wait') promptWindow.hide();
     });
+    // will-move/will-resize são emitidos somente para alterações manuais no Windows.
+    for (const event of ['will-move', 'will-resize']) {
+      promptWindow.on(event, () => {
+        if (!settingPromptBounds) userChangingBounds = true;
+      });
+    }
+    promptWindow.on('moved', rememberPromptBounds);
+    promptWindow.on('resized', rememberPromptBounds);
+    // A região de arrasto recebe duplo clique nativo, sem evento DOM.
+    if (process.platform === 'win32') {
+      promptWindow.hookWindowMessage(0x00A3, (hitTest) => {
+        if (hitTest.readUInt32LE(0) === 2) resetPromptBounds();
+      });
+    }
+    ipcMain.handle('prompt:set-pinned', (_event, value) => {
+      if (typeof value !== 'boolean') return;
+      pinned = value;
+      promptWindow.setAlwaysOnTop(pinned || pending?.mode !== 'wait');
+    });
+    ipcMain.handle('prompt:reset-bounds', resetPromptBounds);
     ipcMain.handle('prompt:resize', (_event, height) => {
       if (typeof height !== 'number' || !Number.isFinite(height)) return;
+      autoHeight = Math.max(128, Math.min(600, Math.ceil(height)));
+      if (settings.promptBounds?.height || userChangingBounds) return;
       const bounds = promptWindow.getBounds();
-      promptWindow.setBounds({ ...bounds, height: Math.max(128, Math.min(600, Math.ceil(height))) });
+      if (bounds.height !== Math.max(160, autoHeight)) setPromptBounds({ ...bounds, height: autoHeight });
     });
 
     ipcMain.handle('prompt:open-link', (_event, url) => {
@@ -474,6 +547,10 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.on('will-quit', () => {
+    if (boundsSaveTimer) {
+      clearTimeout(boundsSaveTimer);
+      try { saveSettings(settingsLocation.path, settings); } catch { /* O app está encerrando. */ }
+    }
     clearTimeout(hideTimer);
     stopWaiting();
     globalShortcut.unregisterAll();

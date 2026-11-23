@@ -1,28 +1,27 @@
-﻿# Resultado — Tarefa 17
+﻿# Resultado — Tarefa 18 (ajuste)
 
-## Arquivos alterados
-- Criados: `src/lib/usage.js`, `test/usage.test.js`.
-- Alterados: `src/lib/transcript.js`, `test/transcript.test.js`, `src/main.js`, `src/preload.js`, `src/prompt/prompt.html`, `src/prompt/prompt.css`, `src/prompt/prompt.js`.
-- Substituído: `.handoff/RESULTADO.md`.
+## Arquivos alterados neste ajuste
+- `src/main.js`
+- `src/preload.js`
+- `src/prompt/prompt.js`
+- `src/prompt/prompt.css`
+- `.handoff/RESULTADO.md`
 
 ## Resumo das mudanças
-- Leitura tolerante do cache de uso, normalização dos campos, verificação de bloqueio e formatação da renovação em português e no fuso local.
-- Nova função `userMessageSince`, com corte inclusivo, e teste correspondente. As demais funções de transcript foram preservadas.
-- Envio aceita string ou `{ text, force }`. Quando há limite esgotado, retorna o motivo antes de abrir o link; `force: true` permite tentar mesmo assim.
-- Prompt recebe aviso de limite, indicador de uso a partir de 80%, ação “Enviar mesmo assim”, botão “Parar” e opção “Tentar de novo” com o mesmo texto.
-- Aos 15 segundos sem confirmação de entrega, o status orienta a conferir a confirmação no Grok Bot. Aos 45 segundos sem mensagem na conversa, encerra a espera, relê o uso e mostra falha e motivo provável. Mensagens entregues continuam sujeitas ao prazo existente de dez minutos para resposta.
-- Falha com o prompt oculto no modo hide sinaliza a bandeja; o estado da falha e a mensagem são preservados para reabertura do prompt.
-- Mantido um único intervalo de espera, limpo ao parar, substituir a espera, trocar destino, concluir, detectar falha ou atingir o prazo.
-- Interface construída com `textContent`/`createElement`; CSP preservada.
+- Incluído `userSized: Boolean(settings.promptBounds)` no evento `prompt:show`.
+- Enviado `prompt:user-sized` após a tentativa de salvar os bounds manuais e ao restaurar os bounds, mantendo o estado em memória quando a gravação falhar, conforme o comportamento existente.
+- Exposto somente `onUserSized(callback)` no preload, conforme a autorização ao final da tarefa.
+- No tamanho manual, a última resposta e a visão Conversa passam a preencher a altura disponível com flex e rolagem interna, sem limite de cinco linhas, degradê ou botões Ver mais/Ver menos. Campo de texto e rodapé permanecem embaixo.
+- Suspenso o pedido de auto-altura no tamanho manual. No tamanho automático, preservada a lógica existente de recolhimento, expansão e auto-altura.
+- Preservadas as alterações preexistentes no projeto. Nenhum arquivo fora do escopo foi alterado nesta rodada.
 
 ## Testes executados e resultado
-- `npm test`: aprovado, 88 testes, nenhuma falha.
-- `npm run check`: aprovado, sintaxe válida em 36 arquivos.
-- `git diff --check`: aprovado, sem erros de whitespace.
-- Simulação isolada do poll via Node/VM, sem iniciar Electron: aprovados status aos 15 s, falha aos 45 s, aviso na bandeja, preservação da mensagem, continuidade após entrega, prazo de dez minutos, substituição e limpeza do intervalo. A primeira execução teve uma falha na expressão de verificação por codificação de acento no pipe do PowerShell; a expressão foi corrigida para escape Unicode e a simulação passou.
-- Simulação isolada do IPC de envio via Node/VM: aprovados compatibilidade com string, bloqueio sem abrir link e envio forçado.
+- `npm test`: aprovado; 91 testes passaram, sem falhas.
+- `npm run check`: aprovado; sintaxe válida em 36 arquivos.
+- `git diff --check`: aprovado; sem problemas de whitespace.
+- O app não foi executado, conforme solicitado. A aparência e a interação da janela precisam de validação manual pelo revisor.
 
 ## Dúvidas ou bloqueios
-- Nenhum bloqueio de implementação.
-- Validação visual e integração real com o Grok Bot não executadas: a tarefa proíbe rodar o app. Permanecem para revisão manual do orquestrador.
-- Nenhuma dependência instalada. Sem commit ou push. A alteração preexistente em `.handoff/TAREFA.md` foi preservada; `AGENTS.md` e `.handoff/HISTORICO.md` não foram alterados.
+Nenhum. A resposta no fim de TAREFA.md esclareceu o ajuste permitido no preload.
+
+Não foram instaladas dependências, apagados arquivos, feitos commits ou realizados push/deploy.

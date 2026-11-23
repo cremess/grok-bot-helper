@@ -1,15 +1,21 @@
-body { margin: 0; padding: 20px; background: transparent; overflow: hidden; }
-main { padding: 14px 18px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card); box-shadow: 0 24px 64px rgba(0,0,0,.45); }
-main.opening { animation: appear var(--transition) both; }
-@keyframes appear { from { opacity: 0; transform: translateY(-8px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+html, body { height: 100%; }
+body { margin: 0; overflow: hidden; background: #1c1c20; }
+@media (prefers-color-scheme: light) { body { background: #fafafc; } }
+main { height: 100%; padding: 14px 18px; }
+body.opening { animation: appear 120ms both; }
+@keyframes appear { from { opacity: 0; } to { opacity: 1; } }
+header { position: relative; -webkit-app-region: drag; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
 #settings { display: inline-grid; place-items: center; flex-shrink: 0; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--secondary); }
 #settings:hover { background: var(--hover); color: var(--text); }
 #settings svg { transition: transform var(--transition); }
 @media (prefers-reduced-motion: no-preference) {
   #settings:hover svg { transform: rotate(30deg); }
 }
-#destination-picker { min-width: 0; max-width: calc(100% - 36px); }
+header button, header input, #destination-picker { -webkit-app-region: no-drag; }
+.drag-handle { position: absolute; width: 32px; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--border) 75%, var(--secondary)); top: -9px; left: calc(50% - 16px); pointer-events: none; }
+#destination-picker { min-width: 0; margin-right: auto; max-width: calc(100% - 108px); }
+#pin[aria-pressed="true"] { color: var(--accent); background: var(--hover); }
+#close { font-size: 22px; }
 textarea { display: block; width: 100%; min-height: 24px; max-height: 192px; padding: 0 2px; resize: none; border: 0; border-radius: 3px; background: transparent; font-size: 15px; line-height: 24px; overflow-y: auto; }
 #message:focus, #message:focus-visible { outline: none; border: 0; }
 textarea::placeholder { color: var(--secondary); }
@@ -22,9 +28,11 @@ footer { display: flex; align-items: center; gap: 10px; margin-top: 10px; color:
 #error { margin-top: 8px; }
 #error, #counter.over-limit { color: var(--error); }
 
-#card { max-height: 560px; display: flex; flex-direction: column; }
-#card > header, #card > footer, #card > textarea, #card > #error { flex-shrink: 0; }
-#response { min-height: 50px; flex: 0 1 auto; overflow: hidden; margin-bottom: 10px; }
+#card { display: flex; flex-direction: column; }
+#content { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+#card > header, #card > footer, #card > #error { flex-shrink: 0; }
+#card > textarea { flex: 0 1 auto; }
+#response { margin-bottom: 10px; }
 #response:not([hidden]) { display: flex; flex-direction: column; }
 .response-heading, #expand-response { flex-shrink: 0; }
 #response-body { min-height: 0; }
@@ -39,6 +47,11 @@ footer { display: flex; align-items: center; gap: 10px; margin-top: 10px; color:
 #response-body.collapsed { max-height: 105px; overflow: hidden; }
 #response-body.collapsed.overflowing { mask-image: linear-gradient(to bottom, black 65%, transparent); }
 #response-body.expanded { max-height: 320px; overflow-y: auto; }
+#card.user-sized #content { display: flex; flex-direction: column; }
+#card.user-sized #response:not([hidden]) { flex: 1; min-height: 0; }
+#card.user-sized #response-body { flex: 1; min-height: 0; max-height: none; overflow-y: auto; mask-image: none; }
+#card.user-sized #expand-response { display: none; }
+#card.user-sized #waiting-area, #card.user-sized > textarea { flex-shrink: 0; }
 #response-body p, .bubble p { margin: 0 0 8px; }
 #response-body h1, #response-body h2, #response-body h3, .bubble h1, .bubble h2, .bubble h3 { margin: 10px 0 6px; font-size: 15px; }
 #response-body ul, #response-body ol, .bubble ul, .bubble ol { padding-left: 22px; margin: 6px 0; }
@@ -51,7 +64,7 @@ footer { display: flex; align-items: center; gap: 10px; margin-top: 10px; color:
 .bubble.user { margin-left: auto; background: color-mix(in srgb, var(--accent) 22%, var(--surface)); }
 .bubble.bot { background: var(--surface); }
 .bubble small { display: block; font-size: 11px; color: var(--secondary); }
-#waiting-area { overflow-y: auto; max-height: 130px; min-height: 0; flex-shrink: 1; margin-bottom: 10px; }
+#waiting-area { margin-bottom: 10px; }
 .waiting-status { color: var(--secondary); font-size: 13px; margin: 6px 0; }
 .waiting-dots span { display: inline-block; animation: dots 1.2s infinite; }
 .waiting-dots span:nth-child(2) { animation-delay: .15s; }
@@ -73,3 +86,4 @@ footer { display: flex; align-items: center; gap: 10px; margin-top: 10px; color:
 #usage-indicator { color: var(--secondary); font-size: 12px; white-space: nowrap; }
 .waiting-status .text-button, #error .text-button { margin-left: 8px; }
 .delivery-failure { color: var(--error); }
+@media (max-width: 600px) { .hints { font-size: 11px; white-space: normal; } }

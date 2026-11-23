@@ -8,9 +8,30 @@ const {
 } = require('../src/lib/settings');
 
 const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'grokbot-'));
+
+test('promptBounds valida limites inteiros, copia e persiste a posição e o tamanho', () => {
+  assert.equal(normalizeSettings({}).promptBounds, null);
+  for (const bounds of [
+    { x: -1920, y: -50, width: 460, height: 160 },
+    { x: 100, y: 200, width: 1400, height: 1200 },
+  ]) {
+    const file = path.join(temporaryDirectory, 'bounds.json');
+    const saved = saveSettings(file, { promptBounds: bounds });
+    assert.deepEqual(saved.promptBounds, bounds);
+    assert.notStrictEqual(saved.promptBounds, bounds);
+    assert.deepEqual(loadSettings(file).promptBounds, bounds);
+  }
+  const valid = { x: 0, y: 0, width: 680, height: 300 };
+  for (const bounds of [null, [], {}, 'bounds',
+    ...['x', 'y', 'width', 'height'].flatMap((key) =>
+      [NaN, Infinity, -Infinity, 1.5, '680', undefined].map((value) => ({ ...valid, [key]: value }))),
+    { ...valid, width: 459 }, { ...valid, width: 1401 },
+    { ...valid, height: 159 }, { ...valid, height: 1201 },
+  ]) assert.equal(normalizeSettings({ promptBounds: bounds }).promptBounds, null);
+});
 after(() => fs.rmSync(temporaryDirectory, { recursive: true, force: true }));
 
-const validSettings = { botId: 'bot_123-ABC', botName: '', shortcut: 'Ctrl+Shift+G', launchAtLogin: true, afterSend: 'wait', notifyOnReply: false, theme: 'system' };
+const validSettings = { botId: 'bot_123-ABC', botName: '', shortcut: 'Ctrl+Shift+G', launchAtLogin: true, afterSend: 'wait', notifyOnReply: false, theme: 'system', promptBounds: null };
 
 test('carregar arquivo inexistente, vazio ou inválido retorna os padrões', () => {
   assert.deepEqual(loadSettings(path.join(temporaryDirectory, 'ausente.json')), DEFAULT_SETTINGS);
@@ -60,7 +81,7 @@ test('normalização exige objeto simples e preserva os padrões e a entrada', (
     assert.deepEqual(normalizeSettings(raw), DEFAULT_SETTINGS);
   }
   assert.deepEqual(normalizeSettings(Object.assign(Object.create(null), validSettings)), validSettings);
-  const snapshot = { botId: '', botName: '', shortcut: 'Alt+Space', launchAtLogin: false, afterSend: 'wait', notifyOnReply: false, theme: 'system' };
+  const snapshot = { botId: '', botName: '', shortcut: 'Alt+Space', launchAtLogin: false, afterSend: 'wait', notifyOnReply: false, theme: 'system', promptBounds: null };
   const input = { ...validSettings };
   const result = normalizeSettings(input);
   result.botId = 'outro';

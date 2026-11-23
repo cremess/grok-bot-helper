@@ -10,6 +10,7 @@ const DEFAULT_SETTINGS = Object.freeze({
   afterSend: 'wait',
   notifyOnReply: false,
   theme: 'system',
+  promptBounds: null,
 });
 
 const MODIFIERS = new Set([
@@ -52,6 +53,14 @@ function normalizeSettings(raw) {
   if (raw.afterSend === 'wait' || raw.afterSend === 'hide') settings.afterSend = raw.afterSend;
   if (typeof raw.notifyOnReply === 'boolean') settings.notifyOnReply = raw.notifyOnReply;
   if (['system', 'dark', 'light'].includes(raw.theme)) settings.theme = raw.theme;
+  const bounds = raw.promptBounds;
+  if (bounds && !Array.isArray(bounds)
+      && ['x', 'y', 'width', 'height'].every((key) => Number.isInteger(bounds[key]))
+      && bounds.width >= 460 && bounds.width <= 1400
+      && bounds.height >= 160 && bounds.height <= 1200) {
+    const { x, y, width, height } = bounds;
+    settings.promptBounds = { x, y, width, height };
+  }
   return settings;
 }
 

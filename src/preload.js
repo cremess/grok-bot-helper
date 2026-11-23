@@ -12,6 +12,14 @@ contextBridge.exposeInMainWorld('grokbot', {
   submit: (text, options) => ipcRenderer.invoke('prompt:submit', options ? { text, force: options.force === true } : text),
   stopWaiting: () => ipcRenderer.invoke('prompt:stop-waiting'),
   hide: () => ipcRenderer.invoke('prompt:hide'),
+  setPinned: (pinned) => ipcRenderer.invoke('prompt:set-pinned', pinned),
+  resetBounds: () => ipcRenderer.invoke('prompt:reset-bounds'),
+  onBoundsReset: (callback) => {
+    ipcRenderer.on('prompt:bounds-reset', () => callback());
+  },
+  onUserSized: (callback) => {
+    ipcRenderer.on('prompt:user-sized', (_event, value) => callback(value));
+  },
   openSettings: () => ipcRenderer.invoke('prompt:open-settings'),
   resize: (height) => ipcRenderer.invoke('prompt:resize', height),
   onShow: (callback) => {
