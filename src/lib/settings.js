@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { isValidBotId } = require('./link');
+const { normalizeTemplates } = require('./templates');
 
 const DEFAULT_SETTINGS = Object.freeze({
   botId: '',
@@ -13,6 +14,7 @@ const DEFAULT_SETTINGS = Object.freeze({
   notifyOnReply: false,
   theme: 'system',
   promptBounds: null,
+  templates: Object.freeze([]),
 });
 
 const MODIFIERS = new Set([
@@ -76,7 +78,7 @@ function selectionShortcutError(value, mainShortcut) {
 }
 
 function normalizeSettings(raw) {
-  const settings = { ...DEFAULT_SETTINGS };
+  const settings = { ...DEFAULT_SETTINGS, templates: [] };
   if (raw === null || typeof raw !== 'object') return settings;
 
   const prototype = Object.getPrototypeOf(raw);
@@ -102,6 +104,7 @@ function normalizeSettings(raw) {
     const { x, y, width, height } = bounds;
     settings.promptBounds = { x, y, width, height };
   }
+  settings.templates = normalizeTemplates(raw.templates);
   return settings;
 }
 
@@ -110,7 +113,7 @@ function loadSettings(filePath) {
     // Remove the BOM that editors such as Notepad may add.
     return normalizeSettings(JSON.parse(fs.readFileSync(filePath, 'utf8').replace(/^﻿/, '')));
   } catch {
-    return { ...DEFAULT_SETTINGS };
+    return normalizeSettings(null);
   }
 }
 

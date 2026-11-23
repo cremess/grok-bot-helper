@@ -31,6 +31,7 @@ On macOS, Grok Bot ships with a built-in quick prompt you can summon from anywhe
 - **See the reply right there** — the latest reply shows up in the prompt with proper formatting (lists, bold, code). Switch to **Conversation** to see the recent back-and-forth. If the bot answers in several messages, the prompt keeps reading until it stops writing, and notifies you once.
 - **Send the text you selected** (optional) — pick a shortcut in Settings, select text in any app and press it: the prompt opens with that text, ready to send. Off by default.
 - **Long messages, in parts** — Grok Bot links take up to 1000 characters. For longer messages the prompt offers **Send in N parts**: it splits at paragraphs or sentences, numbers each part `(1/N)`, and sends them one at a time, waiting for each to arrive. You can cancel midway.
+- **Prompt templates** — save snippets like *Summarize:* or *Translate to English:* in Settings, then press `Ctrl+T` in the prompt to put one at the start of your message.
 - **Pick any of your bots** — the bot picker lists the bots from your Grok Bot app, with search. Switch with `Ctrl+K` without leaving the prompt.
 - **Wait or get notified** — keep the prompt open until the reply arrives, or let it close and get a dot on the tray icon (and an optional Windows notification).
 - **A real window when you want it** — drag it, resize it, pin it so it stays open; it remembers where you left it.
@@ -93,6 +94,7 @@ To uninstall: **Windows Settings → Apps**.
 | `Shift+Enter` | New line |
 | `Esc` or click outside | Closes the prompt (unless it's pinned) |
 | `Ctrl+K` | Pick another bot |
+| `Ctrl+T` | Insert a saved template at the start of the message (add templates in Settings) |
 | `↑` / `↓` in an empty prompt | Browse your previous prompts |
 | `Ctrl+,` | Open settings |
 | Double-click the header | Reset the prompt's size and position |

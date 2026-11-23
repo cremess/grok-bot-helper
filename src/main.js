@@ -20,6 +20,7 @@ const { avatarColor, avatarInitial } = require('./lib/avatar');
 const { loadSettings, saveSettings, isValidShortcut, selectionShortcutError, DEFAULT_SETTINGS } = require('./lib/settings');
 const { promptPosition, isBoundsVisible } = require('./lib/position');
 const { pickShortcut, isFirstRun } = require('./lib/first-run');
+const { validateTemplates } = require('./lib/templates');
 
 // Keep the tray icon alive while the app runs.
 let tray;
@@ -390,6 +391,7 @@ function showPrompt(extra = {}) {
     ...deliveryFailure,
     awaitingDelivery: Boolean(pending && !pending.delivered && Date.now() - pending.sentAt >= 15000),
     parts: partsJob ? { part: partsJob.part, total: partsJob.total } : undefined,
+    templates: settings.templates,
     usage: usageDetails(),
     botColor: settings.botId ? avatarColor(bot?.color, settings.botId) : '#1080f3',
     botInitial: settings.botId ? avatarInitial(botName) : 'G',
@@ -588,6 +590,8 @@ if (!app.requestSingleInstanceLock()) {
         return { ok: false, error: 'invalid-option' };
       }
       if (afterSend !== 'wait' && afterSend !== 'hide') return { ok: false, error: 'invalid-after-send' };
+      const templates = validateTemplates(payload.templates);
+      if (!templates.ok) return { ok: false, error: 'invalid-templates' };
       if (!isValidShortcut(shortcut)) return { ok: false, error: 'invalid-shortcut' };
       const selectionError = typeof selectionShortcut === 'string'
         ? selectionShortcutError(selectionShortcut, shortcut) : 'invalid';
@@ -616,7 +620,7 @@ if (!app.requestSingleInstanceLock()) {
         settings = saveSettings(settingsLocation.path, {
           ...settings,
           botId, botName, shortcut, selectionShortcut, launchAtLogin: Boolean(launchAtLogin), afterSend,
-          notifyOnReply, theme,
+          notifyOnReply, theme, templates: templates.templates,
         });
         nativeTheme.themeSource = settings.theme;
         updateSettingsBackground();

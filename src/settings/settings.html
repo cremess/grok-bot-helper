@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="../ui/bot-picker.css">
   <script src="../lib/i18n.js" defer></script>
   <script src="../lib/accelerator.js" defer></script>
+  <script src="../lib/templates.js" defer></script>
   <script src="../ui/bot-picker.js" defer></script>
   <script src="settings.js" defer></script>
 </head>
@@ -74,6 +75,25 @@
             <div class="row-copy"><h3 id="theme-title" data-i18n="settings.theme.title">Theme</h3><p data-i18n="settings.theme.help">App appearance.</p></div>
             <div class="segmented row-control"><label><input type="radio" name="theme" value="system" checked><span data-i18n="settings.theme.system">System</span></label><label><input type="radio" name="theme" value="dark"><span data-i18n="settings.theme.dark">Dark</span></label><label><input type="radio" name="theme" value="light"><span data-i18n="settings.theme.light">Light</span></label></div>
           </div></div>
+        </section>
+        <section class="settings-group" aria-labelledby="templates-title">
+          <h2 id="templates-title" data-i18n="settings.templates">Templates</h2>
+          <div class="section-card">
+            <div class="setting-row">
+              <span class="row-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 2h7l3 3v9H3ZM6 7h4M6 10h4"/></svg></span>
+              <div class="row-copy"><h3 data-i18n="settings.templates.title">Prompt templates</h3><p data-i18n="settings.templates.help">Text you can put at the start of a message with Ctrl+T in the prompt.</p></div>
+              <button id="add-template" class="small" type="button" data-i18n="settings.templates.add">Add</button>
+            </div>
+            <ul id="template-list" class="template-list" data-i18n-aria-label="settings.templates.list" aria-label="Saved templates"></ul>
+            <p id="templates-empty" class="templates-empty" data-i18n="settings.templates.empty">No templates yet.</p>
+            <div id="template-editor" class="template-editor" role="group" data-i18n-aria-label="settings.templates.editor" aria-label="Edit template" hidden>
+              <label for="template-name" data-i18n="settings.templates.name">Name</label>
+              <input id="template-name" type="text" maxlength="40" data-i18n-placeholder="settings.templates.namePlaceholder" placeholder="Summarize">
+              <label for="template-text" data-i18n="settings.templates.text">Text</label>
+              <textarea id="template-text" rows="3" maxlength="500" data-i18n-placeholder="settings.templates.textPlaceholder" placeholder="Summarize this in three bullet points:"></textarea>
+              <div class="template-editor-actions"><button id="template-cancel" class="small" type="button" data-i18n="settings.templates.cancel">Cancel</button><button id="template-done" class="small" type="button" data-i18n="settings.templates.done">Done</button></div>
+            </div>
+          </div>
         </section>
         <section class="settings-group" aria-labelledby="data-title">
           <h2 id="data-title" data-i18n="settings.data">Data</h2>

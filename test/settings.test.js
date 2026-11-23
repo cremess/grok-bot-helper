@@ -32,7 +32,7 @@ test('promptBounds validates integer bounds, copies and persists position and si
 });
 after(() => fs.rmSync(temporaryDirectory, { recursive: true, force: true }));
 
-const validSettings = { botId: 'bot_123-ABC', botName: '', shortcut: 'Ctrl+Shift+G', selectionShortcut: '', launchAtLogin: true, afterSend: 'wait', notifyOnReply: false, theme: 'system', promptBounds: null };
+const validSettings = { botId: 'bot_123-ABC', botName: '', shortcut: 'Ctrl+Shift+G', selectionShortcut: '', launchAtLogin: true, afterSend: 'wait', notifyOnReply: false, theme: 'system', promptBounds: null, templates: [] };
 
 test('loading missing, empty or invalid files returns defaults', () => {
   assert.deepEqual(loadSettings(path.join(temporaryDirectory, 'missing.json')), DEFAULT_SETTINGS);
@@ -82,7 +82,7 @@ test('normalization requires a plain object and preserves defaults and input', (
     assert.deepEqual(normalizeSettings(raw), DEFAULT_SETTINGS);
   }
   assert.deepEqual(normalizeSettings(Object.assign(Object.create(null), validSettings)), validSettings);
-  const snapshot = { botId: '', botName: '', shortcut: 'Alt+Space', selectionShortcut: '', launchAtLogin: false, afterSend: 'wait', notifyOnReply: false, theme: 'system', promptBounds: null };
+  const snapshot = { botId: '', botName: '', shortcut: 'Alt+Space', selectionShortcut: '', launchAtLogin: false, afterSend: 'wait', notifyOnReply: false, theme: 'system', promptBounds: null, templates: [] };
   const input = { ...validSettings };
   const result = normalizeSettings(input);
   result.botId = 'other';
@@ -234,4 +234,22 @@ test('normalizeSettings keeps a valid selection shortcut and drops invalid or co
   // The comparison uses the final prompt shortcut, including the default when the saved one is invalid.
   assert.equal(normalizeSettings({ shortcut: 'Space', selectionShortcut: 'Alt+Space' }).selectionShortcut, '');
   assert.equal(normalizeSettings({ shortcut: 'Ctrl+Shift+G', selectionShortcut: 'Alt+Space' }).selectionShortcut, 'Alt+Space');
+});
+
+test('templates default to an empty list and are persisted after validation', () => {
+  assert.deepEqual(DEFAULT_SETTINGS.templates, []);
+  assert.equal(Object.isFrozen(DEFAULT_SETTINGS.templates), true);
+  // Each normalized copy gets its own list, so changing one can't change the defaults.
+  const first = normalizeSettings(null);
+  first.templates.push({ name: 'x', text: 'y' });
+  assert.deepEqual(normalizeSettings(null).templates, []);
+  const file = path.join(temporaryDirectory, 'templates.json');
+  const templates = [{ name: 'Summarize', text: 'Summarize:' }, { name: 'Translate', text: 'Translate to English:' }];
+  assert.deepEqual(saveSettings(file, { ...validSettings, templates }).templates, templates);
+  assert.deepEqual(loadSettings(file).templates, templates);
+  const { templates: omitted, ...legacy } = validSettings;
+  assert.deepEqual(normalizeSettings(legacy).templates, []);
+  for (const value of [null, 'text', {}, 3]) assert.deepEqual(normalizeSettings({ templates: value }).templates, []);
+  assert.deepEqual(normalizeSettings({ templates: [{ name: ' A ', text: ' B ' }, { name: '', text: 'x' }] }).templates,
+    [{ name: 'A', text: 'B' }]);
 });

@@ -89,6 +89,7 @@ let recording = false;
 let toastTimer;
 
 const errors = {
+  'invalid-templates': t('settings.errors.templates'),
   'invalid-option': t('settings.errors.option'),
   'invalid-bot': t('settings.errors.bot'),
   'invalid-shortcut': t('settings.errors.shortcut'),
@@ -305,10 +306,112 @@ refresh.addEventListener('click', async () => {
   renderBots();
 });
 
+// Templates are edited here and saved with the rest of the settings.
+const templateList = document.getElementById('template-list');
+const templatesEmpty = document.getElementById('templates-empty');
+const templateEditor = document.getElementById('template-editor');
+const templateName = document.getElementById('template-name');
+const templateText = document.getElementById('template-text');
+const addTemplate = document.getElementById('add-template');
+let templates = [];
+// Index being edited, or -1 for a new template.
+let editingTemplate = -1;
+
+function renderTemplates() {
+  templateList.replaceChildren();
+  templates.forEach((template, index) => {
+    const item = document.createElement('li');
+    const copy = document.createElement('div');
+    copy.className = 'template-copy';
+    const name = document.createElement('strong');
+    name.textContent = template.name;
+    const preview = document.createElement('span');
+    preview.textContent = template.text;
+    copy.append(name, preview);
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'small';
+    edit.textContent = t('settings.templates.editShort');
+    edit.setAttribute('aria-label', t('settings.templates.edit', { name: template.name }));
+    edit.addEventListener('click', () => openTemplateEditor(index));
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'icon-button';
+    remove.title = t('settings.templates.remove', { name: template.name });
+    remove.setAttribute('aria-label', remove.title);
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    for (const [key, value] of Object.entries({ width: 16, height: 16, viewBox: '0 0 16 16', fill: 'none',
+      stroke: 'currentColor', 'aria-hidden': 'true' })) svg.setAttribute(key, String(value));
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', 'm4 4 8 8M12 4l-8 8');
+    svg.append(path);
+    remove.append(svg);
+    remove.addEventListener('click', () => {
+      templates = templates.filter((_, other) => other !== index);
+      closeTemplateEditor(false);
+      renderTemplates();
+      showToast(t('settings.templates.unsaved'));
+      addTemplate.focus();
+    });
+    item.append(copy, edit, remove);
+    templateList.append(item);
+  });
+  templateList.hidden = templates.length === 0;
+  templatesEmpty.hidden = templates.length > 0 || !templateEditor.hidden;
+  addTemplate.disabled = templates.length >= MAX_TEMPLATES;
+}
+
+function openTemplateEditor(index) {
+  editingTemplate = index;
+  templateName.value = index >= 0 ? templates[index].name : '';
+  templateText.value = index >= 0 ? templates[index].text : '';
+  templateEditor.hidden = false;
+  renderTemplates();
+  templateName.focus();
+}
+
+function closeTemplateEditor(focusAdd = true) {
+  templateEditor.hidden = true;
+  editingTemplate = -1;
+  renderTemplates();
+  if (focusAdd) addTemplate.focus();
+}
+
+addTemplate.addEventListener('click', () => openTemplateEditor(-1));
+document.getElementById('template-cancel').addEventListener('click', () => closeTemplateEditor());
+// Applies the open editor to the list. Returns false (and says why) when the template isn't valid.
+function commitTemplateEditor() {
+  const template = normalizeTemplate({ name: templateName.value, text: templateText.value });
+  if (!template) {
+    showToast(t('settings.errors.template'), true);
+    (templateName.value.trim() ? templateText : templateName).focus();
+    return false;
+  }
+  if (editingTemplate >= 0) templates = templates.map((item, index) => (index === editingTemplate ? template : item));
+  else if (templates.length < MAX_TEMPLATES) templates = [...templates, template];
+  return true;
+}
+document.getElementById('template-done').addEventListener('click', () => {
+  if (!commitTemplateEditor()) return;
+  closeTemplateEditor();
+  showToast(t('settings.templates.unsaved'));
+});
+templateEditor.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeTemplateEditor();
+  }
+});
+
 document.getElementById('close').addEventListener('click', () => window.close());
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   if (fields.disabled) return;
+  // A template still open in the editor is saved too, instead of being dropped without a word.
+  if (!templateEditor.hidden && (templateName.value.trim() || templateText.value.trim())) {
+    if (!commitTemplateEditor()) return;
+    closeTemplateEditor(false);
+  }
   stopRecording();
   stopSelectionRecording();
   fields.disabled = true;
@@ -321,6 +424,7 @@ form.addEventListener('submit', async (event) => {
       afterSend: afterSendOptions.find((option) => option.checked)?.value,
       notifyOnReply: notifyOnReply.checked,
       theme: themeOptions.find((option) => option.checked)?.value,
+      templates: templates.map(({ name, text }) => ({ name, text })),
     });
     if (!result.ok) {
       showError(result.error);
@@ -335,6 +439,9 @@ form.addEventListener('submit', async (event) => {
     launchAtLogin.checked = result.settings.launchAtLogin;
     renderAfterSend(result.settings.afterSend);
     renderGeneral(result.settings);
+    closeTemplateEditor(false);
+    templates = result.settings.templates || [];
+    renderTemplates();
     showToast(t('settings.saved'));
     if (welcomeMode) setTimeout(() => window.close(), 800);
   } catch {
@@ -360,6 +467,8 @@ async function initialize() {
     launchAtLogin.checked = settings.launchAtLogin;
     renderAfterSend(settings.afterSend);
     renderGeneral(settings);
+    templates = Array.isArray(settings.templates) ? settings.templates : [];
+    renderTemplates();
     fields.disabled = false;
     save.disabled = false;
   } catch {

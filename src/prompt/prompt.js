@@ -5,6 +5,9 @@ let destinationDetails = {};
 const card = document.getElementById('card');
 const content = document.getElementById('content');
 const pin = document.getElementById('pin');
+const templatesButton = document.getElementById('templates');
+const templateMenu = document.getElementById('template-menu');
+let templates = [];
 let pinned = false;
 let userSized = false;
 
@@ -514,13 +517,92 @@ async function submit(force = false, retryText) {
   }
 }
 
+function setTemplates(list) {
+  templates = Array.isArray(list) ? list.filter((item) => typeof item?.name === 'string' && typeof item?.text === 'string') : [];
+  templatesButton.hidden = templates.length === 0;
+  closeTemplates(false);
+}
+
+function closeTemplates(focusMessage = true) {
+  if (templateMenu.hidden) return;
+  templateMenu.hidden = true;
+  templateMenu.replaceChildren();
+  templatesButton.setAttribute('aria-expanded', 'false');
+  updateLayout();
+  if (focusMessage) textarea.focus();
+}
+
+function insertTemplate(template) {
+  closeTemplates();
+  textarea.value = applyTemplate(textarea.value, template.text);
+  historyIndex = null;
+  textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+  updateLayout();
+}
+
+function openTemplates() {
+  if (!templates.length) {
+    showNotice(t('prompt.templates.none'));
+    return;
+  }
+  picker.close();
+  templateMenu.replaceChildren(...templates.map((template) => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.setAttribute('role', 'menuitem');
+    item.tabIndex = -1;
+    const name = document.createElement('strong');
+    name.textContent = template.name;
+    const preview = document.createElement('span');
+    preview.textContent = template.text;
+    item.append(name, preview);
+    item.addEventListener('click', () => insertTemplate(template));
+    return item;
+  }));
+  templateMenu.hidden = false;
+  templatesButton.setAttribute('aria-expanded', 'true');
+  updateLayout();
+  templateMenu.firstElementChild.focus();
+}
+
+templatesButton.addEventListener('click', () => (templateMenu.hidden ? openTemplates() : closeTemplates()));
+// Moving focus anywhere else (clicking the message, tabbing away) closes the menu.
+document.addEventListener('focusin', (event) => {
+  if (!templateMenu.hidden && !templateMenu.contains(event.target) && event.target !== templatesButton) closeTemplates(false);
+});
+templateMenu.addEventListener('keydown', (event) => {
+  const items = [...templateMenu.children];
+  const index = items.indexOf(document.activeElement);
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault();
+    event.stopPropagation();
+    const step = event.key === 'ArrowDown' ? 1 : -1;
+    items[(index + step + items.length) % items.length].focus();
+  } else if (event.key === 'Home' || event.key === 'End') {
+    event.preventDefault();
+    event.stopPropagation();
+    items[event.key === 'Home' ? 0 : items.length - 1].focus();
+  } else if (event.key === 'Escape') {
+    event.preventDefault();
+    event.stopPropagation();
+    closeTemplates();
+  } else if (event.key === 'Tab') {
+    closeTemplates(false);
+  }
+});
+
 send.addEventListener('click', () => submit());
 document.getElementById('settings').addEventListener('click', () => window.grokbot.openSettings());
 textarea.addEventListener('input', () => { historyIndex = null; updateLayout(); });
 document.addEventListener('keydown', (event) => {
   if (event.ctrlKey && event.key.toLowerCase() === 'k' && !event.altKey && !event.shiftKey) {
     event.preventDefault();
+    closeTemplates(false);
     picker.open();
+  } else if (event.ctrlKey && event.key.toLowerCase() === 't' && !event.altKey && !event.shiftKey) {
+    event.preventDefault();
+    if (templateMenu.hidden) openTemplates();
+    else closeTemplates();
   } else if (event.target === textarea && !event.isComposing && !event.ctrlKey && !event.altKey && !event.shiftKey
       && (event.key === 'ArrowUp' || event.key === 'ArrowDown') && (textarea.value === '' || historyIndex !== null)) {
     event.preventDefault();
@@ -543,9 +625,10 @@ document.addEventListener('keydown', (event) => {
 
 window.grokbot.onShow(({ botId, botName, botColor, botInitial, history: savedHistory, conversation: data, waiting: isWaiting, sent: sentMessage,
   partial: isPartial, usage: usageData, notDelivered: failedDelivery, awaitingDelivery: awaitingReceipt, pinned: isPinned, userSized: isUserSized,
-  prefill, parts: partsProgress }) => {
+  prefill, parts: partsProgress, templates: savedTemplates }) => {
   showPinned(Boolean(isPinned));
   setUserSized(isUserSized);
+  setTemplates(savedTemplates);
   picker.close();
   loadPickerBots();
   const navigatingHistory = historyIndex !== null;
