@@ -9,10 +9,7 @@ header { display: flex; align-items: center; justify-content: space-between; gap
 @media (prefers-reduced-motion: no-preference) {
   #settings:hover svg { transform: rotate(30deg); }
 }
-.destination { display: inline-flex; align-items: center; gap: 7px; min-width: 0; max-width: 100%; padding: 3px 8px 3px 3px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; color: var(--secondary); }
-.destination > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.destination strong { color: var(--text); font-weight: 600; }
-.destination .avatar { width: 22px; height: 22px; }
+#destination-picker { min-width: 0; max-width: calc(100% - 36px); }
 textarea { display: block; width: 100%; min-height: 24px; max-height: 192px; padding: 0 2px; resize: none; border: 0; border-radius: 3px; background: transparent; font-size: 15px; line-height: 24px; overflow-y: auto; }
 #message:focus, #message:focus-visible { outline: none; border: 0; }
 textarea::placeholder { color: var(--secondary); }
@@ -69,11 +66,6 @@ footer { display: flex; align-items: center; gap: 10px; margin-top: 10px; color:
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 10px; border: 3px solid transparent; background-clip: padding-box; }
 
-#bot-menu { max-height: 240px; min-height: 44px; overflow-y: auto; flex-shrink: 1; margin: 0 0 10px; padding: 4px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
-#bot-menu button { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 6px; border: 0; border-radius: 6px; background: transparent; }
-#bot-menu button:hover, #bot-menu button:focus-visible { background: var(--hover); }
-#bot-menu .avatar { width: 24px; height: 24px; }
-.menu-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .icon-button { display: inline-grid; place-items: center; flex-shrink: 0; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--secondary); }
 .icon-button:hover { background: var(--hover); color: var(--text); }
 #copy-response { margin-left: auto; }

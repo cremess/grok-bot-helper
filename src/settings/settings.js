@@ -1,7 +1,6 @@
 const form = document.getElementById('settings-form');
 const fields = document.getElementById('fields');
 const bot = document.getElementById('bot');
-const botList = document.getElementById('bots');
 const manualField = document.getElementById('manual-field');
 const warning = document.getElementById('bots-warning');
 const refresh = document.getElementById('refresh');
@@ -42,8 +41,8 @@ const afterSendHelp = document.getElementById('after-send-help');
 function renderAfterSend(value) {
   if (value) for (const option of afterSendOptions) option.checked = option.value === value;
   afterSendHelp.textContent = afterSendOptions.find((option) => option.checked)?.value === 'hide'
-    ? 'O prompt fecha e o ícone da bandeja ganha um ponto quando a resposta chegar.'
-    : 'O prompt fica aberto e mostra a resposta quando chegar.';
+    ? 'Fecha; marca a bandeja ao chegar.'
+    : 'Mostra a resposta no prompt.';
 }
 for (const option of afterSendOptions) option.addEventListener('change', () => renderAfterSend());
 const status = document.getElementById('status');
@@ -162,64 +161,21 @@ document.getElementById('restore').addEventListener('click', () => {
   renderShortcut();
 });
 
-function selectOption(option) {
-  selection = { mode: option.mode, botId: option.botId, botName: option.botName };
-  const items = [...botList.children];
-  for (const item of items) {
-    const selected = item.dataset.mode === selection.mode
-      && (selection.mode !== 'list' || item.dataset.botId === selection.botId);
-    item.setAttribute('aria-checked', String(selected));
-    item.tabIndex = selected ? 0 : -1;
-  }
-  manualField.hidden = selection.mode !== 'manual';
-}
+const picker = BotPicker.create({
+  container: document.getElementById('bot-picker'),
+  includeManual: true,
+  onSelect(option) {
+    preselectFirstBot = false;
+    selection = { mode: option.mode, botId: option.botId || '', botName: option.botName || '' };
+    manualField.hidden = selection.mode !== 'manual';
+    if (!manualField.hidden) bot.focus();
+  },
+});
 
 function renderBots() {
-  botList.replaceChildren();
-  const options = bots.map((item, index) => ({
-    mode: 'list', botId: item.id, botName: item.name, avatar: item.avatar, badge: index === 0,
-  }));
-  options.unshift(
-    { mode: 'default', botId: '', botName: 'Bot padrão do Grok Bot', avatar: { color: '#1080f3', initial: 'G' } },
-  );
-  options.push(
-    { mode: 'manual', botId: '', botName: 'Outro bot (colar link ou ID)', avatar: { color: '#71717a', initial: '+' } },
-  );
-  for (const option of options) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'bot-option';
-    button.setAttribute('role', 'radio');
-    button.dataset.mode = option.mode;
-    button.dataset.botId = option.botId;
-    const avatar = document.createElement('span');
-    avatar.className = 'avatar';
-    avatar.setAttribute('aria-hidden', 'true');
-    avatar.style.backgroundColor = option.avatar.color;
-    avatar.textContent = option.avatar.initial;
-    const name = document.createElement('span');
-    name.className = 'bot-name';
-    name.textContent = option.botName;
-    button.append(avatar, name);
-    if (option.badge) {
-      const badge = document.createElement('span');
-      badge.className = 'badge';
-      badge.textContent = 'mais usado';
-      button.append(badge);
-    }
-    const check = document.createElement('span');
-    check.className = 'selection-check';
-    check.setAttribute('aria-hidden', 'true');
-    check.textContent = '\u2713';
-    button.append(check);
-    button.addEventListener('click', () => {
-      preselectFirstBot = false;
-      selectOption(option);
-    });
-    botList.append(button);
-  }
-  selectOption(selection);
-  botList.querySelector('[aria-checked="true"]')?.scrollIntoView({ block: 'nearest' });
+  picker.setBots(bots);
+  picker.setValue(selection);
+  manualField.hidden = selection.mode !== 'manual';
 }
 
 function selectSavedBot(botId) {
@@ -228,21 +184,6 @@ function selectSavedBot(botId) {
     : { mode: botId ? 'manual' : 'default', botId: '', botName: '' };
   bot.value = botId;
 }
-
-botList.addEventListener('keydown', (event) => {
-  const items = [...botList.children];
-  const index = items.indexOf(event.target);
-  if (index < 0) return;
-  let next;
-  if (event.key === 'ArrowDown' || event.key === 'ArrowRight') next = (index + 1) % items.length;
-  else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') next = (index + items.length - 1) % items.length;
-  else if (event.key === 'Home') next = 0;
-  else if (event.key === 'End') next = items.length - 1;
-  else return;
-  event.preventDefault();
-  items[next].click();
-  items[next].focus();
-});
 
 async function loadBots() {
   refresh.disabled = true;
@@ -255,6 +196,7 @@ async function loadBots() {
     refresh.disabled = false;
   }
   warning.hidden = bots.length > 0;
+  document.getElementById('destination-description').hidden = bots.length === 0;
   renderWelcome();
 }
 

@@ -113,8 +113,8 @@ function openSettings({ welcome = false } = {}) {
 
   settingsWindow = new BrowserWindow({
     icon: appIconPath(),
-    width: 520,
-    height: 860,
+    width: 560,
+    height: 820,
     resizable: false,
     minimizable: false,
     maximizable: false,
@@ -130,7 +130,7 @@ function openSettings({ welcome = false } = {}) {
     },
   });
   settingsWindow.setMenu(null);
-  if (welcome) settingsWindow.setSize(520, 900);
+  if (welcome) settingsWindow.setSize(560, 920);
   settingsWindow.webContents.on('will-navigate', (event) => event.preventDefault());
   settingsWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   settingsWindow.on('closed', () => {

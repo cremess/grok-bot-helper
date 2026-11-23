@@ -1,6 +1,5 @@
 const textarea = document.getElementById('message');
-const destination = document.getElementById('destination');
-const avatar = document.getElementById('avatar');
+let destinationDetails = {};
 const card = document.getElementById('card');
 const counter = document.getElementById('counter');
 const errorArea = document.getElementById('error');
@@ -30,103 +29,48 @@ let sent;
 let conversationView = false;
 let expanded = false;
 let relativeTimer;
-const destinationButton = document.getElementById('destination-button');
-const botMenu = document.getElementById('bot-menu');
-let currentBotId = '';
+const pickerContainer = document.getElementById('destination-picker');
 let history = [];
 let historyIndex = null;
-let menuVersion = 0;
 let copyTimer;
+let rosterVersion = 0;
+const picker = BotPicker.create({
+  container: pickerContainer,
+  compact: true,
+  async onSelect(value) {
+    if (submitting) { setBot(destinationDetails); return; }
+    const version = showVersion;
+    try {
+      const selected = await window.grokbot.selectBot({ botId: value.botId, botName: value.botName });
+      if (version !== showVersion) return;
+      if (!selected.ok) { setBot(destinationDetails); showError('Não foi possível trocar de bot.'); return; }
+      setBot(selected.bot);
+      conversation = selected.conversation;
+      waiting = false;
+      timedOut = false;
+      sent = undefined;
+      conversationView = false;
+      expanded = false;
+      renderConversation();
+      textarea.focus();
+    } catch { setBot(destinationDetails); showError('Não foi possível trocar de bot.'); }
+  },
+});
+pickerContainer.addEventListener('botpicker:toggle', updateLayout);
 
-function setBot({ botId, botName, botColor, botInitial }) {
-  currentBotId = botId;
-  destination.textContent = botName || (botId ? `bot ${botId.slice(0, 8)}` : 'bot padrão');
-  avatar.textContent = botInitial;
-  avatar.style.backgroundColor = botColor;
+function setBot(details) {
+  destinationDetails = details;
+  picker.setValue({ mode: details.botId ? 'list' : 'default', botId: details.botId || '', botName: details.botName || '' });
 }
 
-function closeBotMenu(focus = false) {
-  menuVersion += 1;
-  botMenu.hidden = true;
-  destinationButton.setAttribute('aria-expanded', 'false');
-  if (focus) destinationButton.focus();
-  updateLayout();
-}
-
-async function openBotMenu() {
-  if (!botMenu.hidden) { closeBotMenu(true); return; }
-  const version = ++menuVersion;
+async function loadPickerBots() {
+  const version = ++rosterVersion;
   try {
     const result = await window.grokbot.bots();
-    if (version !== menuVersion) return;
-    const options = result.ok ? [...result.bots] : [];
-    options.push({ id: '', name: 'Bot padrão do Grok Bot', avatar: { color: '#1080f3', initial: 'G' } });
-    botMenu.replaceChildren();
-    for (const bot of options) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.setAttribute('role', 'option');
-      button.setAttribute('aria-selected', String(bot.id === currentBotId));
-      button.tabIndex = bot.id === currentBotId ? 0 : -1;
-      const image = document.createElement('span');
-      image.className = 'avatar';
-      image.textContent = bot.avatar.initial;
-      image.style.backgroundColor = bot.avatar.color;
-      image.setAttribute('aria-hidden', 'true');
-      const name = document.createElement('span');
-      name.className = 'menu-name';
-      name.textContent = bot.name;
-      const check = document.createElement('span');
-      check.textContent = bot.id === currentBotId ? '✓' : '';
-      check.setAttribute('aria-hidden', 'true');
-      button.append(image, name, check);
-      button.addEventListener('click', async () => {
-        if (submitting) return;
-        try {
-          const selected = await window.grokbot.selectBot({ botId: bot.id, botName: bot.name });
-          if (!selected.ok) { showError('Não foi possível trocar de bot.'); return; }
-          setBot(selected.bot);
-          conversation = selected.conversation;
-          waiting = false;
-          timedOut = false;
-          sent = undefined;
-          conversationView = false;
-          expanded = false;
-          closeBotMenu();
-          renderConversation();
-          textarea.focus();
-        } catch { showError('Não foi possível trocar de bot.'); }
-      });
-      botMenu.append(button);
-    }
-    botMenu.hidden = false;
-    destinationButton.setAttribute('aria-expanded', 'true');
-    (botMenu.querySelector('[aria-selected="true"]') || botMenu.firstElementChild)?.focus();
-    updateLayout();
-  } catch { showError('Não foi possível carregar os bots.'); }
+    if (version === rosterVersion) picker.setBots(result.ok ? result.bots : []);
+  } catch { if (version === rosterVersion) picker.setBots([]); }
 }
 
-destinationButton.addEventListener('click', openBotMenu);
-botMenu.addEventListener('keydown', (event) => {
-  const items = [...botMenu.children];
-  const index = items.indexOf(document.activeElement);
-  let next;
-  if (event.key === 'ArrowDown') next = (index + 1) % items.length;
-  else if (event.key === 'ArrowUp') next = (index + items.length - 1) % items.length;
-  else if (event.key === 'Home') next = 0;
-  else if (event.key === 'End') next = items.length - 1;
-  else return;
-  event.preventDefault();
-  for (const item of items) item.tabIndex = -1;
-  items[next].tabIndex = 0;
-  items[next].focus();
-});
-document.addEventListener('pointerdown', (event) => {
-  if (!botMenu.contains(event.target) && !destinationButton.contains(event.target)) closeBotMenu();
-});
-document.addEventListener('focusin', (event) => {
-  if (!botMenu.hidden && !botMenu.contains(event.target) && event.target !== destinationButton) closeBotMenu();
-});
 document.getElementById('copy-response').addEventListener('click', async () => {
   if (!conversation.latest) return;
   try {
@@ -234,9 +178,9 @@ function startRelativeTimer() {
 function renderConversation(animate = false) {
   response.hidden = !conversation.ok || !conversation.latest;
   responseBody.replaceChildren();
-  responseName.textContent = destination.textContent;
-  responseAvatar.textContent = avatar.textContent;
-  responseAvatar.style.backgroundColor = avatar.style.backgroundColor;
+  responseName.textContent = destinationDetails.botName || (destinationDetails.botId ? `bot ${destinationDetails.botId.slice(0, 8)}` : 'bot padrão');
+  responseAvatar.textContent = destinationDetails.botInitial || 'G';
+  responseAvatar.style.backgroundColor = destinationDetails.botColor || '#1080f3';
   conversationToggle.textContent = conversationView ? 'Última resposta' : 'Conversa';
   conversationToggle.setAttribute('aria-pressed', String(conversationView));
   responseBody.classList.toggle('collapsed', !expanded && !conversationView);
@@ -262,7 +206,7 @@ function renderConversation(animate = false) {
     if (sent) waitingArea.append(bubble(sent));
     const status = document.createElement('p');
     status.className = 'waiting-status';
-    status.append(`${destination.textContent} está respondendo`);
+    status.append(`${responseName.textContent} está respondendo`);
     const dots = document.createElement('span');
     dots.className = 'waiting-dots';
     dots.setAttribute('aria-hidden', 'true');
@@ -318,7 +262,9 @@ function updateLayout() {
     textarea.style.height = 'auto';
     textarea.style.height = `${Math.min(192, textarea.scrollHeight)}px`;
     measureResponse();
-    window.grokbot.resize(card.offsetHeight + 40).catch(() => {});
+    const popover = pickerContainer.querySelector('.bot-picker-popover');
+    const bottom = popover.hidden ? 0 : popover.getBoundingClientRect().bottom + 20;
+    window.grokbot.resize(Math.ceil(Math.max(card.offsetHeight + 40, bottom))).catch(() => {});
   });
 }
 
@@ -372,10 +318,7 @@ textarea.addEventListener('input', () => { historyIndex = null; updateLayout(); 
 document.addEventListener('keydown', (event) => {
   if (event.ctrlKey && event.key.toLowerCase() === 'k' && !event.altKey && !event.shiftKey) {
     event.preventDefault();
-    openBotMenu();
-  } else if (event.key === 'Escape' && !botMenu.hidden) {
-    event.preventDefault();
-    closeBotMenu(true);
+    picker.open();
   } else if (event.target === textarea && !event.isComposing && !event.ctrlKey && !event.altKey && !event.shiftKey
       && (event.key === 'ArrowUp' || event.key === 'ArrowDown') && (textarea.value === '' || historyIndex !== null)) {
     event.preventDefault();
@@ -397,7 +340,8 @@ document.addEventListener('keydown', (event) => {
 });
 
 window.grokbot.onShow(({ botId, botName, botColor, botInitial, history: savedHistory, conversation: data, waiting: isWaiting, sent: sentMessage }) => {
-  closeBotMenu();
+  picker.close();
+  loadPickerBots();
   const navigatingHistory = historyIndex !== null;
   history = savedHistory || [];
   const previousIndex = history.indexOf(textarea.value);

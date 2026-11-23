@@ -1,46 +1,29 @@
-﻿# Resultado — Tarefa 14
+﻿# Resultado — Tarefa 15 (2ª tentativa)
 
-## Arquivos alterados
-
-- `src/main.js`
-- `src/preload.js`
-- `src/settings-preload.js`
-- `src/prompt/prompt.html`
-- `src/prompt/prompt.css`
-- `src/prompt/prompt.js`
-- `src/settings/settings.html`
-- `src/settings/settings.css`
-- `src/settings/settings.js`
-- `src/lib/settings.js`
-- `test/settings.test.js`
-- `.handoff/RESULTADO.md`
-
-## Arquivos criados
-
-- `src/lib/history.js`
-- `test/history.test.js`
+## Arquivos alterados nesta tentativa
+- `src/settings/settings.css`.
+- `src/main.js` (somente as duas alturas da janela de configurações).
+- `.handoff/RESULTADO.md` (conteúdo substituído por este resultado).
 
 ## Resumo das mudanças
+- Cabeçalho, conteúdo e rodapé alinhados com padding lateral de 20 px.
+- Cabeçalho com padding de 18px 20px 14px, ícone de 32 px, gap de 2 px entre título e subtítulo e divisória inferior usando `var(--border)`. Removida a altura fixa para acomodar o padding.
+- Títulos dos grupos com margem de 22px 4px 8px; primeiro título com margem superior de 16 px. Removido o gap extra do fieldset e mantidos os cartões sem margem adicional, com raio de 12 px.
+- Linhas com altura mínima de 56 px e padding de 12px 16px preservados; gap de 12 px entre ícone e textos e de 10 px entre controles à direita, incluindo os segmentados.
+- Rodapé com padding de 14px 20px e divisória superior preservada; removida a altura fixa. Último grupo com margem inferior de 16 px.
+- Janela normal com altura de 720 px e boas-vindas com 800 px; largura preservada em 560 px.
+- Mantida a rolagem apenas no conteúdo central, com barra fina, cabeçalho e rodapé fora da área rolável.
+- Conferência estática do tema claro: as regras de espaçamento são compartilhadas pelos temas, e as divisórias usam o token `--border`, definido também para o tema claro.
+- Nenhuma alteração de lógica ou HTML. Alterações preexistentes nos demais arquivos preservadas.
 
-- A pílula de destino virou botão com menu de bots, avatares, seleção atual e opção de bot padrão no fim. Abre por clique ou Ctrl+K; aceita setas, Home, End, Enter e Esc, fecha ao clicar fora e ajusta a altura do prompt. A seleção persiste o destino, encerra a espera anterior e carrega a conversa correspondente.
-- Acrescentados os botões SVG para copiar a última resposta em markdown e abrir a conversa no Grok Bot. Clipboard limitado a 20.000 caracteres no main; abertura usa ID validado ou o link genérico. A cópia exibe uma marca de confirmação por 1,2 segundo.
-- O degradê e o botão de expansão dependem da medição real do conteúdo recolhido, recalculada após renderização e redimensionamento.
-- Histórico de até 50 envios com trim, deduplicação, arquivo em userData e gravação atômica. Setas percorrem os envios quando o campo está vazio ou já está navegando; edição encerra a navegação. Configurações permitem limpar com confirmação inline.
-- Incluída notificação opcional, desligada por padrão, quando a resposta chega com o prompt fechado. O texto remove marcação simples e fica limitado a 140 caracteres; clicar abre o prompt e limpa o indicador de não lido.
-- Incluídos os temas Sistema, Escuro e Claro, persistidos e aplicados pelo nativeTheme. O fundo da janela de configurações acompanha o tema efetivo.
-- Cartão Geral reorganizado na ordem solicitada, com controles à direita. Configurações usam altura de 860 px, ou 900 px nas boas-vindas, com rolagem apenas na área central e sem rolagem interna concorrente da lista de bots.
-- Novas opções validadas no IPC de configurações com erro `invalid-option`; arquivos antigos continuam recebendo os padrões.
+## Testes executados e resultado
+- `npm test`: 82 testes aprovados, zero falhas.
+- `node --check src/main.js`: aprovado.
+- `node --check src/settings/settings.js`: aprovado.
+- `git diff --check`: sem erros de whitespace; somente avisos de conversão de LF para CRLF.
+- Revisão do diff: em `src/main.js`, somente as alturas 640 → 720 e 720 → 800 foram alteradas nesta tentativa.
 
-## Testes e verificações
-
-- `npm test`: **82 testes aprovados, 0 falhas**, incluindo os novos testes de histórico e as verificações de padrão, normalização e persistência de tema/notificação.
-- `node --check`: aprovado nos nove arquivos JavaScript alterados ou criados (`main.js`, os dois preloads, os dois renderers, `settings.js` e `history.js` da biblioteca, e os dois arquivos de teste).
-- `git diff --check`: aprovado.
-- Revisão estática: CSP preservada; nenhum uso de `innerHTML` introduzido; clipboard e montagem dos novos deep links restritos ao main, com validação de ID.
-
-## Dúvidas, bloqueios e limites da validação
-
-- Sem dúvidas ou bloqueios de implementação.
-- O app não foi executado, conforme a tarefa. Permanecem para validação manual pelo orquestrador: layout nos tamanhos e temas efetivos, navegação por teclado, interação com o Grok Bot, notificações reais do Windows e comportamento do clipboard.
-- Se a gravação do histórico falhar após a abertura bem-sucedida do Grok Bot, o envio continua sendo considerado realizado e o histórico permanece em memória durante a sessão.
-- Nenhuma dependência instalada, instalador gerado, commit ou push realizado. As alterações preexistentes em `.handoff/TAREFA.md` e `.handoff/HISTORICO.md` foram preservadas.
+## Dúvidas, bloqueios e validação pendente
+- Nenhuma dúvida ou bloqueio de implementação.
+- O app não foi executado, conforme a tarefa. A apresentação visual nos temas claro e escuro e o encaixe nas janelas de 560 × 720 e 560 × 800 dependem da validação manual do revisor; a conferência estática não confirma ausência de rolagem.
+- Nenhuma dependência instalada. Nenhum arquivo apagado. Nenhum commit, push ou deploy realizado.

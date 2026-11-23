@@ -6,15 +6,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GrokBot Assistant</title>
   <link rel="stylesheet" href="../ui/tokens.css">
+  <link rel="stylesheet" href="../ui/bot-picker.css">
   <link rel="stylesheet" href="prompt.css">
   <script src="../lib/markdown.js" defer></script>
   <script src="../lib/relative-time.js" defer></script>
+  <script src="../ui/bot-picker.js" defer></script>
   <script src="prompt.js" defer></script>
 </head>
 <body>
   <main id="card">
     <header>
-      <button id="destination-button" type="button" class="destination" aria-haspopup="listbox" aria-expanded="false" aria-controls="bot-menu" title="Trocar de bot (Ctrl+K)"><span id="avatar" class="avatar" aria-hidden="true">G</span><span>Para <strong id="destination">bot padrão</strong></span></button>
+      <div id="destination-picker"></div>
       <button id="settings" type="button" aria-label="Abrir configurações" title="Configurações (Ctrl+,)">
         <svg width="16" height="16" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="m9.5 3-.6 2.5-1.5.9L5 5.7 2.5 10l1.8 1.8v1.7l-1.8 1.8L5 19.6l2.4-.7 1.5.9.6 2.2h5l.6-2.2 1.5-.9 2.4.7 2.5-4.3-1.8-1.8v-1.7l1.8-1.8L19 5.7l-2.4.7-1.5-.9L14.5 3Z"/>
@@ -22,7 +24,6 @@
         </svg>
       </button>
     </header>
-    <div id="bot-menu" role="listbox" aria-label="Bot de destino" hidden></div>
     <section id="response" aria-label="Resposta do bot" hidden>
       <div class="response-heading">
         <span id="response-avatar" class="avatar" aria-hidden="true">G</span>
