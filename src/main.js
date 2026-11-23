@@ -22,9 +22,12 @@ const { promptPosition, isBoundsVisible } = require('./lib/position');
 const { pickShortcut, isFirstRun } = require('./lib/first-run');
 const { validateTemplates } = require('./lib/templates');
 const { RELEASES_URL, UPDATE_TIMEOUT_MS, updateNotice, isSafeReleaseUrl, shouldCheckForUpdate } = require('./lib/update');
-const { isAssistant, isValidReplyTimeout } = require('./lib/assistant');
-const { OPENBOT_APP_URL, automationDirectory, createOpenBotClient, isValidAgentId, openBotState } = require('./lib/openbot-client');
-const { defaultHermesPath, hermesPathError, isValidHermesName } = require('./lib/hermes-client');
+const { isAssistant, isValidReplyTimeout, textLimit, validateAssistantText, replyTimeoutMs, conversationKey, addEntry,
+  conversationFromLog, createTurnRegistry } = require('./lib/assistant');
+const { OPENBOT_APP_URL, automationDirectory, createOpenBotClient, isValidAgentId, openBotState,
+  runOpenBotTurn } = require('./lib/openbot-client');
+const { defaultHermesPath, hermesPathError, isValidHermesName, buildHermesArgs, runHermes,
+  killProcessTreeSync } = require('./lib/hermes-client');
 
 // Keep the tray icon alive while the app runs.
 let tray;
@@ -48,8 +51,15 @@ const GROK_BOT_DIRECTORY = path.join(app.getPath('appData'), 'Grok Bot', 'sand-c
 // needs them and keeps the token to itself (see lib/openbot-client.js).
 const openBotClient = createOpenBotClient({ directory: automationDirectory(app.getPath('appData')) });
 const HERMES_DEFAULT_PATH = defaultHermesPath(process.env.LOCALAPPDATA);
+// OpenBot and Hermes: the message each conversation is waiting on, the last problem, and the messages of
+// this run of the app. All of it stays in memory; conversations are never written to disk.
+const assistantTurns = createTurnRegistry();
+const assistantFailures = new Map();
+const assistantLogs = new Map();
 let hideTimer;
 let sendingPrompt = false;
+// How long after sending the prompt closes with "Close and notify".
+const HIDE_DELAY_MS = 280;
 let pending;
 let responsePoll;
 let deliveryFailure;
@@ -102,11 +112,30 @@ function rememberPromptBounds() {
   }, 400);
 }
 
+function usesGrokBot() {
+  return settings.assistant === 'grokbot';
+}
+
+function assistantName() {
+  if (settings.assistant === 'hermes') return 'Hermes';
+  return settings.openbotAgentName
+    || (settings.openbotAgentId ? t('bot.fallback', { id: settings.openbotAgentId.slice(0, 8) }) : 'OpenBot');
+}
+
 function botDetails() {
+  const maxLength = textLimit(settings.assistant);
+  if (settings.assistant === 'openbot') {
+    const name = assistantName();
+    return { assistant: 'openbot', maxLength, botId: settings.openbotAgentId, botName: name,
+      botColor: avatarColor(undefined, settings.openbotAgentId || 'openbot'), botInitial: avatarInitial(name) };
+  }
+  if (settings.assistant === 'hermes') {
+    return { assistant: 'hermes', maxLength, botId: 'hermes', botName: 'Hermes', botColor: avatarColor('purple'), botInitial: 'H' };
+  }
   const roster = listBots(GROK_BOT_DIRECTORY);
   const bot = roster.ok ? roster.bots.find((item) => item.id === settings.botId) : undefined;
   const botName = settings.botName || bot?.name || '';
-  return { botId: settings.botId, botName,
+  return { assistant: 'grokbot', maxLength, botId: settings.botId, botName,
     botColor: settings.botId ? avatarColor(bot?.color, settings.botId) : '#1080f3',
     botInitial: settings.botId ? avatarInitial(botName) : 'G' };
 }
@@ -136,10 +165,14 @@ function updateSettingsBackground() {
 function resetDestination() {
   clearTimeout(hideTimer);
   sendingPrompt = false;
+  // Grok Bot parts still going out stop when the destination is no longer Grok Bot.
+  if (partsJob && !usesGrokBot()) partsJob.cancelled = true;
   stopWaiting();
   deliveryFailure = undefined;
   clearUnread();
-  promptWindow.webContents.send('prompt:conversation', { ...loadConversation(), waiting: false, bot: botDetails() });
+  updateAlwaysOnTop();
+  promptWindow.webContents.send('prompt:conversation', { ...loadConversation(), waiting: false, ...assistantState(),
+    usage: usesGrokBot() ? usageDetails() : {}, bot: botDetails() });
 }
 
 function conversationFrom(result) {
@@ -148,7 +181,219 @@ function conversationFrom(result) {
 }
 
 function loadConversation() {
+  if (!usesGrokBot()) return conversationFromLog(assistantLogs.get(conversationKey(settings)));
   return conversationFrom(readConversation(GROK_BOT_DIRECTORY, settings.botId));
+}
+
+// The turn of the conversation on screen, when OpenBot or Hermes is the destination (not a stopped one).
+function currentAssistantJob() {
+  const key = usesGrokBot() ? null : conversationKey(settings);
+  return key ? assistantTurns.active(key) : undefined;
+}
+
+// True while the prompt waits in place for a reply (After sending: Wait for reply). It then stops being
+// always on top, so the user can work in other windows meanwhile.
+function waitingInPlace() {
+  return pending?.mode === 'wait' || currentAssistantJob()?.mode === 'wait';
+}
+
+function updateAlwaysOnTop() {
+  if (promptWindow && !promptWindow.isDestroyed()) promptWindow.setAlwaysOnTop(pinned || !waitingInPlace());
+}
+
+const OPENBOT_SEND_ERRORS = {
+  'not-set-up': 'openbot-not-set-up',
+  unreachable: 'openbot-unreachable',
+  'not-local': 'openbot-not-local',
+  'invalid-url': 'openbot-not-local',
+  'not-found': 'openbot-agent-missing',
+  forbidden: 'openbot-agent-missing',
+  'invalid-agent': 'openbot-agent-missing',
+};
+
+// What the prompt shows for a failed OpenBot or Hermes turn, in the current language.
+function failureView({ error, detail, code, name }) {
+  const openOpenBot = ['needs-person', 'openbot-not-set-up', 'openbot-unreachable', 'openbot-agent-missing', 'openbot-timeout']
+    .includes(error);
+  const steps = error === 'openbot-not-set-up' || error === 'openbot-agent-missing';
+  const messages = {
+    'needs-person': () => t('prompt.openbot.needsPerson', { bot: name }),
+    'openbot-timeout': () => t('prompt.openbot.timeout', { bot: name }),
+    'openbot-not-set-up': () => t('openbot.state.notSetUp'),
+    'openbot-unreachable': () => t('openbot.state.unreachable'),
+    'openbot-not-local': () => t('openbot.state.notLocal'),
+    'openbot-agent-missing': () => t('openbot.agentMissing'),
+    'hermes-timeout': () => t('prompt.hermes.timeout'),
+    'hermes-exit': () => t('prompt.hermes.failed', { code }),
+    'hermes-not-started': () => t('prompt.hermes.notStarted'),
+  };
+  const message = Object.hasOwn(messages, error) ? messages[error]() : t('prompt.assistant.failed', { bot: name });
+  return { message, detail: typeof detail === 'string' ? detail : '', steps, openOpenBot,
+    retry: error !== 'needs-person' && error !== 'openbot-timeout' };
+}
+
+// Waiting and failure details for the prompt, for the conversation on screen. Empty for Grok Bot.
+function assistantState() {
+  if (usesGrokBot()) return {};
+  const key = conversationKey(settings);
+  const job = key && assistantTurns.active(key);
+  if (job) return { waiting: true, sent: job.sent };
+  const failure = key && assistantFailures.get(key);
+  if (failure) return { waiting: false, assistantError: failureView(failure), sent: failure.sent };
+  return { waiting: false };
+}
+
+function finishedError(job, result) {
+  if (job.assistant === 'hermes') {
+    if (result.error === 'timeout') return { error: 'hermes-timeout' };
+    if (result.error === 'exit') return { error: 'hermes-exit', code: result.code, detail: result.detail };
+    return { error: 'hermes-not-started' };
+  }
+  if (result.error === 'needs-person') return { error: 'needs-person' };
+  if (result.error === 'timeout') return { error: 'openbot-timeout' };
+  if (result.error === 'failed') return { error: 'openbot-failed', detail: result.detail || result.status };
+  return { error: OPENBOT_SEND_ERRORS[result.error] || 'openbot-failed', detail: result.detail };
+}
+
+function isOnScreen(key) {
+  return !usesGrokBot() && conversationKey(settings) === key;
+}
+
+function sendAssistantConversation(key) {
+  if (!promptWindow || promptWindow.isDestroyed() || !isOnScreen(key)) return;
+  updateAlwaysOnTop();
+  promptWindow.webContents.send('prompt:conversation', { ...loadConversation(), ...assistantState() });
+}
+
+// Marks the tray (and notifies, if enabled) for a finished turn the user can't see right now.
+function notifyAssistantOutcome(job) {
+  if (!promptWindow || promptWindow.isDestroyed()) return;
+  if (promptWindow.isVisible() && isOnScreen(job.key)) return;
+  if (job.reply) {
+    notifyReply(job.name, job.reply);
+    return;
+  }
+  tray.setImage(createTrayIcon({ unread: true }));
+  if (job.failure.error === 'needs-person') {
+    setTrayTooltip('tray.needsPerson', { name: job.name });
+    showNotification(job.name, t('prompt.openbot.needsPerson', { bot: job.name }));
+  } else {
+    setTrayTooltip('tray.assistantFailed', { name: job.name });
+  }
+}
+
+// Records how an OpenBot or Hermes turn ended and shows it, or marks the tray when the prompt is closed.
+// Only now is the conversation free for the next message.
+function finishAssistantJob(job, result) {
+  if (!assistantTurns.release(job.key, job)) return;
+  // A stopped turn recorded its message when Stop was pressed; there is nothing else to show.
+  if (job.cancelled) {
+    sendAssistantConversation(job.key);
+    return;
+  }
+  let log = addEntry(assistantLogs.get(job.key), job.sent);
+  if (result.ok) {
+    job.reply = (result.answer || t('prompt.assistant.noText', { bot: job.name })) + (result.clipped ? '\n\n…' : '');
+    log = addEntry(log, { role: 'bot', text: job.reply, timestampMs: Date.now() });
+  } else {
+    job.failure = { ...finishedError(job, result), name: job.name, sent: job.sent };
+    assistantFailures.set(job.key, job.failure);
+  }
+  assistantLogs.set(job.key, log);
+  sendAssistantConversation(job.key);
+  // With "Close and notify" the prompt hides a moment after sending. Decide once that happened, so a reply
+  // or failure that comes back right away (Hermes failing to start, say) still marks the tray.
+  if (job.mode === 'hide') setTimeout(() => notifyAssistantOutcome(job), HIDE_DELAY_MS + 120);
+  else notifyAssistantOutcome(job);
+}
+
+// Sends the prompt text to OpenBot or Hermes. Problems found before anything is sent come back as an
+// error for the prompt; after that, the reply (or what went wrong) arrives as a conversation update.
+async function submitToAssistant(payload) {
+  const text = typeof payload === 'string' ? payload : payload?.text;
+  const valid = validateAssistantText(text);
+  if (!valid.ok) return valid;
+  const key = conversationKey(settings);
+  if (!key) return { ok: false, error: 'no-agent' };
+  const job = { key, assistant: settings.assistant, name: assistantName(), mode: settings.afterSend, phase: 'sending',
+    sent: { role: 'user', text: valid.text, timestampMs: Date.now() }, cancelled: false, controller: new AbortController() };
+  // Registered before anything is sent, so Stop works from the start and a second message to the same
+  // conversation is refused until this one ended (closing or reopening the prompt doesn't change that).
+  if (!assistantTurns.start(key, job)) return { ok: false, error: 'busy' };
+  const timeoutMs = replyTimeoutMs(settings.replyTimeoutMinutes);
+  let turn;
+  try {
+    if (job.assistant === 'hermes') {
+      const executable = settings.hermesPath || HERMES_DEFAULT_PATH;
+      if (!executable || hermesPathError(executable)) {
+        assistantTurns.release(key, job);
+        return { ok: false, error: 'hermes-missing' };
+      }
+      turn = runHermes({ executable, input: valid.text, timeoutMs, signal: job.controller.signal,
+        onSpawn: (child) => { job.child = child; },
+        args: buildHermesArgs({ model: settings.hermesModel, provider: settings.hermesProvider,
+          continueSession: settings.hermesContinue }) });
+    } else {
+      // Show the message going out right away; then wait until OpenBot queued it, so a setup problem shows
+      // as an error instead of a long wait.
+      sendAssistantConversation(key);
+      let markQueued;
+      const queued = new Promise((resolve) => { markQueued = resolve; });
+      turn = runOpenBotTurn({ client: openBotClient, agentId: settings.openbotAgentId, text: valid.text, timeoutMs,
+        signal: job.controller.signal, onQueued: () => markQueued({ ok: true }) });
+      const first = await Promise.race([queued, turn]);
+      if (!first.ok || job.cancelled) {
+        turn.catch(() => {});
+        assistantTurns.release(key, job);
+        sendAssistantConversation(key);
+        return { ok: false, error: job.cancelled ? 'openbot-stopped' : OPENBOT_SEND_ERRORS[first.error] || 'openbot-failed' };
+      }
+    }
+  } catch {
+    assistantTurns.release(key, job);
+    sendAssistantConversation(key);
+    return { ok: false, error: 'unexpected' };
+  }
+  job.phase = 'waiting';
+  assistantFailures.delete(key);
+  history = addToHistory(history, text);
+  try { saveHistory(historyFile, history); } catch { /* Sending already succeeded; keep history in memory. */ }
+  turn.then((result) => finishAssistantJob(job, result), () => finishAssistantJob(job, { ok: false, error: 'unexpected' }));
+  if (isOnScreen(key)) {
+    clearUnread();
+    sendAssistantConversation(key);
+    if (job.mode === 'hide') {
+      clearTimeout(hideTimer);
+      sendingPrompt = true;
+      hideTimer = setTimeout(() => {
+        sendingPrompt = false;
+        promptWindow.hide();
+      }, HIDE_DELAY_MS);
+    }
+  }
+  return { ok: true, afterSend: job.mode };
+}
+
+// Stops waiting for the conversation on screen. Hermes is stopped; an OpenBot agent keeps working and
+// its answer can still be read in OpenBot. The conversation stays busy until the turn really ended (for
+// Hermes, until the process exited), so two Hermes runs never share its session.
+function stopAssistantJob() {
+  const job = currentAssistantJob();
+  if (!job) return;
+  job.cancelled = true;
+  job.controller.abort();
+  // Once sent, the message is part of the conversation even without an answer.
+  if (job.phase === 'waiting') assistantLogs.set(job.key, addEntry(assistantLogs.get(job.key), job.sent));
+  updateAlwaysOnTop();
+}
+
+// When the app quits: stop every turn and end any Hermes process right away.
+function stopAllAssistantJobs() {
+  for (const job of assistantTurns.all()) {
+    job.cancelled = true;
+    if (job.child) killProcessTreeSync(job.child);
+    job.controller.abort();
+  }
 }
 
 // Entry ids present before sending, so only entries written after the send count as the answer.
@@ -194,6 +439,10 @@ async function runParts({ text, parts, links, job }) {
       job.part = index + 1;
       promptWindow.webContents.send('prompt:parts-progress', { part: job.part, total });
       const baseline = await partBaseline(botId);
+      // partBaseline can take up to a second; recheck before handing the part to Grok Bot.
+      if (job.cancelled || !usesGrokBot() || settings.botId !== botId) {
+        return { ok: false, error: 'cancelled', sentParts: index, total };
+      }
       request = { sentAt: Date.now(), botId, mode, ...baseline, expectPrefix: `(${index + 1}/${total})`,
         sent: { role: 'user', text: parts[index], timestampMs: Date.now() } };
       try {
@@ -213,7 +462,7 @@ async function runParts({ text, parts, links, job }) {
   } finally {
     partsJob = undefined;
   }
-  if (request.botId !== settings.botId) return { ok: true, afterSend: mode, total };
+  if (!usesGrokBot() || request.botId !== settings.botId) return { ok: true, afterSend: mode, total };
   // Every part arrived; wait for the reply to the last one as for a single message.
   request.delivered = true;
   startWaiting(request);
@@ -330,21 +579,29 @@ function startWaiting(request) {
       const roster = listBots(GROK_BOT_DIRECTORY);
       const name = settings.botName || (roster.ok && roster.bots.find((bot) => bot.id === request.agentId)?.name)
         || (settings.botId ? t('bot.fallback', { id: settings.botId.slice(0, 8) }) : t('bot.default'));
-      tray.setImage(createTrayIcon({ unread: true }));
-      setTrayTooltip('tray.newReply', { name });
-      if (settings.notifyOnReply && Notification.isSupported()) {
-        const notification = new Notification({ title: name,
-          body: [...reply.text.replace(/[*`#]/g, '')].slice(0, 140).join(''),
-          silent: false, icon: appIconPath() });
-        notification.on('click', () => {
-          if (!promptWindow.isVisible()) togglePrompt();
-          else { clearUnread(); promptWindow.focus(); }
-        });
-        lastNotification = notification;
-        notification.show();
-      }
+      notifyReply(name, reply.text);
     }
   }, 1000);
+}
+
+// Marks the tray for a reply that arrived with the prompt closed and, if enabled, shows a notification.
+function notifyReply(name, text) {
+  tray.setImage(createTrayIcon({ unread: true }));
+  setTrayTooltip('tray.newReply', { name });
+  showNotification(name, text);
+}
+
+function showNotification(name, text) {
+  if (!settings.notifyOnReply || !Notification.isSupported()) return;
+  const notification = new Notification({ title: name,
+    body: [...text.replace(/[*`#]/g, '')].slice(0, 140).join(''),
+    silent: false, icon: appIconPath() });
+  notification.on('click', () => {
+    if (!promptWindow.isVisible()) togglePrompt();
+    else { clearUnread(); promptWindow.focus(); }
+  });
+  lastNotification = notification;
+  notification.show();
 }
 
 function openSettings({ welcome = false } = {}) {
@@ -413,22 +670,19 @@ function showPrompt(extra = {}) {
   clearUnread();
   promptWindow.show();
   promptWindow.focus();
-  const roster = listBots(GROK_BOT_DIRECTORY);
-  const bot = roster.ok ? roster.bots.find((item) => item.id === settings.botId) : undefined;
-  const botName = settings.botName || bot?.name || '';
+  const grokBot = usesGrokBot();
   promptWindow.webContents.send('prompt:show', {
     history,
     pinned,
     userSized: Boolean(settings.promptBounds),
-    botId: settings.botId, botName,
+    ...botDetails(),
     conversation: loadConversation(), waiting: Boolean(pending), partial: Boolean(pending?.reply), sent: pending?.sent,
-    ...deliveryFailure,
+    ...(grokBot ? deliveryFailure : assistantState()),
     awaitingDelivery: Boolean(pending && !pending.delivered && Date.now() - pending.sentAt >= 15000),
     parts: partsJob ? { part: partsJob.part, total: partsJob.total } : undefined,
     templates: settings.templates,
-    usage: usageDetails(),
-    botColor: settings.botId ? avatarColor(bot?.color, settings.botId) : '#1080f3',
-    botInitial: settings.botId ? avatarInitial(botName) : 'G',
+    // Grok Bot's usage limit doesn't apply to OpenBot or Hermes.
+    usage: grokBot ? usageDetails() : {},
     ...extra,
   });
 }
@@ -510,7 +764,7 @@ async function sendSelection() {
       try { if (clipboard.readText() !== snapshot.text) restoreClipboard(snapshot); } catch { /* Ignore. */ }
     }, 400);
   }
-  const { text, clipped } = clipSelection(copied, MAX_TEXT_LENGTH);
+  const { text, clipped } = clipSelection(copied, textLimit(settings.assistant));
   showPrompt({ prefill: { text, clipped, empty: !text } });
 }
 
@@ -695,7 +949,21 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle('settings:open-openbot', openOpenBot);
     ipcMain.handle('settings:hermes-info', () => ({ defaultPath: HERMES_DEFAULT_PATH,
       defaultFound: Boolean(HERMES_DEFAULT_PATH) && hermesPathError(HERMES_DEFAULT_PATH) === null }));
-    ipcMain.handle('prompt:bots', botsWithAvatars);
+    // What the prompt's picker (Ctrl+K) lists: Grok Bot bots, OpenBot agents or just Hermes.
+    ipcMain.handle('prompt:bots', async () => {
+      if (settings.assistant === 'openbot') {
+        const result = await openBotAgents();
+        return { ...result, assistant: 'openbot', bots: result.agents, selectedId: settings.openbotAgentId };
+      }
+      if (settings.assistant === 'hermes') {
+        const executable = settings.hermesPath || HERMES_DEFAULT_PATH;
+        const found = Boolean(executable) && hermesPathError(executable) === null;
+        return { ok: true, assistant: 'hermes', state: found ? 'ready' : 'missing',
+          bots: [{ id: 'hermes', name: 'Hermes', avatar: { color: avatarColor('purple'), initial: 'H' } }] };
+      }
+      return { ...botsWithAvatars(), assistant: 'grokbot' };
+    });
+    ipcMain.handle('prompt:open-openbot', openOpenBot);
     ipcMain.handle('settings:recording', (_event, isRecording) => {
       if (isRecording === true) {
         if (registeredShortcut) globalShortcut.unregister(registeredShortcut);
@@ -825,6 +1093,17 @@ if (!app.requestSingleInstanceLock()) {
       } catch { return { ok: false, error: 'unexpected' }; }
     });
     ipcMain.handle('prompt:select-bot', (_event, payload) => {
+      if (settings.assistant === 'hermes') return { ok: true, conversation: loadConversation(), bot: botDetails(), ...assistantState() };
+      if (settings.assistant === 'openbot') {
+        if (!isValidAgentId(payload?.botId)) return { ok: false, error: 'invalid-bot' };
+        try {
+          const changed = payload.botId !== settings.openbotAgentId;
+          settings = saveSettings(settingsLocation.path, { ...settings, openbotAgentId: payload.botId,
+            openbotAgentName: typeof payload.botName === 'string' ? [...payload.botName.trim()].slice(0, 80).join('') : '' });
+          if (changed) resetDestination();
+          return { ok: true, conversation: loadConversation(), bot: botDetails(), ...assistantState() };
+        } catch { return { ok: false, error: 'unexpected' }; }
+      }
       if (payload?.botId !== '' && !isValidBotId(payload?.botId)) return { ok: false, error: 'invalid-bot' };
       try {
         settings = saveSettings(settingsLocation.path, { ...settings, botId: payload.botId,
@@ -839,6 +1118,12 @@ if (!app.requestSingleInstanceLock()) {
       return { ok: true };
     });
     ipcMain.handle('prompt:open-bot', async () => {
+      if (settings.assistant === 'hermes') return { ok: false, error: 'open-failed' };
+      if (settings.assistant === 'openbot') {
+        const result = await openOpenBot();
+        if (result.ok) promptWindow.hide();
+        return result.ok ? { ok: true } : { ok: false, error: 'open-failed' };
+      }
       const result = readConversation(GROK_BOT_DIRECTORY, settings.botId);
       const url = result.ok && isValidBotId(result.agentId)
         ? `grokbot://app/v1/agent?id=${encodeURIComponent(result.agentId)}` : 'grokbot://app/v1/open';
@@ -879,7 +1164,9 @@ if (!app.requestSingleInstanceLock()) {
     promptWindow.webContents.on('will-navigate', (event) => event.preventDefault());
     promptWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     promptWindow.on('blur', () => {
-      if (!pinned && !sendingPrompt && !partsJob && pending?.mode !== 'wait') promptWindow.hide();
+      if (!pinned && !sendingPrompt && !partsJob && !waitingInPlace() && currentAssistantJob()?.phase !== 'sending') {
+        promptWindow.hide();
+      }
     });
     // Windows emits will-move/will-resize only for manual changes.
     for (const event of ['will-move', 'will-resize']) {
@@ -898,7 +1185,7 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle('prompt:set-pinned', (_event, value) => {
       if (typeof value !== 'boolean') return;
       pinned = value;
-      promptWindow.setAlwaysOnTop(pinned || pending?.mode !== 'wait');
+      updateAlwaysOnTop();
     });
     ipcMain.handle('prompt:reset-bounds', resetPromptBounds);
     ipcMain.handle('prompt:resize', (_event, height) => {
@@ -919,6 +1206,7 @@ if (!app.requestSingleInstanceLock()) {
 
     ipcMain.handle('prompt:stop-waiting', () => {
       stopWaiting();
+      stopAssistantJob();
       const conversation = { ...loadConversation(), waiting: false };
       promptWindow.webContents.send('prompt:conversation', conversation);
       return conversation;
@@ -926,6 +1214,7 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle('prompt:submit', async (_event, payload) => {
       const text = typeof payload === 'string' ? payload : payload?.text;
       if (partsJob) return { ok: false, error: 'busy' };
+      if (!usesGrokBot()) return submitToAssistant(payload);
       const result = buildPromptLink({ text, botId: settings.botId });
       if (result.error === 'too-long') {
         // Tell the prompt how many parts it would take so it can offer to split it.
@@ -951,7 +1240,7 @@ if (!app.requestSingleInstanceLock()) {
         try { saveHistory(historyFile, history); } catch { /* Sending already succeeded; keep history in memory. */ }
         clearTimeout(hideTimer);
         sendingPrompt = false;
-        if (request.botId !== settings.botId) return { ok: true, afterSend: request.mode };
+        if (!usesGrokBot() || request.botId !== settings.botId) return { ok: true, afterSend: request.mode };
         startWaiting(request);
         if (request.mode === 'hide') {
           sendingPrompt = true;
@@ -972,6 +1261,8 @@ if (!app.requestSingleInstanceLock()) {
     // so a prompt that was hidden, reopened or reloaded meanwhile still learns how it ended.
     ipcMain.handle('prompt:submit-parts', async (_event, payload) => {
       if (partsJob || sendingPrompt) return { ok: false, error: 'busy' };
+      // Only Grok Bot links have a length limit; OpenBot and Hermes take the whole message at once.
+      if (!usesGrokBot()) return { ok: false, error: 'unexpected' };
       const text = payload?.text;
       if (typeof text !== 'string' || (payload.force !== undefined && typeof payload.force !== 'boolean')) {
         return { ok: false, error: 'empty' };
@@ -1065,6 +1356,7 @@ if (!app.requestSingleInstanceLock()) {
     clearTimeout(updateTimer);
     clearInterval(updateInterval);
     stopWaiting();
+    stopAllAssistantJobs();
     globalShortcut.unregisterAll();
   });
 

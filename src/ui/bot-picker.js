@@ -69,6 +69,8 @@
       let options = [];
       let active = -1;
       let destroyed = false;
+      // What the list is about: Grok Bot bots by default; the prompt switches it to OpenBot agents or Hermes.
+      let listOptions = { includeDefault, heading: t('picker.heading'), empty: t('picker.empty'), badgeFirst: true };
 
       function matches(option) {
         return option.mode === value.mode && (option.mode !== 'list' || option.botId === value.botId);
@@ -113,7 +115,7 @@
         searchBox.hidden = search.hidden;
         const query = normalize(search.value);
         const filtered = bots.filter((bot) => normalize(bot.name).includes(query));
-        const heading = element('div', 'bot-picker-heading', t('picker.heading'));
+        const heading = element('div', 'bot-picker-heading', listOptions.heading);
         heading.setAttribute('role', 'presentation');
         list.append(heading);
         function append(option, avatar, badge = false) {
@@ -136,18 +138,18 @@
           options.push({ ...option, node });
           list.append(node);
         }
-        for (const bot of filtered) append({ mode: 'list', botId: bot.id, botName: bot.name }, bot.avatar, bot === bots[0]);
+        for (const bot of filtered) append({ mode: 'list', botId: bot.id, botName: bot.name }, bot.avatar, listOptions.badgeFirst && bot === bots[0]);
         if (!filtered.length) {
-          const empty = element('div', 'bot-picker-empty', t('picker.empty'));
+          const empty = element('div', 'bot-picker-empty', listOptions.empty);
           empty.setAttribute('role', 'presentation');
           list.append(empty);
         }
-        if (includeDefault || includeManual) {
+        if (listOptions.includeDefault || includeManual) {
           const divider = element('div', 'bot-picker-divider');
           divider.setAttribute('role', 'presentation');
           list.append(divider);
         }
-        if (includeDefault) append({ mode: 'default', botId: '', botName: t('picker.default') });
+        if (listOptions.includeDefault) append({ mode: 'default', botId: '', botName: t('picker.default') });
         if (includeManual) append({ mode: 'manual', botName: t('picker.manual') }, { initial: '+', color: '#71717a' });
         setActive(Math.max(0, options.findIndex(matches)));
       }
@@ -210,6 +212,8 @@
           }
         },
         setValue(next) { value = { ...next }; renderTrigger(); renderOptions(); },
+        // Changes the heading, the empty text, the "most used" badge and the default entry of the list.
+        configure(next) { listOptions = { ...listOptions, ...next }; renderOptions(); },
         getValue() { return { ...value }; },
         open, close,
         focus() { trigger.focus({ preventScroll: true }); },

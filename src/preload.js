@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('grokbot', {
   selectBot: (bot) => ipcRenderer.invoke('prompt:select-bot', bot),
   copy: (text) => ipcRenderer.invoke('prompt:copy', text),
   openBot: () => ipcRenderer.invoke('prompt:open-bot'),
+  openOpenBot: () => ipcRenderer.invoke('prompt:open-openbot'),
   openLink: (url) => ipcRenderer.invoke('prompt:open-link', url),
   onConversation: (callback) => {
     ipcRenderer.on('prompt:conversation', (_event, data) => callback(data));

@@ -47,14 +47,45 @@ const send = document.getElementById('send');
 const usageWarning = document.getElementById('usage-warning');
 const usageIndicator = document.getElementById('usage-indicator');
 let usage = {};
-const MAX_TEXT_LENGTH = 1000;
+// Grok Bot links take 1000 characters; OpenBot and Hermes up to 20 000 (the main process sends the limit).
+let maxLength = 1000;
+// Where messages go: 'grokbot', 'openbot' or 'hermes'.
+let assistant = 'grokbot';
+// How an OpenBot or Hermes turn failed: { message, detail, steps, openOpenBot, retry }.
+let assistantError;
+// The last OpenBot agent list ({ state, agents }) or Hermes state, for the notice above the reply.
+let openbotStatus = null;
+let hermesState = 'ready';
+let agentPoll;
 const errors = {
   empty: t('errors.empty'),
   busy: t('errors.busy'),
   'too-long': t('errors.tooLong'),
   'invalid-bot-id': t('errors.configuredBot'),
   'open-failed': t('errors.open'),
+  'no-agent': t('prompt.openbot.pick'),
+  'hermes-missing': t('prompt.hermes.missing'),
+  'openbot-not-set-up': t('openbot.state.notSetUp'),
+  'openbot-unreachable': t('openbot.state.unreachable'),
+  'openbot-not-local': t('openbot.state.notLocal'),
+  'openbot-agent-missing': t('openbot.agentMissing'),
+  'openbot-failed': t('errors.openbotFailed'),
+  'openbot-stopped': t('errors.openbotStopped'),
 };
+const OPENBOT_STATES = {
+  'not-set-up': 'openbot.state.notSetUp',
+  'no-agents': 'openbot.state.noAgents',
+  unreachable: 'openbot.state.unreachable',
+  'not-local': 'openbot.state.notLocal',
+  error: 'openbot.state.error',
+};
+const assistantNoticeBox = document.getElementById('assistant-notice');
+const assistantNoticeText = document.getElementById('assistant-notice-text');
+const assistantNoticeSteps = document.getElementById('assistant-notice-steps');
+const assistantNoticeOpen = document.getElementById('assistant-notice-open');
+const openBotButton = document.getElementById('open-bot');
+const openOpenBot = () => window.grokbot.openOpenBot().catch(() => {});
+assistantNoticeOpen.addEventListener('click', openOpenBot);
 let submitting = false;
 let resizeFrame;
 let showVersion = 0;
@@ -97,10 +128,12 @@ const picker = BotPicker.create({
       if (!selected.ok) { setBot(destinationDetails); showError(t('errors.selectBot')); return; }
       setBot(selected.bot);
       conversation = selected.conversation;
-      waiting = false;
+      waiting = Boolean(selected.waiting);
       partial = false;
       timedOut = false;
-      sent = undefined;
+      assistantError = selected.assistantError;
+      sent = selected.sent;
+      renderAssistantNotice();
       conversationView = false;
       expanded = false;
       renderConversation();
@@ -110,9 +143,71 @@ const picker = BotPicker.create({
 });
 pickerContainer.addEventListener('botpicker:toggle', updateLayout);
 
+function configurePicker() {
+  picker.configure(assistant === 'openbot'
+    ? { includeDefault: false, heading: t('picker.agentsHeading'), empty: t('picker.noAgents'), badgeFirst: false }
+    : assistant === 'hermes'
+      ? { includeDefault: false, heading: t('picker.hermesHeading'), empty: t('picker.empty'), badgeFirst: false }
+      : { includeDefault: true, heading: t('picker.heading'), empty: t('picker.empty'), badgeFirst: true });
+}
+
 function setBot(details) {
   destinationDetails = details;
-  picker.setValue({ mode: details.botId ? 'list' : 'default', botId: details.botId || '', botName: details.botName || '' });
+  const next = ['openbot', 'hermes'].includes(details.assistant) ? details.assistant : 'grokbot';
+  if (next !== assistant) {
+    assistant = next;
+    if (assistant !== 'grokbot') grokBotFound = true;
+    openbotStatus = null;
+    hermesState = 'ready';
+    picker.setBots([]);
+    configurePicker();
+    loadPickerBots();
+  }
+  if (Number.isInteger(details.maxLength) && details.maxLength > 0) maxLength = details.maxLength;
+  if (assistant === 'grokbot') {
+    picker.setValue({ mode: details.botId ? 'list' : 'default', botId: details.botId || '', botName: details.botName || '' });
+  } else picker.setValue({ mode: 'list', botId: details.botId || '', botName: details.botName || '' });
+  const name = details.botName || 'OpenBot';
+  textarea.placeholder = assistant === 'grokbot' ? t('prompt.placeholder') : t('prompt.assistant.placeholder', { bot: name });
+  textarea.setAttribute('aria-label', assistant === 'grokbot' ? t('prompt.message') : t('prompt.assistant.message', { bot: name }));
+  openBotButton.hidden = assistant === 'hermes';
+  const openLabel = assistant === 'openbot' ? t('openbot.open') : t('prompt.openConversation');
+  openBotButton.title = openLabel;
+  openBotButton.setAttribute('aria-label', openLabel);
+}
+
+// A note above the reply when OpenBot or Hermes can't be used yet: OpenBot closed or without agents with
+// Local scripts, no agent picked, the picked agent gone, or hermes.exe not found.
+function assistantNotice() {
+  if (assistant === 'hermes') return hermesState === 'missing' ? { text: t('prompt.hermes.missing') } : null;
+  if (assistant !== 'openbot' || !openbotStatus) return null;
+  const { state, agents } = openbotStatus;
+  if (state !== 'ready') {
+    return { text: t(OPENBOT_STATES[state] || OPENBOT_STATES.error),
+      steps: state === 'not-set-up' || state === 'no-agents',
+      open: state === 'not-set-up' || state === 'no-agents' || state === 'unreachable' };
+  }
+  if (!destinationDetails.botId) return { text: t('prompt.openbot.pick') };
+  if (!agents.some((agent) => agent.id === destinationDetails.botId)) return { text: t('openbot.agentMissing'), steps: true, open: true };
+  return null;
+}
+
+function renderAssistantNotice() {
+  const notice = assistantNotice();
+  assistantNoticeBox.hidden = !notice;
+  assistantNoticeText.textContent = notice ? notice.text : '';
+  assistantNoticeSteps.hidden = !notice?.steps;
+  assistantNoticeOpen.hidden = !notice?.open;
+  updateLayout();
+}
+
+// While the prompt is open with OpenBot as the destination and something is missing, the agent list is
+// read again every 3 s, so the note goes away by itself once Local scripts is on. Nothing runs while hidden.
+function scheduleAgentPoll() {
+  clearTimeout(agentPoll);
+  agentPoll = undefined;
+  if (document.hidden || assistant !== 'openbot' || !assistantNotice()) return;
+  agentPoll = setTimeout(loadPickerBots, 3000);
 }
 
 function setUsage(data) {
@@ -134,14 +229,32 @@ function textButton(label, action) {
 
 async function loadPickerBots() {
   const version = ++rosterVersion;
+  const forAssistant = assistant;
   try {
     const result = await window.grokbot.bots();
-    if (version === rosterVersion) {
+    if (version !== rosterVersion || forAssistant !== assistant || (result.assistant || 'grokbot') !== assistant) return;
+    if (assistant === 'grokbot') {
       grokBotFound = result.ok;
       picker.setBots(result.ok ? result.bots : []);
-      renderConversation();
+    } else {
+      grokBotFound = true;
+      const bots = Array.isArray(result.bots) ? result.bots : [];
+      picker.setBots(bots);
+      if (assistant === 'openbot') openbotStatus = { state: result.state, agents: bots };
+      else hermesState = result.state;
     }
-  } catch { if (version === rosterVersion) { grokBotFound = false; picker.setBots([]); renderConversation(); } }
+    renderAssistantNotice();
+    renderConversation();
+  } catch {
+    if (version !== rosterVersion) return;
+    grokBotFound = assistant !== 'grokbot';
+    picker.setBots([]);
+    if (assistant === 'openbot') openbotStatus = { state: 'error', agents: [] };
+    renderAssistantNotice();
+    renderConversation();
+  } finally {
+    if (version === rosterVersion) scheduleAgentPoll();
+  }
 }
 
 document.getElementById('copy-response').addEventListener('click', async () => {
@@ -257,7 +370,7 @@ function renderConversation(animate = false) {
   response.hidden = !conversation.ok || !conversation.latest;
   responseBody.replaceChildren();
   responseName.textContent = destinationDetails.botName || (destinationDetails.botId ? t('bot.fallback', { id: destinationDetails.botId.slice(0, 8) }) : t('bot.default'));
-  emptyState.hidden = !response.hidden || waiting || timedOut || notDelivered;
+  emptyState.hidden = !response.hidden || waiting || timedOut || notDelivered || Boolean(assistantError);
   emptyMessage.textContent = grokBotFound ? t('prompt.empty', { bot: responseName.textContent }) : t('prompt.notFound');
   responseAvatar.textContent = destinationDetails.botInitial || 'G';
   responseAvatar.style.backgroundColor = destinationDetails.botColor || '#1080f3';
@@ -281,7 +394,7 @@ function renderConversation(animate = false) {
     responseBody.classList.add('new-reply');
   }
   waitingArea.replaceChildren();
-  waitingArea.hidden = !waiting && !timedOut && !notDelivered;
+  waitingArea.hidden = !waiting && !timedOut && !notDelivered && !assistantError;
   if (waiting) {
     if (sent && !partial) waitingArea.append(bubble(sent));
     const status = document.createElement('p');
@@ -324,6 +437,28 @@ function renderConversation(animate = false) {
       if (typeof retryText === 'string') submit(force, retryText);
     }));
     waitingArea.append(status);
+  } else if (assistantError) {
+    const status = document.createElement('p');
+    status.className = 'waiting-status';
+    status.textContent = assistantError.message;
+    if (assistantError.detail) {
+      const detail = document.createElement('small');
+      detail.className = 'assistant-detail';
+      detail.textContent = assistantError.detail;
+      status.append(detail);
+    }
+    if (assistantError.steps) {
+      const steps = document.createElement('small');
+      steps.className = 'assistant-detail assistant-steps';
+      steps.textContent = t('openbot.steps');
+      status.append(steps);
+    }
+    if (assistantError.openOpenBot) status.append(textButton(t('openbot.open'), openOpenBot));
+    const retryText = sent?.text;
+    if (assistantError.retry && typeof retryText === 'string') {
+      status.append(textButton(t('prompt.retry'), () => submit(false, retryText)));
+    }
+    waitingArea.append(status);
   } else if (timedOut) {
     const status = document.createElement('p');
     status.className = 'waiting-status';
@@ -343,6 +478,7 @@ expandResponse.addEventListener('click', () => {
 });
 document.addEventListener('visibilitychange', () => {
   startRelativeTimer();
+  scheduleAgentPoll();
   if (!document.hidden) updateTimes();
 });
 window.grokbot.onConversation((data) => {
@@ -350,9 +486,11 @@ window.grokbot.onConversation((data) => {
     setBot(data.bot);
     conversationView = false;
     expanded = false;
+    renderAssistantNotice();
   }
   const changed = data.latest && (data.latest.id !== conversation.latest?.id || data.latest.text !== conversation.latest?.text);
   conversation = data;
+  assistantError = data.assistantError && typeof data.assistantError.message === 'string' ? data.assistantError : undefined;
   waiting = Boolean(data.waiting);
   partial = waiting && Boolean(data.partial);
   timedOut = Boolean(data.timedOut);
@@ -366,9 +504,9 @@ window.grokbot.onConversation((data) => {
 function updateLayout() {
   send.disabled = submitting || !textarea.value.trim();
   const length = [...textarea.value].length;
-  counter.textContent = t('prompt.counter', { length, max: MAX_TEXT_LENGTH });
-  counter.hidden = length < 800;
-  counter.classList.toggle('over-limit', length > MAX_TEXT_LENGTH);
+  counter.textContent = t('prompt.counter', { length, max: maxLength });
+  counter.hidden = length < maxLength * 0.8;
+  counter.classList.toggle('over-limit', length > maxLength);
   cancelAnimationFrame(resizeFrame);
   resizeFrame = requestAnimationFrame(() => {
     textarea.style.height = 'auto';
@@ -434,6 +572,8 @@ function failSubmit(result, retry, draft) {
     setUsage({ blocked: true, resetText: result.resetText, percentUsed: result.percentUsed });
     showError(t('prompt.limit', { reset: result.resetText }));
     errorArea.append(textButton(t('prompt.sendAnyway'), () => retry(true)));
+  } else if (result.error === 'too-long' && Number.isInteger(result.max)) {
+    showError(t('errors.tooLongMax', { max: result.max }));
   } else if (result.error === 'too-long' && Number.isInteger(result.parts) && result.parts > 1
       && result.parts <= result.maxParts) {
     showError(errors['too-long']);
@@ -446,7 +586,14 @@ function failSubmit(result, retry, draft) {
     showNotice(Number.isInteger(result.pendingPart)
       ? t('prompt.parts.cancelledPending', { sent: result.sentParts, total: result.total, part: result.pendingPart })
       : t('prompt.parts.cancelled', { sent: result.sentParts, total: result.total }));
-  } else showError(errors[result.error] || t('errors.unexpected'));
+  } else {
+    showError(errors[result.error] || t('errors.unexpected'));
+    if (['openbot-not-set-up', 'openbot-unreachable', 'openbot-agent-missing'].includes(result.error)) {
+      errorArea.append(textButton(t('openbot.open'), openOpenBot));
+      // Refresh the note above, which has the steps to turn Local scripts on.
+      loadPickerBots();
+    }
+  }
   submitting = false;
   send.disabled = !textarea.value.trim();
 }
@@ -625,7 +772,8 @@ document.addEventListener('keydown', (event) => {
 
 window.grokbot.onShow(({ botId, botName, botColor, botInitial, history: savedHistory, conversation: data, waiting: isWaiting, sent: sentMessage,
   partial: isPartial, usage: usageData, notDelivered: failedDelivery, awaitingDelivery: awaitingReceipt, pinned: isPinned, userSized: isUserSized,
-  prefill, parts: partsProgress, templates: savedTemplates }) => {
+  prefill, parts: partsProgress, templates: savedTemplates, assistant: destination, maxLength: limit, assistantError: failure }) => {
+  if (Number.isInteger(limit) && limit > 0) maxLength = limit;
   showPinned(Boolean(isPinned));
   setUserSized(isUserSized);
   setTemplates(savedTemplates);
@@ -639,7 +787,7 @@ window.grokbot.onShow(({ botId, botName, botColor, botInitial, history: savedHis
   // A draft already there is kept, with the selection added after it.
   const selected = prefill && typeof prefill.text === 'string' ? prefill : null;
   if (selected?.text) {
-    const text = [...selected.text].slice(0, MAX_TEXT_LENGTH).join('');
+    const text = [...selected.text].slice(0, maxLength).join('');
     textarea.value = textarea.value.trim() ? `${textarea.value.trimEnd()}\n\n${text}` : text;
     historyIndex = null;
   }
@@ -650,7 +798,8 @@ window.grokbot.onShow(({ botId, botName, botColor, botInitial, history: savedHis
   send.setAttribute('aria-label', t('prompt.send'));
   send.title = t('prompt.send');
   send.classList.remove('sent');
-  setBot({ botId, botName, botColor, botInitial });
+  setBot({ assistant: destination, maxLength: limit, botId, botName, botColor, botInitial });
+  assistantError = failure && typeof failure.message === 'string' ? failure : undefined;
   conversation = data || { ok: false };
   waiting = Boolean(isWaiting);
   partial = waiting && Boolean(isPartial);
@@ -665,7 +814,7 @@ window.grokbot.onShow(({ botId, botName, botColor, botInitial, history: savedHis
   startRelativeTimer();
   showError('');
   showNotice(!selected ? '' : selected.empty ? t('prompt.selection.empty')
-    : selected.clipped ? t('prompt.selection.clipped', { max: MAX_TEXT_LENGTH }) : '');
+    : selected.clipped ? t('prompt.selection.clipped', { max: maxLength }) : '');
   if (partsProgress) showPartsProgress(partsProgress);
   document.body.classList.remove('opening');
   void document.body.offsetWidth;

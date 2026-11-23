@@ -102,3 +102,8 @@ footer { display: flex; align-items: center; gap: 10px; margin-top: 10px; color:
 
 /* The caret already shows focus; a heavy ring around the composer looked like a form field. */
 .composer:focus-within { border-top-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+#assistant-notice { flex-shrink: 0; display: grid; gap: 4px; justify-items: start; padding: 8px 10px; margin-bottom: 10px; border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; }
+#assistant-notice p { margin: 0; }
+#assistant-notice-steps, .assistant-detail { color: var(--secondary); font-size: 12px; }
+.waiting-status .assistant-steps { display: block; margin-top: 4px; }
+.assistant-detail { display: block; margin-top: 2px; overflow-wrap: anywhere; }
