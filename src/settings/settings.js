@@ -36,10 +36,12 @@ const record = document.getElementById('record');
 const save = document.getElementById('save');
 const launchAtLogin = document.getElementById('launch-at-login');
 const notifyOnReply = document.getElementById('notify-on-reply');
+const checkForUpdates = document.getElementById('check-for-updates');
 const themeOptions = [...document.querySelectorAll('input[name="theme"]')];
 const languageOptions = [...document.querySelectorAll('input[name="language"]')];
 function renderGeneral(settings) {
   notifyOnReply.checked = settings.notifyOnReply;
+  checkForUpdates.checked = settings.checkForUpdates === true;
   for (const option of themeOptions) option.checked = option.value === settings.theme;
   for (const option of languageOptions) option.checked = option.value === settings.language;
   updateSegments();
@@ -430,6 +432,7 @@ form.addEventListener('submit', async (event) => {
       launchAtLogin: launchAtLogin.checked,
       afterSend: afterSendOptions.find((option) => option.checked)?.value,
       notifyOnReply: notifyOnReply.checked,
+      checkForUpdates: checkForUpdates.checked,
       theme: themeOptions.find((option) => option.checked)?.value,
       language: languageOptions.find((option) => option.checked)?.value,
       templates: templates.map(({ name, text }) => ({ name, text })),

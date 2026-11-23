@@ -17,6 +17,9 @@ const DEFAULT_SETTINGS = Object.freeze({
   language: 'system',
   promptBounds: null,
   templates: Object.freeze([]),
+  // The update check is the only network access, so it is opt-in.
+  checkForUpdates: false,
+  lastUpdateCheckMs: 0,
 });
 
 const LANGUAGES = ['system', 'en', 'pt-BR'];
@@ -112,6 +115,8 @@ function normalizeSettings(raw) {
     settings.promptBounds = { x, y, width, height };
   }
   settings.templates = normalizeTemplates(raw.templates);
+  if (typeof raw.checkForUpdates === 'boolean') settings.checkForUpdates = raw.checkForUpdates;
+  if (Number.isFinite(raw.lastUpdateCheckMs) && raw.lastUpdateCheckMs >= 0) settings.lastUpdateCheckMs = raw.lastUpdateCheckMs;
   return settings;
 }
 

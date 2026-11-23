@@ -23,7 +23,7 @@
 
 On macOS, Grok Bot ships with a built-in quick prompt you can summon from anywhere with a shortcut. **On Windows that feature doesn't exist yet** — so we built it. Grok Bot Helper is a small tray app that brings that "press a shortcut, talk to your bot" experience to Windows, and is meant to grow into a general-purpose helper around the Grok Bot desktop app.
 
-> **Unofficial, community project.** Not affiliated with xAI or the makers of Grok Bot. It relies on Grok Bot links and local files that are not documented and may change with Grok Bot updates. It only **reads** those files on your computer and never sends your data anywhere.
+> **Unofficial, community project.** Not affiliated with xAI or the makers of Grok Bot. It relies on Grok Bot links and local files that are not documented and may change with Grok Bot updates. It only **reads** those files on your computer and never sends your data anywhere. The one optional network request (the update check, off by default) is described below.
 
 ## Features
 
@@ -69,6 +69,7 @@ On macOS, Grok Bot ships with a built-in quick prompt you can summon from anywhe
 1. A global shortcut opens a floating prompt (Electron, lives in the tray).
 2. When you send, the app opens a Grok Bot deep link — `grokbot://app/v1/prompt?id=<bot>&text=<text>` (up to 1000 characters; a longer message goes out as numbered parts, one link each, only after you confirm). Grok Bot may ask you to confirm *"Add message for Grok?"*; it has a *"Don't show again"* option. If you enable it, any `grokbot://` link can add text without asking, so decide with that in mind.
 3. To show replies and your bot list, the app **reads** Grok Bot's local cache in `%APPDATA%\Grok Bot` — nothing is written there and nothing leaves your PC.
+4. **Network:** by default the app makes no network requests at all; it only works with local files and Grok Bot links. If you turn on **Settings → Data → Check for updates** (off by default), it asks the public GitHub API once a day for the latest release (`api.github.com/repos/pedrofigueiredo25/grok-bot-helper/releases/latest`), reads only the version number and the release page link, and shows a notice plus an **Update available** item in the tray menu when there's a newer version. No user data, no telemetry, no sign-in: GitHub only sees your IP address and the standard Electron user agent (app name and version, Windows version), like any browser request. If it fails, nothing happens.
 
 ## Install
 
@@ -100,7 +101,7 @@ To uninstall: **Windows Settings → Apps**.
 | `Ctrl+,` | Open settings |
 | Double-click the header | Reset the prompt's size and position |
 
-Tray icon: left-click opens the prompt; right-click shows **Open prompt**, **Settings…**, **Reset prompt position** and **Quit**.
+Tray icon: left-click opens the prompt; right-click shows **Open prompt**, **Settings…**, **Reset prompt position** and **Quit** (plus **Update available** when the optional update check found a newer version).
 
 Settings are stored in `%APPDATA%\grok-bot-helper\settings.json`.
 

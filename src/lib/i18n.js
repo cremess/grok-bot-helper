@@ -178,7 +178,13 @@
     'settings.language.title': "Language",
     'settings.language.help': "App language. System follows your Windows language.",
     'settings.language.system': "System",
-    'settings.errors.language': "Select a valid language."
+    'settings.errors.language': "Select a valid language.",
+    'settings.rows.updates.title': "Check for updates",
+    'settings.rows.updates.help': "Once a day, asks GitHub whether a newer version is out. This is the only time the app uses the network, and nothing about you is sent.",
+    'tray.updateAvailable': "Update available: v{version}",
+    'update.title': "Grok Bot Helper update available",
+    'update.body': "Version {version} is out. Click to open the download page.",
+    'update.bodyTray': "Version {version} is out. Open it from the tray menu."
   },
   'pt-BR': {
     'app.tagline': "Seu Grok Bot a um atalho de distância.",
@@ -359,7 +365,13 @@
     'settings.language.title': "Idioma",
     'settings.language.help': "Idioma do app. A opção Sistema segue o idioma do Windows.",
     'settings.language.system': "Sistema",
-    'settings.errors.language': "Escolha um idioma válido."
+    'settings.errors.language': "Escolha um idioma válido.",
+    'settings.rows.updates.title': "Procurar atualizações",
+    'settings.rows.updates.help': "Uma vez por dia, pergunta ao GitHub se saiu uma versão nova. É o único momento em que o app usa a rede, e nada sobre você é enviado.",
+    'tray.updateAvailable': "Atualização disponível: v{version}",
+    'update.title': "Atualização do Grok Bot Helper disponível",
+    'update.body': "Saiu a versão {version}. Clique para abrir a página de download.",
+    'update.bodyTray': "Saiu a versão {version}. Abra pelo menu da bandeja."
   }
 };
   const LOCALES = ['en', 'pt-BR'];

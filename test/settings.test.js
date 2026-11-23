@@ -32,7 +32,7 @@ test('promptBounds validates integer bounds, copies and persists position and si
 });
 after(() => fs.rmSync(temporaryDirectory, { recursive: true, force: true }));
 
-const validSettings = { botId: 'bot_123-ABC', botName: '', shortcut: 'Ctrl+Shift+G', selectionShortcut: '', launchAtLogin: true, afterSend: 'wait', notifyOnReply: false, theme: 'system', language: 'system', promptBounds: null, templates: [] };
+const validSettings = { botId: 'bot_123-ABC', botName: '', shortcut: 'Ctrl+Shift+G', selectionShortcut: '', launchAtLogin: true, afterSend: 'wait', notifyOnReply: false, theme: 'system', language: 'system', promptBounds: null, templates: [], checkForUpdates: false, lastUpdateCheckMs: 0 };
 
 test('loading missing, empty or invalid files returns defaults', () => {
   assert.deepEqual(loadSettings(path.join(temporaryDirectory, 'missing.json')), DEFAULT_SETTINGS);
@@ -82,7 +82,7 @@ test('normalization requires a plain object and preserves defaults and input', (
     assert.deepEqual(normalizeSettings(raw), DEFAULT_SETTINGS);
   }
   assert.deepEqual(normalizeSettings(Object.assign(Object.create(null), validSettings)), validSettings);
-  const snapshot = { botId: '', botName: '', shortcut: 'Alt+Space', selectionShortcut: '', launchAtLogin: false, afterSend: 'wait', notifyOnReply: false, theme: 'system', language: 'system', promptBounds: null, templates: [] };
+  const snapshot = { botId: '', botName: '', shortcut: 'Alt+Space', selectionShortcut: '', launchAtLogin: false, afterSend: 'wait', notifyOnReply: false, theme: 'system', language: 'system', promptBounds: null, templates: [], checkForUpdates: false, lastUpdateCheckMs: 0 };
   const input = { ...validSettings };
   const result = normalizeSettings(input);
   result.botId = 'other';
@@ -268,4 +268,17 @@ test('a fresh install follows the system language and accepts only system, en an
   }
   const { language, ...olderFile } = validSettings;
   assert.equal(normalizeSettings(olderFile).language, 'en');
+});
+
+test('the update check is off by default and its settings are validated', () => {
+  assert.equal(DEFAULT_SETTINGS.checkForUpdates, false);
+  assert.equal(DEFAULT_SETTINGS.lastUpdateCheckMs, 0);
+  const file = path.join(temporaryDirectory, 'updates.json');
+  const saved = saveSettings(file, { ...validSettings, checkForUpdates: true, lastUpdateCheckMs: 1700000000000 });
+  assert.equal(saved.checkForUpdates, true);
+  assert.equal(loadSettings(file).lastUpdateCheckMs, 1700000000000);
+  for (const value of ['true', 1, null, {}]) assert.equal(normalizeSettings({ checkForUpdates: value }).checkForUpdates, false);
+  for (const value of [-1, NaN, Infinity, '5', null]) {
+    assert.equal(normalizeSettings({ lastUpdateCheckMs: value }).lastUpdateCheckMs, 0, String(value));
+  }
 });

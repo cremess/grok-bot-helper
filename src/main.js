@@ -2,7 +2,7 @@ const { t, setLocale, getLocale, resolveLocale } = require('./lib/i18n');
 const path = require('node:path');
 const fs = require('node:fs');
 const { execFile } = require('node:child_process');
-const { app, BrowserWindow, globalShortcut, ipcMain, Menu, nativeTheme, screen, shell, Tray, clipboard, Notification } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain, Menu, nativeTheme, net, screen, shell, Tray, clipboard, Notification } = require('electron');
 const { migrateUserData } = require('./lib/migrate');
 const appData = app.getPath('appData');
 const userData = path.join(appData, 'grok-bot-helper');
@@ -21,6 +21,7 @@ const { loadSettings, saveSettings, isValidShortcut, selectionShortcutError, DEF
 const { promptPosition, isBoundsVisible } = require('./lib/position');
 const { pickShortcut, isFirstRun } = require('./lib/first-run');
 const { validateTemplates } = require('./lib/templates');
+const { RELEASES_URL, UPDATE_TIMEOUT_MS, updateNotice, isSafeReleaseUrl, shouldCheckForUpdate } = require('./lib/update');
 
 // Keep the tray icon alive while the app runs.
 let tray;
@@ -30,6 +31,12 @@ let settings;
 let registeredShortcut;
 let registeredSelectionShortcut;
 let capturingSelection = false;
+// A newer release found by the optional update check: { version, url }.
+let updateAvailable;
+let updateCheckRunning = false;
+let updateTimer;
+let updateInterval;
+let lastUpdateNotification;
 // A long message being sent in parts: { cancelled, part, total }.
 let partsJob;
 const settingsLocation = {};
@@ -510,6 +517,10 @@ function applySelectionShortcut(accelerator) {
 
 function buildTrayMenu() {
   tray.setContextMenu(Menu.buildFromTemplate([
+    ...(updateAvailable ? [
+      { label: t('tray.updateAvailable', { version: updateAvailable.version }), click: openReleasePage },
+      { type: 'separator' },
+    ] : []),
     { label: t('tray.openPrompt'), click: () => {
       if (promptWindow && !promptWindow.isVisible()) togglePrompt();
     } },
@@ -518,6 +529,76 @@ function buildTrayMenu() {
     { type: 'separator' },
     { label: t('tray.quit'), click: () => app.quit() },
   ]));
+}
+
+function openReleasePage() {
+  // Checked again here: only this project's release pages on github.com, over https.
+  if (updateAvailable && isSafeReleaseUrl(updateAvailable.url)) shell.openExternal(updateAvailable.url).catch(() => {});
+}
+
+function showUpdate(notice) {
+  const isNew = updateAvailable?.version !== notice.version;
+  updateAvailable = notice;
+  buildTrayMenu();
+  if (!isNew) return;
+  if (Notification.isSupported()) {
+    const notification = new Notification({ title: t('update.title'),
+      body: t('update.body', { version: notice.version }), silent: true, icon: appIconPath() });
+    notification.on('click', openReleasePage);
+    lastUpdateNotification = notification;
+    notification.show();
+  } else {
+    tray.displayBalloon({ title: t('update.title'), content: t('update.bodyTray', { version: notice.version }) });
+  }
+}
+
+// The only network request the app makes, and only with "Check for updates" on: an anonymous GET to the
+// public GitHub releases API, at most once a day. No user data is sent. Any failure is silent.
+async function checkForUpdate() {
+  if (updateCheckRunning || !shouldCheckForUpdate({ enabled: settings.checkForUpdates,
+    lastCheckMs: settings.lastUpdateCheckMs, nowMs: Date.now() })) return;
+  updateCheckRunning = true;
+  // Record the attempt first, so a failing network is still asked only once a day.
+  settings.lastUpdateCheckMs = Date.now();
+  try { settings = saveSettings(settingsLocation.path, settings); } catch { /* Keep it in memory. */ }
+  const controller = new AbortController();
+  let timer;
+  try {
+    const timeout = new Promise((_resolve, reject) => {
+      timer = setTimeout(() => { controller.abort(); reject(new Error('timeout')); }, UPDATE_TIMEOUT_MS);
+    });
+    const data = await Promise.race([timeout, (async () => {
+      const response = await net.fetch(RELEASES_URL, { method: 'GET', credentials: 'omit', cache: 'no-store',
+        headers: { Accept: 'application/vnd.github+json' }, signal: controller.signal });
+      if (!response.ok) return null;
+      const body = await response.text();
+      return body.length <= 1000000 ? JSON.parse(body) : null;
+    })()]);
+    const notice = updateNotice(data, app.getVersion());
+    if (notice && settings.checkForUpdates) showUpdate(notice);
+  } catch {
+    // Offline, blocked or an unexpected answer: say nothing.
+  } finally {
+    clearTimeout(timer);
+    updateCheckRunning = false;
+  }
+}
+
+// Starts or stops the daily check to match the setting. The first check waits a bit after startup.
+function scheduleUpdateChecks(delayMs = 30000) {
+  clearTimeout(updateTimer);
+  clearInterval(updateInterval);
+  updateTimer = undefined;
+  updateInterval = undefined;
+  if (!settings.checkForUpdates) {
+    if (updateAvailable) {
+      updateAvailable = undefined;
+      buildTrayMenu();
+    }
+    return;
+  }
+  updateTimer = setTimeout(checkForUpdate, delayMs);
+  updateInterval = setInterval(checkForUpdate, 60 * 60 * 1000);
 }
 
 function loadPrompt() {
@@ -613,8 +694,9 @@ if (!app.requestSingleInstanceLock()) {
       } else if (payload?.mode !== 'default') {
         return { ok: false, error: 'invalid-bot' };
       }
-      const { shortcut, selectionShortcut, launchAtLogin, afterSend, notifyOnReply, theme, language } = payload;
-      if (typeof notifyOnReply !== 'boolean' || !['system', 'dark', 'light'].includes(theme)) {
+      const { shortcut, selectionShortcut, launchAtLogin, afterSend, notifyOnReply, theme, language, checkForUpdates } = payload;
+      if (typeof notifyOnReply !== 'boolean' || typeof checkForUpdates !== 'boolean'
+          || !['system', 'dark', 'light'].includes(theme)) {
         return { ok: false, error: 'invalid-option' };
       }
       if (afterSend !== 'wait' && afterSend !== 'hide') return { ok: false, error: 'invalid-after-send' };
@@ -649,8 +731,9 @@ if (!app.requestSingleInstanceLock()) {
         settings = saveSettings(settingsLocation.path, {
           ...settings,
           botId, botName, shortcut, selectionShortcut, launchAtLogin: Boolean(launchAtLogin), afterSend,
-          notifyOnReply, theme, language, templates: templates.templates,
+          notifyOnReply, theme, language, templates: templates.templates, checkForUpdates,
         });
+        if (checkForUpdates !== previousSettings.checkForUpdates) scheduleUpdateChecks(5000);
         nativeTheme.themeSource = settings.theme;
         updateSettingsBackground();
         const localeChanged = applyLanguage();
@@ -904,6 +987,7 @@ if (!app.requestSingleInstanceLock()) {
     if (app.isPackaged && settings.launchAtLogin) app.setLoginItemSettings({ openAtLogin: true });
     applyShortcut(settings.shortcut);
     applySelectionShortcut(settings.selectionShortcut);
+    scheduleUpdateChecks();
   });
 
   app.on('second-instance', () => {
@@ -916,6 +1000,8 @@ if (!app.requestSingleInstanceLock()) {
       try { saveSettings(settingsLocation.path, settings); } catch { /* The app is shutting down. */ }
     }
     clearTimeout(hideTimer);
+    clearTimeout(updateTimer);
+    clearInterval(updateInterval);
     stopWaiting();
     globalShortcut.unregisterAll();
   });

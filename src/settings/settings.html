@@ -107,7 +107,11 @@
             <div class="row-copy"><h3 data-i18n="settings.history.title">Sent messages</h3><p data-i18n="settings.history.help">Keeps up to 50 messages on this computer.</p></div>
             <button id="clear-history" class="small" type="button" data-i18n="settings.history.clear">Clear</button>
             <span id="clear-confirmation" role="group" data-i18n-aria-label="settings.history.confirmLabel" aria-label="Confirm clearing sent messages" hidden><span data-i18n="settings.history.confirm">Clear?</span> <button id="clear-yes" class="small" type="button" data-i18n="settings.history.yes">Yes</button> <button id="clear-no" class="small" type="button" data-i18n="settings.history.no">No</button></span>
-          </div></div>
+          </div>
+          <label class="setting-row switch-row" for="check-for-updates">
+            <span class="row-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="M8 2v8m-3-3 3 3 3-3M3 13h10"/></svg></span>
+            <span class="row-copy"><span class="row-title" data-i18n="settings.rows.updates.title">Check for updates</span><span class="description" data-i18n="settings.rows.updates.help">Once a day, asks GitHub whether a newer version is out. This is the only time the app uses the network, and nothing about you is sent.</span></span><input id="check-for-updates" type="checkbox" role="switch">
+          </label></div>
         </section>
       </fieldset>
     </main>
