@@ -40,13 +40,15 @@ function encodeBase32(text) {
 }
 
 // A versão interna preserva erros de acesso para listBots distinguir falhas de leitura.
-function locateRosterFile(dir) {
+function locatePersistenceFile(dir, keyRegex) {
   let newest = null;
   let newestTime = -Infinity;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (!entry.isFile() || !entry.name.endsWith('.blob')) continue;
     const key = decodeBase32(entry.name.slice(0, -5));
-    if (key === null || !ROSTER_KEY.test(key)) continue;
+    if (key === null) continue;
+    keyRegex.lastIndex = 0;
+    if (!keyRegex.test(key)) continue;
     const filePath = path.resolve(dir, entry.name);
     const modified = fs.statSync(filePath).mtimeMs;
     if (modified > newestTime) {
@@ -57,12 +59,16 @@ function locateRosterFile(dir) {
   return newest;
 }
 
-function findRosterFile(dir) {
+function findPersistenceFile(dir, keyRegex) {
   try {
-    return locateRosterFile(dir);
+    return locatePersistenceFile(dir, keyRegex);
   } catch {
     return null;
   }
+}
+
+function findRosterFile(dir) {
+  return findPersistenceFile(dir, ROSTER_KEY);
 }
 
 function parseRoster(json) {
@@ -95,7 +101,7 @@ function parseRoster(json) {
 
 function listBots(dir) {
   try {
-    const filePath = locateRosterFile(dir);
+    const filePath = locatePersistenceFile(dir, ROSTER_KEY);
     if (!filePath) return { ok: false, error: 'not-found' };
     return { ok: true, bots: parseRoster(fs.readFileSync(filePath, 'utf8')) };
   } catch (error) {
@@ -103,4 +109,4 @@ function listBots(dir) {
   }
 }
 
-module.exports = { decodeBase32, encodeBase32, findRosterFile, parseRoster, listBots };
+module.exports = { decodeBase32, encodeBase32, findPersistenceFile, findRosterFile, parseRoster, listBots };

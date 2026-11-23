@@ -1,41 +1,30 @@
-# Resultado — Tarefa 11
+﻿# Resultado — Tarefa 12
 
 ## Arquivos alterados
-- `package.json`
-- `src/main.js`
-- `src/settings/settings.html`
-- `src/settings/settings.css`
-- `src/settings/settings.js`
+- `src/lib/roster.js`
+- `src/lib/settings.js`
+- `test/settings.test.js`
 - `.handoff/RESULTADO.md`
 
 ## Arquivos criados
-- `src/lib/first-run.js`
-- `test/first-run.test.js`
+- `src/lib/transcript.js`
+- `test/transcript.test.js`
+- `src/lib/markdown.js`
+- `test/markdown.test.js`
 
 ## Resumo das mudanças
-- Configurado o empacotamento NSIS x64 com os metadados, arquivos, ícone, atalhos e nome do instalador solicitados; adicionado `npm run dist`.
-- Mantida a pasta de dados em `appData/grokbot-assistant`, antes do bloqueio de instância única, e definido o AppUserModelId em `whenReady`.
-- Implementadas as funções puras de primeira execução e escolha de atalho, sem repetir tentativas.
-- Na primeira execução, as tentativas de registro são desfeitas e apenas o atalho escolhido é registrado por `applyShortcut`; as configurações são salvas, o início com o Windows é ativado somente no app empacotado, e são exibidos boas-vindas e balão da bandeja.
-- Nas execuções seguintes, mantido o registro do atalho salvo sem fallback automático e com o aviso existente em caso de falha.
-- Adicionado modo boas-vindas por query string, com cartão explicativo, atalho em `kbd`, mensagem quando não há bots e pré-seleção do primeiro bot sem salvar automaticamente. A atualização da lista também permite a pré-seleção quando os bots passam a estar disponíveis, preservando escolhas explícitas do usuário.
-- No modo boas-vindas, o botão mostra “Salvar e começar” e fecha a janela cerca de 800 ms após salvar com sucesso. A janela usa `setSize(520, 780)` nesse modo e mantém 720 de altura no modo normal; o conteúdo usa a rolagem interna da lista de bots.
-- Mantida a CSP e usadas APIs de DOM sem `innerHTML`.
-- `.gitignore` já contém `dist/`; nenhuma alteração foi necessária.
-- Preservadas as alterações preexistentes em `.handoff/TAREFA.md`, `package-lock.json` e a dependência já adicionada em `package.json`.
-
-Dependência nova: electron-builder 26.18.1 — instalada pelo Claude Code para gerar o instalador NSIS
+- Extraída e exportada `findPersistenceFile`, com seleção pelo mtime mais recente e retorno null em falhas. `findRosterFile` usa essa função; `listBots` preserva a distinção anterior entre ausência e erro de leitura.
+- Implementadas resolução do bot por last-agent, localização de conversa com ID escapado, leitura, filtragem, ordenação por seq e timestamp, última resposta e seleção das trocas recentes. Entradas sem ID textual não vazio são descartadas; valores numéricos ausentes ou inválidos são normalizados para zero. JSON quebrado produz conversa com entradas vazias, seguindo a tolerância de `parseTranscript`.
+- Implementado parser Markdown em árvore de nós, com parágrafos, quebras, títulos de níveis 1 a 3, listas, código cercado, citações, formatação inline e links restritos a http/https. Marcação não fechada permanece literal; a profundidade inline tem limite para evitar recursão excessiva. Exportação CommonJS e global de navegador.
+- Adicionado `afterSend`, padrão wait, aceitando wait e hide na normalização e persistência.
 
 ## Testes executados e resultado
-- `npm test`: 55 testes passaram, sem falhas, incluindo cinco testes novos de primeira execução e fallback.
-- `node --check src/main.js`: passou.
-- `node --check src/lib/first-run.js`: passou.
-- `node --check src/settings/settings.js`: passou.
-- `node --check test/first-run.test.js`: passou.
-- `node -e "require('./package.json')"`: passou.
-- `git diff --check`: passou; somente avisos do Git sobre normalização futura de LF para CRLF.
+- `npm test`: 72 testes aprovados, zero falhas, incluindo a suíte anterior.
+- Cobertura nova: blobs temporários em base32, seleção por bot e mtime, escape de regex, last-agent, arquivos ausentes, JSON quebrado, erro de leitura simulado, filtragem, ordenação, última resposta com corte estrito e limite de trocas recentes.
+- Markdown: todos os tipos solicitados, negrito com código interno, esquemas de link rejeitados, HTML literal, marcação incompleta, código não fechado, texto vazio e exportação no contexto de navegador sem CommonJS.
+- Configurações: valores válidos e inválidos de afterSend, configuração antiga sem o campo e persistência de wait/hide.
+- `git diff --check`: sem erros de whitespace; Git exibiu apenas avisos de normalização LF/CRLF.
+- Testes de persistência utilizaram somente pastas temporárias; a pasta real do Grok Bot não foi lida.
 
 ## Dúvidas ou bloqueios
-- Nenhum bloqueio de implementação.
-- A validação visual, o registro real de atalhos, o balão, o início com o Windows e o instalador aguardam a verificação manual do Claude Code. Conforme solicitado, não rodei o app, não gerei o instalador e não instalei dependências.
-- Não fiz commit nem push.
+Nenhum. Sem dependências novas. Sem alterações de interface, main, preloads ou package.json. Sem commit ou push. A alteração já existente em `.handoff/TAREFA.md` foi preservada.

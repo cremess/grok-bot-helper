@@ -1,80 +1,66 @@
-# Tarefa 11 — Instalador .exe e primeira execução sem atrito (para amigos)
+# Tarefa 12 — Ler a conversa do Grok Bot, formatar o texto e a opção "Depois de enviar" (lógica pura, com testes)
 
 ## Contexto
-O Pedro vai distribuir o app para amigos. A instalação e a configuração têm de ser **seamless**: instalar, e o app já estar funcionando e explicando o básico. O `electron-builder@26.18.1` **já foi instalado** pelo Claude Code (está em `devDependencies`; motivo registrado: gerar o instalador NSIS). Não instale mais nada.
+Queremos mostrar no prompt a **última resposta do bot** (e as trocas recentes). O Grok Bot guarda as conversas na mesma pasta já usada pelo `src/lib/roster.js` (`%APPDATA%\Grok Bot\sand-client-persistence`), em arquivos `<chave base32>.blob`:
+- Conversa de um bot: chave decodificada casa com `/^sand\.client\.slice\.account\..+\.transcript\.replicas\.<ID DO BOT>$/`.
+- Bot "padrão" (quando o usuário não escolheu bot): o ID está no arquivo cuja chave casa com `/^sand\.client\.slice\.account\..+\.selection\.last-agent$/`, conteúdo `{ "schemaVersion": 1, "value": { "agentId": "<id>" } }`.
+- Conteúdo de uma conversa (JSON UTF-8):
+  ```json
+  { "schemaVersion": 1, "value": { "entries": [
+    { "kind": "message", "id": "t104u", "role": "user", "content": "texto do usuário", "timestampMs": 1795096503377, "seq": 465 },
+    { "kind": "message", "id": "t105a", "role": "assistant", "content": "", "isStreaming": false, "timestampMs": 1795096503999, "seq": 466 },
+    { "kind": "send-message", "id": "t164s681", "message": { "type": "text", "content": "resposta visível do bot em **markdown**" }, "timestampMs": 1795384795161, "seq": 681 },
+    { "kind": "send-message", "message": { "type": "widget", "content": {} }, "timestampMs": 1, "seq": 1 },
+    { "kind": "send-message", "message": { "type": "attachment", "content": {} }, "timestampMs": 1, "seq": 1 },
+    { "kind": "user-attachment", "file_name": "image.png", "timestampMs": 1, "seq": 1 },
+    { "kind": "event", "event": {}, "timestampMs": 1, "seq": 1 }
+  ] } }
+  ```
+  - **Resposta visível do bot** = `kind: "send-message"` com `message.type === "text"` e `message.content` string não vazia.
+  - **Mensagem do usuário** = `kind: "message"`, `role: "user"`, `content` string não vazia.
+  - Todo o resto é ignorado (inclusive `role: "assistant"`, widgets, anexos, eventos).
 
 ## Arquivos envolvidos
-- Alterar: `package.json` (bloco `build` e scripts), `src/main.js`, `src/settings/settings.html|css|js`, `.gitignore`
-- Criar: `src/lib/first-run.js`, `test/first-run.test.js`
+- Criar: `src/lib/transcript.js`, `test/transcript.test.js`, `src/lib/markdown.js`, `test/markdown.test.js`
+- Alterar: `src/lib/roster.js` (só exportar uma função auxiliar, ver abaixo), `src/lib/settings.js` + `test/settings.test.js` (campo novo)
 
-## 1. Empacotamento (`package.json`)
-- `"productName": "GrokBot Assistant"` no topo do `package.json` e `"author": "GrokBot Assistant"`.
-- Script `"dist": "electron-builder --win nsis --x64"`.
-- Bloco `"build"`:
-  ```json
-  {
-    "appId": "app.grokbot.assistant",
-    "productName": "GrokBot Assistant",
-    "directories": { "output": "dist", "buildResources": "build" },
-    "files": ["src/**/*", "assets/icons/**/*", "package.json"],
-    "asar": true,
-    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }], "icon": "build/icon.ico" },
-    "nsis": {
-      "oneClick": true,
-      "perMachine": false,
-      "runAfterFinish": true,
-      "createStartMenuShortcut": true,
-      "createDesktopShortcut": false,
-      "shortcutName": "GrokBot Assistant",
-      "deleteAppDataOnUninstall": false,
-      "artifactName": "GrokBot-Assistant-Setup-${version}.exe"
-    }
-  }
-  ```
-- `.gitignore`: garantir `dist/` (já existe) — não versionar o instalador.
+## 1. `src/lib/roster.js`
+- Extrair e exportar `findPersistenceFile(dir, keyRegex)` → caminho do `.blob` mais recente cuja chave decodificada casa com `keyRegex`, ou `null` (nunca lança). `findRosterFile` passa a usar essa função. Comportamento atual inalterado (todos os testes antigos continuam passando).
 
-## 2. Pasta de dados estável (`src/main.js`)
-- Logo no início (antes de `requestSingleInstanceLock` e de qualquer `getPath('userData')`):
-  `app.setPath('userData', path.join(app.getPath('appData'), 'grokbot-assistant'));`
-  Motivo: com `productName`, o Electron mudaria a pasta para `GrokBot Assistant` e as configurações atuais seriam perdidas.
-- `app.setAppUserModelId('app.grokbot.assistant')` em `whenReady` (necessário para os balões/notificações no Windows).
-
-## 3. Primeira execução (`src/lib/first-run.js`, puro, sem Electron)
+## 2. `src/lib/transcript.js` (CommonJS, sem Electron)
 Exportar:
-- `FALLBACK_SHORTCUTS = ['Alt+Space', 'Ctrl+Shift+Space', 'Alt+Shift+G', 'Ctrl+Alt+G']`
-- `pickShortcut(preferred, tryRegister)` → `{ shortcut, changed }`: tenta `preferred`; se `tryRegister(preferred)` for falso, tenta os da lista (sem repetir) e retorna o primeiro que registrar, com `changed: true`; se nenhum registrar, retorna `{ shortcut: preferred, changed: false, failed: true }`.
-- `isFirstRun(settingsFileExists)` → boolean (simples, mas testável).
-Testes em `test/first-run.test.js`: preferido funciona; preferido falha e o 2º funciona; todos falham; preferido já está na lista (não tenta duas vezes).
+- `escapeRegex(text)` (auxiliar).
+- `resolveAgentId(dir, botId)` → `botId` se não vazio; senão lê o `last-agent` e retorna o `agentId` válido (`isValidBotId`) ou `null`.
+- `findTranscriptFile(dir, agentId)` → caminho ou `null` (usa `findPersistenceFile` com o regex acima, escapando o ID).
+- `parseTranscript(json)` → array de `{ id, role: 'bot' | 'user', text, timestampMs }` em ordem crescente de `seq` (desempate por `timestampMs`); entradas inválidas são ignoradas; JSON inválido → `[]`; nunca lança. `text` com `trim()`. `timestampMs` numérico (ausente → 0).
+- `readConversation(dir, botId)` → `{ ok: true, agentId, entries, mtimeMs }` ou `{ ok: false, error: 'no-agent' | 'not-found' | 'unreadable' }`.
+- `latestReply(entries, { afterMs } = {})` → a última entrada `role: 'bot'` com `timestampMs > afterMs` (se `afterMs` informado), ou `null`.
+- `recentExchanges(entries, limit = 6)` → as últimas `limit` entradas (usuário e bot), em ordem cronológica.
 
-## 4. Fluxo de primeira execução (`src/main.js`)
-- Detectar primeira execução: o arquivo `settings.json` **não existe** ao iniciar.
-- Na primeira execução:
-  1. Registrar o atalho com `pickShortcut(settings.shortcut, tentativa)`, onde a tentativa usa `globalShortcut.register` e desfaz o registro das tentativas que falharem/forem descartadas (no fim, deixar registrado só o escolhido, via `applyShortcut`). Se mudou, salvar o atalho escolhido.
-  2. Se `app.isPackaged`, ligar "Iniciar com o Windows" (`setLoginItemSettings({ openAtLogin: true })`) e salvar `launchAtLogin: true`.
-  3. Salvar o `settings.json` (para não ser mais primeira execução).
-  4. Abrir a janela de configurações em **modo boas-vindas** (ver item 5).
-  5. Mostrar um balão na bandeja: título "GrokBot Assistant está pronto", texto "Use <atalho> para abrir o prompt. O ícone fica aqui na bandeja.".
-- Fora da primeira execução, comportamento atual (sem fallback automático; o aviso de atalho ocupado continua).
-- Para o modo boas-vindas, `openSettings({ welcome: true })` passa a informação pela query string ao carregar o HTML (`loadFile(..., { query: { welcome: '1' } })`).
+## 3. `src/lib/markdown.js` (puro; funciona no Node e no navegador, mesma exportação dupla de `src/lib/accelerator.js`)
+Um parser **pequeno e seguro** que transforma markdown em uma árvore de nós simples (NUNCA HTML em string). Exportar `parseMarkdown(text)` → array de blocos:
+- `{ type: 'paragraph', children: Inline[] }` (linhas consecutivas viram um parágrafo; quebra simples de linha vira `{ type: 'break' }`).
+- `{ type: 'heading', level: 1..3, children }` para `#`, `##`, `###`.
+- `{ type: 'list', ordered: boolean, items: Inline[][] }` para `- `, `* `, `1. ` (um nível; itens consecutivos).
+- `{ type: 'code', text }` para blocos cercados por ```` ``` ```` (linguagem ignorada).
+- `{ type: 'quote', children }` para linhas começando com `> `.
+- Inline: `{ type: 'text', text }`, `{ type: 'strong', children }` (`**x**`), `{ type: 'em', children }` (`*x*` ou `_x_`), `{ type: 'code', text }` (`` `x` ``), `{ type: 'link', text, href }` para `[texto](https://...)` — aceitar SOMENTE `http:`/`https:`; outros esquemas viram texto puro.
+- Tolerante: marcação não fechada vira texto literal; nunca lança.
+- Testes em `test/markdown.test.js` cobrindo cada tipo, aninhamento simples (negrito com código dentro), link `javascript:` virando texto, bloco de código não fechado, texto vazio → `[]`.
 
-## 5. Configurações em modo boas-vindas (`src/settings/*`)
-- Se `new URLSearchParams(location.search).get('welcome') === '1'`: mostrar no topo (abaixo do cabeçalho) um cartão de destaque com:
-  - título "Bem-vindo! 👋" (pode ser sem emoji se preferir manter o padrão) — texto: "Escolha para qual bot do Grok Bot suas mensagens vão. Depois é só apertar <atalho> em qualquer lugar." (mostrar o atalho atual com `<kbd>`).
-  - Se a lista de bots carregar e o usuário ainda não tiver bot salvo, **pré-selecionar o primeiro bot da lista** (o mais usado), sem salvar — o usuário confirma em "Salvar".
-  - Se não houver bots (Grok Bot não instalado/nunca aberto): texto do cartão "Não encontrei o Grok Bot neste computador. Instale e abra o Grok Bot, depois clique em Atualizar lista." e o link de download NÃO deve ser aberto automaticamente; mostrar só o texto.
-- O botão "Salvar" no modo boas-vindas tem o texto "Salvar e começar" e, após salvar com sucesso, fecha a janela em ~800 ms.
-- A janela continua cabendo sem rolagem na página (pode aumentar a altura da janela de configurações para no máximo 780 **somente** quando `welcome`; usar `setSize` no `main.js`, mantendo 720 no modo normal).
-- Tudo com `textContent`/`createElement` (sem `innerHTML`), CSP inalterada.
+## 4. `src/lib/settings.js`
+- Novo campo `afterSend: 'wait'` em `DEFAULT_SETTINGS`; valores aceitos `'wait'` e `'hide'`; outro valor → padrão. Atualizar testes.
+
+## 5. Testes `test/transcript.test.js`
+Pasta temporária com arquivos `.blob` gerados com `encodeBase32` (de `roster.js`): achar a conversa do bot certo entre várias; `last-agent` quando `botId` vazio; ausência de arquivo; JSON quebrado; filtragem e ordenação; `latestReply` com e sem `afterMs`; `recentExchanges` com limite.
 
 ## Critérios de aceite
-- `npm test` passa; `node --check` em todos os `.js` alterados/criados.
-- `package.json` válido (`node -e "require('./package.json')"`).
-- NÃO rode `npm run dist` (o Claude Code gera e testa o instalador).
+- `npm test` passa (antigos + novos). Sem dependências externas.
 
 ## O que NÃO fazer
-- NÃO instalar dependências, NÃO rodar o app, NÃO gerar o instalador.
-- NÃO alterar `src/lib/link.js`, `roster.js`, `settings.js`, `accelerator.js`, `avatar.js`, `position.js`, `src/prompt/*`, `assets/`, `scripts/`.
-- NÃO fazer commit nem push. NÃO alterar `AGENTS.md` nem `.handoff/HISTORICO.md`.
+- NÃO alterar `src/main.js`, janelas, preloads, `package.json` (a interface vem na próxima tarefa).
+- NÃO ler a pasta real do Grok Bot nos testes.
+- NÃO instalar dependências. NÃO fazer commit nem push. NÃO alterar `AGENTS.md`, `.gitignore` nem `.handoff/HISTORICO.md`.
 
 ## Ao terminar
-Substitua todo o conteúdo de `.handoff/RESULTADO.md` pelo resultado desta tarefa (inclua a linha "Dependência nova: electron-builder 26.18.1 — instalada pelo Claude Code para gerar o instalador NSIS").
+Substitua todo o conteúdo de `.handoff/RESULTADO.md` pelo resultado desta tarefa.
