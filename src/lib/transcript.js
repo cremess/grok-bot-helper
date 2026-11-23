@@ -98,5 +98,34 @@ function replyState(entries, { knownIds, knownUntilMs = 0, afterMs } = {}) {
   return { delivered: userMessageSince(entries, afterMs ?? 0), reply: latestReply(entries, { afterMs }) };
 }
 
+const REPLY_SETTLE_MS = 4000;
+const NOT_DELIVERED_MS = 45000;
+const REPLY_TIMEOUT_MS = 10 * 60 * 1000;
+
+// Remembers when the transcript file last changed, using the local clock for "when". Takes the result of
+// readConversation. A file that can't be parsed is usually being written by Grok Bot, so it counts as a
+// change; a missing file or agent doesn't, otherwise a transcript that disappears would never look quiet.
+function trackTranscriptChange(previous, read, nowMs) {
+  const mtimeMs = read?.ok ? read.mtimeMs : undefined;
+  const known = typeof mtimeMs === 'number' && Number.isFinite(mtimeMs);
+  if (previous && known && mtimeMs === previous.mtimeMs) return previous;
+  if (previous && !read?.ok && read?.error !== 'unreadable') return previous;
+  return { mtimeMs: known ? mtimeMs : previous?.mtimeMs, changedAt: nowMs };
+}
+
+// Decides what the reply poll does next. A bot can answer one prompt with several messages, so the
+// first reply doesn't end the wait: it keeps reading ('settling') until the transcript has been quiet
+// for settleMs, or until the overall timeout. Without a reply it keeps the earlier rules: give up on
+// delivery after notDeliveredMs, and stop waiting after timeoutMs.
+// Returns 'waiting', 'settling', 'replied', 'not-delivered' or 'timed-out'.
+function waitDecision({ delivered = false, hasReply = false, elapsedMs = 0, quietMs = 0,
+  settleMs = REPLY_SETTLE_MS, notDeliveredMs = NOT_DELIVERED_MS, timeoutMs = REPLY_TIMEOUT_MS } = {}) {
+  if (hasReply) return quietMs >= settleMs || elapsedMs >= timeoutMs ? 'replied' : 'settling';
+  if (!delivered && elapsedMs >= notDeliveredMs) return 'not-delivered';
+  if (elapsedMs >= timeoutMs) return 'timed-out';
+  return 'waiting';
+}
+
 module.exports = { replyState, escapeRegex, resolveAgentId, findTranscriptFile, parseTranscript,
-  readConversation, latestReply, recentExchanges, userMessageSince };
+  readConversation, latestReply, recentExchanges, userMessageSince, trackTranscriptChange, waitDecision,
+  REPLY_SETTLE_MS, NOT_DELIVERED_MS, REPLY_TIMEOUT_MS };

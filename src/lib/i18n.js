@@ -109,6 +109,7 @@
     'picker.selectedLabel': "Destination bot: {name}",
     'picker.shortcutTitle': "{name} (Ctrl+K)",
     'prompt.waiting': "{bot} is replying",
+    'prompt.moreComing': "Checking whether {bot} has more to say",
     'prompt.usage': "Usage: {percent}%",
     'prompt.usageBlocked': "You're out of Grok Bot usage. Resets {reset}.",
     'prompt.limit': "Grok Bot usage is unavailable right now (resets {reset}).",

@@ -5,7 +5,8 @@ const path = require('node:path');
 const os = require('node:os');
 const { encodeBase32, findPersistenceFile } = require('../src/lib/roster');
 const { escapeRegex, resolveAgentId, findTranscriptFile, parseTranscript,
-  readConversation, latestReply, recentExchanges, userMessageSince, replyState } = require('../src/lib/transcript');
+  readConversation, latestReply, recentExchanges, userMessageSince, replyState, trackTranscriptChange,
+  waitDecision, REPLY_SETTLE_MS, NOT_DELIVERED_MS, REPLY_TIMEOUT_MS } = require('../src/lib/transcript');
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'grokbot-transcript-'));
 after(() => {
@@ -182,4 +183,81 @@ test('replyState judges entries without a timestamp by id alone', () => {
   const state = replyState(entries, { knownIds: new Set(['u1']), knownUntilMs: 0 });
   assert.equal(state.delivered, true);
   assert.equal(state.reply.id, 'b2');
+});
+
+test('trackTranscriptChange keeps the change time while mtime is stable and resets it on a change or a mid-write read', () => {
+  const read = (mtimeMs) => ({ ok: true, entries: [], mtimeMs });
+  const first = trackTranscriptChange(undefined, read(500), 1000);
+  assert.deepEqual(first, { mtimeMs: 500, changedAt: 1000 });
+  assert.strictEqual(trackTranscriptChange(first, read(500), 3000), first);
+  assert.deepEqual(trackTranscriptChange(first, read(600), 3000), { mtimeMs: 600, changedAt: 3000 });
+  // A file caught mid-write counts as a change and keeps the last known mtime.
+  const failed = trackTranscriptChange(first, { ok: false, error: 'unreadable' }, 4000);
+  assert.deepEqual(failed, { mtimeMs: 500, changedAt: 4000 });
+  assert.strictEqual(trackTranscriptChange(failed, read(500), 6000), failed);
+  for (const mtime of [NaN, Infinity, '500', null]) {
+    assert.deepEqual(trackTranscriptChange(first, read(mtime), 7000), { mtimeMs: 500, changedAt: 7000 });
+  }
+  assert.deepEqual(trackTranscriptChange(undefined, { ok: false, error: 'unreadable' }, 10), { mtimeMs: undefined, changedAt: 10 });
+});
+
+test('trackTranscriptChange treats a missing transcript or agent as quiet, not as a change', () => {
+  const first = trackTranscriptChange(undefined, { ok: true, mtimeMs: 500 }, 1000);
+  for (const error of ['not-found', 'no-agent']) {
+    assert.strictEqual(trackTranscriptChange(first, { ok: false, error }, 9000), first);
+  }
+  assert.strictEqual(trackTranscriptChange(first, undefined, 9000), first);
+  assert.deepEqual(trackTranscriptChange(undefined, { ok: false, error: 'not-found' }, 20), { mtimeMs: undefined, changedAt: 20 });
+});
+
+test('waitDecision keeps reading after the first reply until the transcript is quiet', () => {
+  assert.equal(REPLY_SETTLE_MS, 4000);
+  const base = { delivered: true, hasReply: true, elapsedMs: 5000 };
+  assert.equal(waitDecision({ ...base, quietMs: 0 }), 'settling');
+  assert.equal(waitDecision({ ...base, quietMs: REPLY_SETTLE_MS - 1 }), 'settling');
+  assert.equal(waitDecision({ ...base, quietMs: REPLY_SETTLE_MS }), 'replied');
+  assert.equal(waitDecision({ ...base, quietMs: 1000, settleMs: 1000 }), 'replied');
+  // A transcript that never settles still ends at the overall timeout, with the reply shown.
+  assert.equal(waitDecision({ ...base, quietMs: 0, elapsedMs: REPLY_TIMEOUT_MS }), 'replied');
+  // A reply means the message arrived, even if the user entry wasn't seen.
+  assert.equal(waitDecision({ ...base, delivered: false, elapsedMs: NOT_DELIVERED_MS, quietMs: 0 }), 'settling');
+});
+
+test('waitDecision without a reply keeps the delivery and timeout rules', () => {
+  assert.equal(waitDecision(), 'waiting');
+  assert.equal(waitDecision({ delivered: false, elapsedMs: NOT_DELIVERED_MS - 1 }), 'waiting');
+  assert.equal(waitDecision({ delivered: false, elapsedMs: NOT_DELIVERED_MS }), 'not-delivered');
+  assert.equal(waitDecision({ delivered: true, elapsedMs: NOT_DELIVERED_MS }), 'waiting');
+  assert.equal(waitDecision({ delivered: true, elapsedMs: REPLY_TIMEOUT_MS - 1, quietMs: 1e9 }), 'waiting');
+  assert.equal(waitDecision({ delivered: true, elapsedMs: REPLY_TIMEOUT_MS }), 'timed-out');
+  assert.equal(waitDecision({ delivered: false, elapsedMs: REPLY_TIMEOUT_MS }), 'not-delivered');
+});
+
+test('a bot answering with several messages is followed until it stops writing', () => {
+  // Simulates the poll: one tick per second, two bot messages two seconds apart.
+  const before = parseTranscript(transcript([user('u1', 1, 100), bot('b1', 2, 200)]));
+  const request = { knownIds: new Set(before.map((entry) => entry.id)), knownUntilMs: 200 };
+  const writes = { 0: [user('u2', 3, 300)], 2: [bot('b2', 4, 400)], 4: [bot('b3', 5, 500)] };
+  let raw = [user('u1', 1, 100), bot('b1', 2, 200)];
+  let mtime = 1;
+  let watch;
+  let seen = null;
+  const shown = [];
+  let status;
+  let tick = 0;
+  for (; tick < 30; tick += 1) {
+    if (writes[tick]) { raw = [...raw, ...writes[tick]]; mtime += 1; }
+    const state = replyState(parseTranscript(transcript(raw)), request);
+    if (state.reply) seen = state.reply;
+    const now = tick * 1000;
+    watch = trackTranscriptChange(watch, { ok: true, mtimeMs: mtime }, now);
+    status = waitDecision({ delivered: state.delivered, hasReply: Boolean(seen), elapsedMs: now,
+      quietMs: now - watch.changedAt });
+    if (status === 'settling' && shown.at(-1) !== seen.id) shown.push(seen.id);
+    if (status !== 'waiting' && status !== 'settling') break;
+  }
+  assert.equal(status, 'replied');
+  assert.deepEqual(shown, ['b2', 'b3']);
+  assert.equal(seen.id, 'b3');
+  assert.equal(tick, 4 + REPLY_SETTLE_MS / 1000);
 });

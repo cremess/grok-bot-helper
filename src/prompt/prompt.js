@@ -66,6 +66,8 @@ let grokBotFound = true;
 const waitingArea = document.getElementById('waiting-area');
 let conversation = { ok: false };
 let waiting = false;
+// A reply already arrived and the app is watching for more messages from the same turn.
+let partial = false;
 let timedOut = false;
 let notDelivered = false;
 let awaitingDelivery = false;
@@ -91,6 +93,7 @@ const picker = BotPicker.create({
       setBot(selected.bot);
       conversation = selected.conversation;
       waiting = false;
+      partial = false;
       timedOut = false;
       sent = undefined;
       conversationView = false;
@@ -275,12 +278,12 @@ function renderConversation(animate = false) {
   waitingArea.replaceChildren();
   waitingArea.hidden = !waiting && !timedOut && !notDelivered;
   if (waiting) {
-    if (sent) waitingArea.append(bubble(sent));
+    if (sent && !partial) waitingArea.append(bubble(sent));
     const status = document.createElement('p');
     status.className = 'waiting-status';
-    status.append(awaitingDelivery
-      ? t('prompt.awaitingDelivery')
-      : t('prompt.waiting', { bot: responseName.textContent }));
+    status.append(partial ? t('prompt.moreComing', { bot: responseName.textContent })
+      : awaitingDelivery ? t('prompt.awaitingDelivery')
+        : t('prompt.waiting', { bot: responseName.textContent }));
     const dots = document.createElement('span');
     dots.className = 'waiting-dots';
     dots.setAttribute('aria-hidden', 'true');
@@ -346,12 +349,13 @@ window.grokbot.onConversation((data) => {
   const changed = data.latest && (data.latest.id !== conversation.latest?.id || data.latest.text !== conversation.latest?.text);
   conversation = data;
   waiting = Boolean(data.waiting);
+  partial = waiting && Boolean(data.partial);
   timedOut = Boolean(data.timedOut);
   notDelivered = Boolean(data.notDelivered);
   awaitingDelivery = Boolean(data.awaitingDelivery);
   if (data.usage) setUsage(data.usage);
   sent = data.sent;
-  renderConversation(Boolean(changed && !waiting));
+  renderConversation(Boolean(changed && (!waiting || partial)));
 });
 
 function updateLayout() {
@@ -460,7 +464,7 @@ document.addEventListener('keydown', (event) => {
 });
 
 window.grokbot.onShow(({ botId, botName, botColor, botInitial, history: savedHistory, conversation: data, waiting: isWaiting, sent: sentMessage,
-  usage: usageData, notDelivered: failedDelivery, awaitingDelivery: awaitingReceipt, pinned: isPinned, userSized: isUserSized }) => {
+  partial: isPartial, usage: usageData, notDelivered: failedDelivery, awaitingDelivery: awaitingReceipt, pinned: isPinned, userSized: isUserSized }) => {
   showPinned(Boolean(isPinned));
   setUserSized(isUserSized);
   picker.close();
@@ -478,6 +482,7 @@ window.grokbot.onShow(({ botId, botName, botColor, botInitial, history: savedHis
   setBot({ botId, botName, botColor, botInitial });
   conversation = data || { ok: false };
   waiting = Boolean(isWaiting);
+  partial = waiting && Boolean(isPartial);
   timedOut = false;
   notDelivered = Boolean(failedDelivery);
   awaitingDelivery = Boolean(awaitingReceipt);

@@ -11,7 +11,8 @@ const { createTrayIcon, appIconPath } = require('./icon');
 const { buildPromptLink, parseBotId, isValidBotId } = require('./lib/link');
 const { listBots } = require('./lib/roster');
 const { loadHistory, addToHistory, saveHistory } = require('./lib/history');
-const { readConversation, recentExchanges, latestReply, replyState, resolveAgentId } = require('./lib/transcript');
+const { readConversation, recentExchanges, latestReply, replyState, resolveAgentId, trackTranscriptChange,
+  waitDecision } = require('./lib/transcript');
 const { readUsage, isBlocked, formatReset } = require('./lib/usage');
 const { avatarColor, avatarInitial } = require('./lib/avatar');
 const { loadSettings, saveSettings, isValidShortcut, DEFAULT_SETTINGS } = require('./lib/settings');
@@ -164,12 +165,28 @@ function startWaiting(request) {
   responsePoll = setInterval(() => {
     const result = readConversation(GROK_BOT_DIRECTORY, pending.agentId);
     const state = result.ok ? sentState(pending, result.entries) : { delivered: false, reply: null };
-    const reply = state.reply;
+    const now = Date.now();
     pending.delivered = pending.delivered || state.delivered;
-    const elapsed = Date.now() - pending.sentAt;
-    const notDelivered = !pending.delivered && elapsed >= 45000 && !reply;
-    const timedOut = Date.now() - pending.sentAt >= 10 * 60 * 1000;
-    if (!reply && !timedOut && !notDelivered) {
+    // Keep the last reply seen: a read caught while Grok Bot rewrites entries shouldn't lose it.
+    if (state.reply) pending.reply = state.reply;
+    pending.watch = trackTranscriptChange(pending.watch, result, now);
+    const elapsed = now - pending.sentAt;
+    const status = waitDecision({ delivered: pending.delivered, hasReply: Boolean(pending.reply),
+      elapsedMs: elapsed, quietMs: now - pending.watch.changedAt });
+    if (status === 'settling') {
+      // Show each new message as it lands, but keep waiting in case the bot sends more.
+      const key = state.reply ? `${state.reply.id}\n${state.reply.text}` : pending.replyKey;
+      if (result.ok && key !== pending.replyKey) {
+        pending.replyKey = key;
+        promptWindow.webContents.send('prompt:conversation', {
+          ...conversationFrom(result), waiting: true, partial: true, sent: pending.sent,
+        });
+      }
+      return;
+    }
+    const reply = status === 'replied' ? pending.reply : null;
+    const notDelivered = status === 'not-delivered';
+    if (status === 'waiting') {
       const awaitingDelivery = !pending.delivered && elapsed >= 15000;
       if (pending.awaitingDelivery !== awaitingDelivery) {
         pending.awaitingDelivery = awaitingDelivery;
@@ -197,7 +214,7 @@ function startWaiting(request) {
     }
     if (reply && !promptWindow.isVisible()) {
       const roster = listBots(GROK_BOT_DIRECTORY);
-      const name = settings.botName || (roster.ok && roster.bots.find((bot) => bot.id === result.agentId)?.name)
+      const name = settings.botName || (roster.ok && roster.bots.find((bot) => bot.id === request.agentId)?.name)
         || (settings.botId ? t('bot.fallback', { id: settings.botId.slice(0, 8) }) : t('bot.default'));
       tray.setImage(createTrayIcon({ unread: true }));
       tray.setToolTip(t('tray.newReply', { name }));
@@ -284,7 +301,7 @@ function togglePrompt() {
     pinned,
     userSized: Boolean(settings.promptBounds),
     botId: settings.botId, botName,
-    conversation: loadConversation(), waiting: Boolean(pending), sent: pending?.sent,
+    conversation: loadConversation(), waiting: Boolean(pending), partial: Boolean(pending?.reply), sent: pending?.sent,
     ...deliveryFailure,
     awaitingDelivery: Boolean(pending && !pending.delivered && Date.now() - pending.sentAt >= 15000),
     usage: usageDetails(),

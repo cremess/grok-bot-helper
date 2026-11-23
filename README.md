@@ -28,7 +28,7 @@ On macOS, Grok Bot ships with a built-in quick prompt you can summon from anywhe
 ## Features
 
 - **Quick prompt from anywhere** — press `Alt+Space` (configurable) in any app, type, hit `Enter`. Your message goes straight to the bot you picked.
-- **See the reply right there** — the latest reply shows up in the prompt with proper formatting (lists, bold, code). Switch to **Conversation** to see the recent back-and-forth.
+- **See the reply right there** — the latest reply shows up in the prompt with proper formatting (lists, bold, code). Switch to **Conversation** to see the recent back-and-forth. If the bot answers in several messages, the prompt keeps reading until it stops writing, and notifies you once.
 - **Pick any of your bots** — the bot picker lists the bots from your Grok Bot app, with search. Switch with `Ctrl+K` without leaving the prompt.
 - **Wait or get notified** — keep the prompt open until the reply arrives, or let it close and get a dot on the tray icon (and an optional Windows notification).
 - **A real window when you want it** — drag it, resize it, pin it so it stays open; it remembers where you left it.
