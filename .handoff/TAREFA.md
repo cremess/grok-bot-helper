@@ -1,45 +1,59 @@
-# Tarefa 1 — Esqueleto do projeto Electron com ícone na bandeja
+# Tarefa 2 — Montagem do link do Grok Bot (lógica pura, com testes)
 
-## Objetivo
-Criar a base do app: um projeto Node/Electron que, ao rodar `npm start`, fica apenas como ícone na bandeja do sistema (sem janela visível), com um menu mínimo contendo "Sair".
+## Contexto
+O Grok Bot (app desktop) aceita o deep link:
+`grokbot://app/v1/prompt?id=<ID do bot>&text=<texto>`
+- `text` é obrigatório: depois de decodificado, tem no máximo 1000 caracteres e precisa ter pelo menos um caractere que não seja espaço.
+- `id` é opcional: o ID do bot de destino, regex `^[A-Za-z0-9_-]{1,128}$`. Sem `id`, o Grok Bot usa o bot padrão.
+- O Grok Bot também gera links de bot nestes formatos (o usuário pode colar qualquer um nas configurações):
+  - `grokbot://app/v1/agent?id=<ID>`
+  - `sand://app/v1/agent?id=<ID>`
+  - `https://cursor.com/grok-bot/link/v1/agent?id=<ID>`
+  - `https://cursor.com/sand/link/v1/agent?id=<ID>`
+  - ou só o ID puro.
 
 ## Arquivos envolvidos (criar)
-- `package.json`
-- `src/main.js` (processo principal do Electron)
-- `src/icon.js` (gera o ícone da bandeja em código)
-- `test/smoke.test.js` (teste mínimo para o `npm test` não falhar vazio)
+- `src/lib/link.js`
+- `test/link.test.js`
 
-## Especificação
-1. `package.json`:
-   - `"name": "grokbot-assistant"`, `"version": "0.1.0"`, `"private": true`, `"main": "src/main.js"`.
-   - `"description"` em português.
-   - Scripts: `"start": "electron ."` e `"test": "node --test"`.
-   - `devDependencies`: `"electron": "45.2.3"` (versão EXATA, sem `^` nem `~`).
-   - Nenhuma outra dependência.
-2. `src/main.js` (CommonJS, `require`):
-   - Usa `app.requestSingleInstanceLock()`; se não obtiver o lock, chama `app.quit()` e não segue.
-   - Em `app.whenReady()`: cria um `Tray` com o ícone de `src/icon.js`, tooltip `"GrokBot Assistant"` e menu de contexto com um único item `"Sair"` que chama `app.quit()`.
-   - Mantém a referência ao `Tray` numa variável de módulo (para não ser coletado pelo garbage collector).
-   - Trata `window-all-closed` sem encerrar o app (o app vive na bandeja).
-   - Não cria nenhuma `BrowserWindow` nesta tarefa.
-3. `src/icon.js`:
-   - Exporta uma função `createTrayIcon()` que retorna um `nativeImage` de 16x16 gerado em código (por exemplo, `nativeImage.createFromBitmap` com um buffer BGRA de um círculo ou quadrado azul `#1080f3`).
-   - Não baixar nem copiar imagens de fora do projeto.
-4. `test/smoke.test.js`:
-   - Usa `node:test` e `node:assert`.
-   - Verifica que o `package.json` tem os scripts `start` e `test` e que `electron` está fixado em `45.2.3`.
+## Especificação de `src/lib/link.js` (CommonJS, SEM `require('electron')`)
+Exportar:
+1. `MAX_TEXT_LENGTH = 1000`
+2. `validateText(text)` → `{ ok: true, text: <texto com trim> }` ou `{ ok: false, error: <código> }`, com os códigos:
+   - `'empty'` se não for string ou ficar vazio após `trim()`;
+   - `'too-long'` se, após `trim()`, tiver mais que `MAX_TEXT_LENGTH` caracteres (contar com `[...texto].length`, para emojis contarem como 1).
+3. `isValidBotId(id)` → boolean (regex acima).
+4. `parseBotId(input)` → string com o ID ou `null`:
+   - aplica `trim()`;
+   - se for ID puro válido, retorna ele;
+   - se for URL (usar `new URL`, dentro de `try/catch`), aceita SOMENTE os formatos listados acima (protocolos `grokbot:`/`sand:` com host `app` e caminho `/v1/agent`; ou `https:` com host `cursor.com` e caminho `/grok-bot/link/v1/agent` ou `/sand/link/v1/agent`), lê `searchParams.get('id')` e retorna se for válido;
+   - qualquer outra coisa → `null`.
+5. `buildPromptLink({ text, botId })` → `{ ok: true, url }` ou `{ ok: false, error }`:
+   - valida o texto com `validateText` (repassa o erro);
+   - se `botId` for informado (não vazio) e inválido → `{ ok: false, error: 'invalid-bot-id' }`;
+   - monta `grokbot://app/v1/prompt` com `URLSearchParams`, colocando `id` primeiro (quando houver) e depois `text` (já com trim);
+   - o texto deve ir codificado de forma que espaços virem `%20` e não `+` (substituir `+` por `%20` no resultado de `URLSearchParams.toString()` é aceitável, pois `+` literal já vira `%2B`).
+
+## Testes em `test/link.test.js` (node:test + node:assert)
+Cobrir no mínimo:
+- texto vazio, só espaços e não string → `empty`;
+- texto com exatamente 1000 caracteres → ok; com 1001 → `too-long`; 1000 emojis → ok;
+- trim aplicado no link;
+- acentos, `&`, `=`, `#`, `+`, `?` e quebra de linha sobrevivem ida e volta (decodificar o link gerado com `new URL(...).searchParams.get('text')` e comparar);
+- espaço vira `%20` no link;
+- com `botId` válido, o link tem `id=` antes de `text=`; sem `botId`, não tem `id`;
+- `botId` inválido (`'abc def'`, `'a/b'`, 129 caracteres) → `invalid-bot-id`;
+- `parseBotId` com ID puro, os 4 formatos de link, link com espaços em volta, host errado (`https://evil.com/grok-bot/link/v1/agent?id=x`), caminho errado, link sem `id` e lixo → resultado esperado.
 
 ## Critérios de aceite
-- `npm test` passa (rodado por você mesmo).
-- `src/main.js` e `src/icon.js` não têm erro de sintaxe (`node --check src/main.js` e `node --check src/icon.js`).
-- Código com comentários curtos em português onde ajudar.
+- `npm test` passa com todos os testes (os antigos e os novos).
+- Funções puras, sem efeitos colaterais e sem dependências externas.
 
 ## O que NÃO fazer
-- NÃO rodar `npm install` (o Claude Code instala depois de revisar; a rede pode estar bloqueada no sandbox).
-- NÃO criar janela, atalho global, configurações ou lógica de link (são tarefas futuras).
-- NÃO adicionar dependências além do `electron`.
+- NÃO alterar `src/main.js`, `src/icon.js`, `package.json` nem outros arquivos fora da lista.
+- NÃO instalar dependências.
 - NÃO fazer commit nem push.
 - NÃO alterar `AGENTS.md`, `.gitignore` nem `.handoff/HISTORICO.md`.
 
 ## Ao terminar
-Preencha `.handoff/RESULTADO.md` com: arquivos alterados, resumo das mudanças, testes executados e resultado, dúvidas ou bloqueios.
+Substitua todo o conteúdo de `.handoff/RESULTADO.md` pelo resultado desta tarefa: arquivos alterados, resumo, testes executados e resultado, dúvidas ou bloqueios.
