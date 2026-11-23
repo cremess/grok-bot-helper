@@ -11,7 +11,7 @@ const { createTrayIcon, appIconPath } = require('./icon');
 const { buildPromptLink, parseBotId, isValidBotId } = require('./lib/link');
 const { listBots } = require('./lib/roster');
 const { loadHistory, addToHistory, saveHistory } = require('./lib/history');
-const { readConversation, recentExchanges, latestReply, userMessageSince } = require('./lib/transcript');
+const { readConversation, recentExchanges, latestReply, replyState } = require('./lib/transcript');
 const { readUsage, isBlocked, formatReset } = require('./lib/usage');
 const { avatarColor, avatarInitial } = require('./lib/avatar');
 const { loadSettings, saveSettings, isValidShortcut, DEFAULT_SETTINGS } = require('./lib/settings');
@@ -31,6 +31,9 @@ let sendingPrompt = false;
 let pending;
 let responsePoll;
 let deliveryFailure;
+let failedRequest;
+// Keep a reference so Windows doesn't garbage-collect the notification before it's clicked.
+let lastNotification;
 const historyFile = path.join(app.getPath('userData'), 'history.json');
 let history = [];
 let pinned = false;
@@ -104,10 +107,24 @@ function resetDestination() {
   promptWindow.webContents.send('prompt:conversation', { ...loadConversation(), waiting: false, bot: botDetails() });
 }
 
-function loadConversation() {
-  const result = readConversation(GROK_BOT_DIRECTORY, settings.botId);
+function conversationFrom(result) {
   return result.ok ? { ok: true, entries: recentExchanges(result.entries, 6), latest: latestReply(result.entries) }
     : { ok: false };
+}
+
+function loadConversation() {
+  return conversationFrom(readConversation(GROK_BOT_DIRECTORY, settings.botId));
+}
+
+// Entry ids present before sending, so only entries written after the send count as the answer.
+function conversationBaseline(botId) {
+  const result = readConversation(GROK_BOT_DIRECTORY, botId);
+  if (result.ok) return new Set(result.entries.map((entry) => entry.id));
+  return result.error === 'not-found' ? new Set() : undefined;
+}
+
+function sentState(request, entries) {
+  return replyState(entries, { knownIds: request.knownIds, afterMs: request.sentAt - 2000 });
 }
 
 function usageDetails() {
@@ -139,8 +156,9 @@ function startWaiting(request) {
   });
   responsePoll = setInterval(() => {
     const result = readConversation(GROK_BOT_DIRECTORY, pending.botId);
-    const reply = result.ok && latestReply(result.entries, { afterMs: pending.sentAt - 2000 });
-    pending.delivered = pending.delivered || Boolean(result.ok && userMessageSince(result.entries, pending.sentAt - 2000));
+    const state = result.ok ? sentState(pending, result.entries) : { delivered: false, reply: null };
+    const reply = state.reply;
+    pending.delivered = pending.delivered || state.delivered;
     const elapsed = Date.now() - pending.sentAt;
     const notDelivered = !pending.delivered && elapsed >= 45000 && !reply;
     const timedOut = Date.now() - pending.sentAt >= 10 * 60 * 1000;
@@ -157,9 +175,13 @@ function startWaiting(request) {
     }
     const request = pending;
     stopWaiting();
-    if (notDelivered) deliveryFailure = { notDelivered: true, sent: request.sent };
+    if (notDelivered) {
+      deliveryFailure = { notDelivered: true, sent: request.sent };
+      failedRequest = request;
+    }
+    // Reuse the read that found the reply; a second read could catch Grok Bot mid-write.
     promptWindow.webContents.send('prompt:conversation', {
-      ...loadConversation(), waiting: false, timedOut: !reply && !notDelivered,
+      ...(result.ok ? conversationFrom(result) : loadConversation()), waiting: false, timedOut: !reply && !notDelivered,
       notDelivered, sent: notDelivered ? request.sent : undefined, usage: usageDetails(),
     });
     if (notDelivered && request.mode === 'hide' && !promptWindow.isVisible()) {
@@ -180,6 +202,7 @@ function startWaiting(request) {
           if (!promptWindow.isVisible()) togglePrompt();
           else { clearUnread(); promptWindow.focus(); }
         });
+        lastNotification = notification;
         notification.show();
       }
     }
@@ -233,6 +256,15 @@ function togglePrompt() {
     return;
   }
 
+  // A slow confirmation in Grok Bot can deliver the message after we gave up waiting;
+  // drop the stale failure so "Try again" doesn't send it twice.
+  if (deliveryFailure && failedRequest) {
+    const result = readConversation(GROK_BOT_DIRECTORY, failedRequest.botId);
+    if (result.ok && sentState(failedRequest, result.entries).delivered) {
+      deliveryFailure = undefined;
+      failedRequest = undefined;
+    }
+  }
   positionPrompt();
   clearUnread();
   promptWindow.show();
@@ -487,6 +519,7 @@ if (!app.requestSingleInstanceLock()) {
       }
 
       const request = { sentAt: Date.now(), botId: settings.botId, mode: settings.afterSend,
+        knownIds: conversationBaseline(settings.botId),
         sent: { role: 'user', text: text.trim(), timestampMs: Date.now() } };
       try {
         sendingPrompt = true;
@@ -534,7 +567,11 @@ if (!app.requestSingleInstanceLock()) {
         app.setLoginItemSettings({ openAtLogin: true });
         settings.launchAtLogin = true;
       }
-      settings = saveSettings(settingsLocation.path, settings);
+      try {
+        settings = saveSettings(settingsLocation.path, settings);
+      } catch {
+        // An antivirus can lock the file for a moment; still show the welcome screen, which saves again.
+      }
       openSettings({ welcome: true });
       tray.displayBalloon({
         title: t('balloon.ready.title'),

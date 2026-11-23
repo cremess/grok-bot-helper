@@ -59,7 +59,8 @@ function readConversation(dir, botId) {
   const file = findTranscriptFile(dir, agentId);
   if (!file) return { ok: false, error: 'not-found' };
   try {
-    const entries = parseTranscript(fs.readFileSync(file, 'utf8'));
+    // A file caught mid-write fails to parse; report it instead of an empty conversation.
+    const entries = parseTranscript(JSON.parse(fs.readFileSync(file, 'utf8')));
     return { ok: true, agentId, entries, mtimeMs: fs.statSync(file).mtimeMs };
   } catch {
     return { ok: false, error: 'unreadable' };
@@ -82,5 +83,17 @@ function userMessageSince(entries, afterMs) {
   return entries.some((entry) => entry.role === 'user' && entry.timestampMs >= afterMs);
 }
 
-module.exports = { escapeRegex, resolveAgentId, findTranscriptFile, parseTranscript,
+// Decides delivery and reply for a sent prompt. With a baseline of entry ids read before sending,
+// only entries that are new count, so an older reply or a clock skew can't be mistaken for the answer.
+// Without a baseline it falls back to the send time.
+function replyState(entries, { knownIds, afterMs } = {}) {
+  const fresh = knownIds instanceof Set ? entries.filter((entry) => !knownIds.has(entry.id)) : null;
+  if (fresh) {
+    return { delivered: fresh.some((entry) => entry.role === 'user'),
+      reply: latestReply(fresh) };
+  }
+  return { delivered: userMessageSince(entries, afterMs ?? 0), reply: latestReply(entries, { afterMs }) };
+}
+
+module.exports = { replyState, escapeRegex, resolveAgentId, findTranscriptFile, parseTranscript,
   readConversation, latestReply, recentExchanges, userMessageSince };

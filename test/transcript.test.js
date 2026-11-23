@@ -5,7 +5,7 @@ const path = require('node:path');
 const os = require('node:os');
 const { encodeBase32, findPersistenceFile } = require('../src/lib/roster');
 const { escapeRegex, resolveAgentId, findTranscriptFile, parseTranscript,
-  readConversation, latestReply, recentExchanges, userMessageSince } = require('../src/lib/transcript');
+  readConversation, latestReply, recentExchanges, userMessageSince, replyState } = require('../src/lib/transcript');
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'grokbot-transcript-'));
 after(() => {
@@ -90,10 +90,9 @@ test('missing files and broken JSON produce predictable results', () => {
   const dir = directory('absence');
   assert.deepEqual(readConversation(dir, ''), { ok: false, error: 'no-agent' });
   assert.deepEqual(readConversation(dir, 'bot'), { ok: false, error: 'not-found' });
-  const file = blob(dir, 'transcript.replicas.bot', '{');
-  assert.deepEqual(readConversation(dir, 'bot'), {
-    ok: true, agentId: 'bot', entries: [], mtimeMs: fs.statSync(file).mtimeMs,
-  });
+  blob(dir, 'transcript.replicas.bot', '{');
+  // A truncated file (caught mid-write) must not look like an empty conversation.
+  assert.deepEqual(readConversation(dir, 'bot'), { ok: false, error: 'unreadable' });
 });
 
 test('conversation read errors return unreadable and selection read errors return no-agent', (t) => {
@@ -142,4 +141,26 @@ test('latestReply respects conversation order and strict cutoffs; recentExchange
   assert.deepEqual(recentExchanges(entries, 0), []);
   assert.deepEqual(recentExchanges([], 3), []);
   assert.equal(entries.length, 7);
+});
+
+test('replyState only counts entries that are new since the send', () => {
+  const before = parseTranscript(transcript([user('u1', 1, 8000), bot('b1', 2, 8500)]));
+  const knownIds = new Set(before.map((entry) => entry.id));
+  // The previous reply (8500) lands just before a new send at 10000.
+  assert.deepEqual(replyState(before, { knownIds, afterMs: 8000 }), { delivered: false, reply: null });
+  const delivered = parseTranscript(transcript([user('u1', 1, 8000), bot('b1', 2, 8500), user('u2', 3, 10000)]));
+  assert.deepEqual(replyState(delivered, { knownIds, afterMs: 8000 }), { delivered: true, reply: null });
+  const answered = parseTranscript(transcript([user('u1', 1, 8000), bot('b1', 2, 8500),
+    user('u2', 3, 10000), bot('b2', 4, 11000)]));
+  const state = replyState(answered, { knownIds, afterMs: 8000 });
+  assert.equal(state.delivered, true);
+  assert.equal(state.reply.id, 'b2');
+});
+
+test('replyState ignores clock skew when a baseline exists and falls back to time without one', () => {
+  const entries = parseTranscript(transcript([user('u2', 3, 1000), bot('b2', 4, 1500)]));
+  // Timestamps far behind the local clock still count as new entries.
+  assert.equal(replyState(entries, { knownIds: new Set(), afterMs: 999999 }).reply.id, 'b2');
+  assert.equal(replyState(entries, { afterMs: 999999 }).reply, null);
+  assert.equal(replyState(entries, { afterMs: 1200 }).reply.id, 'b2');
 });
