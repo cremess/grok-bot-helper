@@ -164,3 +164,22 @@ test('replyState ignores clock skew when a baseline exists and falls back to tim
   assert.equal(replyState(entries, { afterMs: 999999 }).reply, null);
   assert.equal(replyState(entries, { afterMs: 1200 }).reply.id, 'b2');
 });
+
+test('replyState ignores an old entry rewritten with a new id', () => {
+  const before = parseTranscript(transcript([user('u1', 1, 8000), bot('b1', 2, 8500)]));
+  const knownIds = new Set(before.map((entry) => entry.id));
+  const rewritten = parseTranscript(transcript([user('u1-final', 1, 8000), bot('b1-final', 2, 8500)]));
+  assert.deepEqual(replyState(rewritten, { knownIds, knownUntilMs: 8500, afterMs: 0 }), { delivered: false, reply: null });
+  const answered = parseTranscript(transcript([user('u1-final', 1, 8000), bot('b1-final', 2, 8500),
+    user('u2', 3, 9000), bot('b2', 4, 9100)]));
+  const state = replyState(answered, { knownIds, knownUntilMs: 8500, afterMs: 0 });
+  assert.equal(state.delivered, true);
+  assert.equal(state.reply.id, 'b2');
+});
+
+test('replyState judges entries without a timestamp by id alone', () => {
+  const entries = parseTranscript(transcript([user('u2', 3, null), bot('b2', 4, null)]));
+  const state = replyState(entries, { knownIds: new Set(['u1']), knownUntilMs: 0 });
+  assert.equal(state.delivered, true);
+  assert.equal(state.reply.id, 'b2');
+});

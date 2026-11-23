@@ -83,11 +83,14 @@ function userMessageSince(entries, afterMs) {
   return entries.some((entry) => entry.role === 'user' && entry.timestampMs >= afterMs);
 }
 
-// Decides delivery and reply for a sent prompt. With a baseline of entry ids read before sending,
-// only entries that are new count, so an older reply or a clock skew can't be mistaken for the answer.
+// Decides delivery and reply for a sent prompt. With a baseline read before sending, an entry counts
+// only if its id is new and it isn't older than the newest entry already there. Both checks use Grok
+// Bot's own data, so a clock difference with this PC doesn't matter, and an old entry rewritten with
+// a new id is still ignored. Entries without a timestamp are judged by id alone.
 // Without a baseline it falls back to the send time.
-function replyState(entries, { knownIds, afterMs } = {}) {
-  const fresh = knownIds instanceof Set ? entries.filter((entry) => !knownIds.has(entry.id)) : null;
+function replyState(entries, { knownIds, knownUntilMs = 0, afterMs } = {}) {
+  const isNew = (entry) => !knownIds.has(entry.id) && (entry.timestampMs === 0 || entry.timestampMs > knownUntilMs);
+  const fresh = knownIds instanceof Set ? entries.filter(isNew) : null;
   if (fresh) {
     return { delivered: fresh.some((entry) => entry.role === 'user'),
       reply: latestReply(fresh) };

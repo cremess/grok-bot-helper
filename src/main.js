@@ -11,7 +11,7 @@ const { createTrayIcon, appIconPath } = require('./icon');
 const { buildPromptLink, parseBotId, isValidBotId } = require('./lib/link');
 const { listBots } = require('./lib/roster');
 const { loadHistory, addToHistory, saveHistory } = require('./lib/history');
-const { readConversation, recentExchanges, latestReply, replyState } = require('./lib/transcript');
+const { readConversation, recentExchanges, latestReply, replyState, resolveAgentId } = require('./lib/transcript');
 const { readUsage, isBlocked, formatReset } = require('./lib/usage');
 const { avatarColor, avatarInitial } = require('./lib/avatar');
 const { loadSettings, saveSettings, isValidShortcut, DEFAULT_SETTINGS } = require('./lib/settings');
@@ -117,14 +117,21 @@ function loadConversation() {
 }
 
 // Entry ids present before sending, so only entries written after the send count as the answer.
+// The agent is pinned here: with the default bot, Grok Bot's last-used agent could change while we
+// wait, and reading another agent's transcript against this baseline would show its old reply.
 function conversationBaseline(botId) {
-  const result = readConversation(GROK_BOT_DIRECTORY, botId);
-  if (result.ok) return new Set(result.entries.map((entry) => entry.id));
-  return result.error === 'not-found' ? new Set() : undefined;
+  const agentId = resolveAgentId(GROK_BOT_DIRECTORY, botId) || botId;
+  const result = readConversation(GROK_BOT_DIRECTORY, agentId);
+  if (result.ok) {
+    return { agentId, knownIds: new Set(result.entries.map((entry) => entry.id)),
+      knownUntilMs: result.entries.reduce((max, entry) => Math.max(max, entry.timestampMs), 0) };
+  }
+  return { agentId, knownIds: result.error === 'not-found' ? new Set() : undefined, knownUntilMs: 0 };
 }
 
 function sentState(request, entries) {
-  return replyState(entries, { knownIds: request.knownIds, afterMs: request.sentAt - 2000 });
+  return replyState(entries, { knownIds: request.knownIds, knownUntilMs: request.knownUntilMs,
+    afterMs: request.sentAt - 2000 });
 }
 
 function usageDetails() {
@@ -155,7 +162,7 @@ function startWaiting(request) {
     ...loadConversation(), waiting: true, sent: pending.sent,
   });
   responsePoll = setInterval(() => {
-    const result = readConversation(GROK_BOT_DIRECTORY, pending.botId);
+    const result = readConversation(GROK_BOT_DIRECTORY, pending.agentId);
     const state = result.ok ? sentState(pending, result.entries) : { delivered: false, reply: null };
     const reply = state.reply;
     pending.delivered = pending.delivered || state.delivered;
@@ -259,7 +266,7 @@ function togglePrompt() {
   // A slow confirmation in Grok Bot can deliver the message after we gave up waiting;
   // drop the stale failure so "Try again" doesn't send it twice.
   if (deliveryFailure && failedRequest) {
-    const result = readConversation(GROK_BOT_DIRECTORY, failedRequest.botId);
+    const result = readConversation(GROK_BOT_DIRECTORY, failedRequest.agentId);
     if (result.ok && sentState(failedRequest, result.entries).delivered) {
       deliveryFailure = undefined;
       failedRequest = undefined;
@@ -519,7 +526,7 @@ if (!app.requestSingleInstanceLock()) {
       }
 
       const request = { sentAt: Date.now(), botId: settings.botId, mode: settings.afterSend,
-        knownIds: conversationBaseline(settings.botId),
+        ...conversationBaseline(settings.botId),
         sent: { role: 'user', text: text.trim(), timestampMs: Date.now() } };
       try {
         sendingPrompt = true;
