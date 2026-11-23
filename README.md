@@ -14,6 +14,10 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/pedrofigueiredo25/grok-bot-helper/releases/latest"><b>⬇ Download for Windows</b></a>
+</p>
+
+<p align="center">
   <img src="docs/screenshots/prompt.png" width="680" alt="The floating prompt showing the latest reply from a bot">
 </p>
 
@@ -66,7 +70,7 @@ On macOS, Grok Bot ships with a built-in quick prompt you can summon from anywhe
 
 **Requirements:** Windows 10 or 11 (64-bit) and the [Grok Bot](https://cursor.com/download/bot) desktop app, opened at least once.
 
-A prebuilt installer will be published on the [Releases](https://github.com/pedrofigueiredo25/grok-bot-helper/releases) page. Until then, build it yourself (see below) or run from source.
+**[⬇ Download the latest installer](https://github.com/pedrofigueiredo25/grok-bot-helper/releases/latest)** — grab `Grok-Bot-Helper-Setup-<version>.exe` from the release assets.
 
 When you run the installer:
 
