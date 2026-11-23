@@ -72,3 +72,14 @@ test('browser export works without CommonJS', () => {
   assert.equal(typeof context.parseMarkdown, 'function');
   assert.equal(JSON.stringify(context.parseMarkdown('hi')), JSON.stringify([paragraph([text('hi')])]));
 });
+
+test('underscores inside words stay literal while real emphasis still works', () => {
+  assert.deepEqual(parseMarkdown('open my_file_name.py now'), [paragraph([text('open my_file_name.py now')])]);
+  assert.deepEqual(parseMarkdown('see https://example.com/a_b_c'), [paragraph([text('see https://example.com/a_b_c')])]);
+  assert.deepEqual(parseMarkdown('this is _really_ fine'), [
+    paragraph([text('this is '), { type: 'em', children: [text('really')] }, text(' fine')]),
+  ]);
+  assert.deepEqual(parseMarkdown('_snake_case_ here'), [
+    paragraph([{ type: 'em', children: [text('snake_case')] }, text(' here')]),
+  ]);
+});
