@@ -1,66 +1,54 @@
-# Tarefa 16 — Preparar o repositório para contribuidores
+# Tarefa 17 — Bug: prompt trava em "<bot> está respondendo…" quando o Grok Bot recusa o envio
 
-## Contexto
-O Pedro vai passar o repositório para amigos contribuírem. Precisamos de: guia de contribuição, CI que roda os testes em cada push/PR, modelo de PR, padronização de fim de linha e de editor. Tudo em português do Brasil.
+## Diagnóstico (feito pelo Claude Code)
+O usuário estava sem cota no Grok Bot. Nesse caso o Grok Bot **recusa o envio e não grava nada na conversa**; o app ficava esperando até o tempo limite de 10 min. O Grok Bot guarda o estado de uso localmente, na mesma pasta lida por `roster.js`/`transcript.js`, no arquivo cuja chave decodificada casa com `/^sand\.client\.slice\.account\..+\.weekly-usage\.cache$/`:
+```json
+{ "schemaVersion": 3, "value": { "kind": "present", "reading": {
+  "usage": { "percentUsed": 100, "nextResetMs": 1795605951834, "wouldRefuseSend": true,
+             "grokPlanLabel": "Grok Bot Plan", "prepaidBalanceCents": 0, "onDemand": null },
+  "readAtMs": 1795449257350 }, "expiresAtMs": 1795535658303 } }
+```
+Outros motivos para a mensagem não chegar: o usuário clicou **Cancelar** na confirmação do Grok Bot, ou o Grok Bot estava fechado/travado.
 
 ## Arquivos envolvidos
-- Criar: `CONTRIBUTING.md`, `.gitattributes`, `.editorconfig`, `.github/workflows/ci.yml`, `.github/pull_request_template.md`, `scripts/check-syntax.js`
-- Alterar: `README.md` (só acrescentar seção curta "Contribuindo" no fim apontando para o `CONTRIBUTING.md`), `package.json` (só os campos abaixo)
+- Criar: `src/lib/usage.js`, `test/usage.test.js`
+- Alterar: `src/lib/transcript.js` + `test/transcript.test.js` (só a função nova do item 2), `src/main.js`, `src/preload.js`, `src/prompt/prompt.html|css|js`
 
-## 1. `.gitattributes`
-```
-* text=auto eol=lf
-*.png binary
-*.ico binary
-*.jpg binary
-*.exe binary
-```
+## 1. `src/lib/usage.js` (CommonJS, sem Electron)
+- `readUsage(dir)` → `{ ok: true, percentUsed, wouldRefuseSend, nextResetMs, readAtMs, planLabel }` ou `{ ok: false, error: 'not-found' | 'unreadable' }`. Usa `findPersistenceFile` de `roster.js`. Campos ausentes/tipos errados → `percentUsed: null`, `wouldRefuseSend: false`, `nextResetMs: null`. Nunca lança.
+- `isBlocked(usage, nowMs)` → `true` somente se `usage.ok && usage.wouldRefuseSend === true` e (`nextResetMs` nulo **ou** `nextResetMs > nowMs`).
+- `formatReset(nextResetMs, nowMs)` → texto pt-BR curto: "hoje às 08:25", "amanhã às 08:25" ou "qua., 25/11 às 08:25" (use `Intl.DateTimeFormat('pt-BR')`, fuso local); `null` → "em breve".
+- Testes em `test/usage.test.js` (pasta temporária + `encodeBase32`): arquivo ausente, JSON quebrado, bloqueado, não bloqueado, renovação já passou (não bloqueia), formatos de `formatReset` com datas fixas.
 
-## 2. `.editorconfig`
-UTF-8, LF, 2 espaços, `insert_final_newline = true`, `trim_trailing_whitespace = true` (exceto `*.md`: `trim_trailing_whitespace = false`).
+## 2. `src/lib/transcript.js`
+- Nova função `userMessageSince(entries, afterMs)` → `true` se existir entrada `role: 'user'` com `timestampMs >= afterMs`. Teste correspondente.
 
-## 3. `scripts/check-syntax.js` (Node puro, sem dependências)
-- Percorre `src/`, `scripts/` e `test/` (recursivo), roda `node --check` em cada `.js` via `child_process.spawnSync(process.execPath, ['--check', arquivo])`, imprime os que falharem e sai com código 1 se algum falhar; senão imprime "Sintaxe ok (N arquivos)".
-- `package.json`: script `"check": "node scripts/check-syntax.js"` e `"engines": { "node": ">=22" }`. Nada mais muda no `package.json`.
+## 3. `src/main.js`
+- **Antes de enviar** (`prompt:submit`): ler `readUsage`. Se `isBlocked`, **não abrir o link** e retornar `{ ok: false, error: 'limit', resetText: formatReset(...), percentUsed }` — **a menos que** o renderer mande `{ text, force: true }` (o `prompt:submit` passa a aceitar string OU `{ text, force }`; manter compatibilidade com string).
+- **No `prompt:show`** incluir `usage: { blocked, percentUsed, resetText }` (para o prompt mostrar aviso/indicador).
+- **Espera** (poll existente): além de procurar a resposta, verificar se a mensagem chegou ao Grok Bot com `userMessageSince(entries, pending.sentAt - 2000)`.
+  - Se **45 s** depois do envio a mensagem ainda não apareceu na conversa, encerrar a espera e enviar `prompt:conversation` com `{ ...conversa, waiting: false, notDelivered: true, usage: {...} }` (reler o uso nesse momento).
+  - Se a mensagem apareceu, continuar esperando a resposta (até os 10 min atuais).
+- Novo IPC `prompt:stop-waiting` → encerra a espera (mesma função `stopWaiting`) e devolve a conversa atual (`waiting: false`).
+- No modo `'hide'`, se der `notDelivered` com o prompt escondido: tooltip da bandeja "GrokBot Assistant — A mensagem não chegou ao Grok Bot" e o ícone de não lido (o usuário abre e vê o motivo).
 
-## 4. `.github/workflows/ci.yml`
-- Nome "CI"; dispara em `push` e `pull_request` para `main`.
-- Job `test` em `windows-latest`:
-  - `actions/checkout@v4`
-  - `actions/setup-node@v4` com `node-version: 22` e `cache: npm`
-  - `npm ci --ignore-scripts` (evita baixar o binário do Electron no CI; os testes não precisam dele)
-  - `npm run check`
-  - `npm test`
-- Sem segredos, sem publicação, `permissions: contents: read`.
-
-## 5. `.github/pull_request_template.md`
-Seções curtas com caixas de seleção: "O que muda", "Como testei" (testes automáticos / teste manual no Windows com o Grok Bot / capturas de tela anexadas se mudou interface), "Checklist" (npm test passa, npm run check passa, textos em pt-BR, sem `innerHTML`, sem dados pessoais/tokens).
-
-## 6. `CONTRIBUTING.md`
-Conteúdo (confira tudo no código antes de escrever; não invente):
-1. **Visão geral** em 3–4 linhas: o que o app faz e como fala com o Grok Bot (deep link `grokbot://app/v1/prompt` para enviar; leitura somente leitura dos arquivos locais do Grok Bot para lista de bots e conversa — formato interno, pode mudar em atualizações do Grok Bot).
-2. **Preparar o ambiente**: Windows 10/11, Node 22+, Git, Grok Bot instalado; `git clone`, `npm install` (com a observação do `node node_modules/electron/install.js` se o binário não vier), `npm start`.
-3. **Comandos**: `npm start`, `npm test`, `npm run check`, `npm run icons`, `npm run dist` — uma linha cada.
-4. **Estrutura de pastas**: tabela curta (`src/main.js`, `src/lib/` lógica pura testável, `src/prompt/`, `src/settings/`, `src/ui/` tokens e BotPicker, `assets/`, `scripts/`, `test/`, `.handoff/` = registro do fluxo Claude Code + Codex usado pelo mantenedor; contribuidores não precisam usar).
-5. **Regras do código**:
-   - CommonJS; lógica nova de preferência em `src/lib/` com testes em `test/` (`node:test`).
-   - Segurança das janelas: `contextIsolation`, `sandbox`, sem `nodeIntegration`; CSP sem `unsafe-inline`; **nunca** `innerHTML` com conteúdo externo (nomes de bots e mensagens vêm de arquivos do Grok Bot); deep links e `openExternal` só no processo principal e com IDs validados.
-   - Nada de dados pessoais, tokens ou caminhos do seu PC no código ou nos testes; testes usam pastas temporárias.
-   - Textos de interface e comentários em português do Brasil.
-   - Novas dependências: discutir no PR antes.
-6. **Testar sem gastar tokens do Grok Bot**: explicar a técnica usada no projeto — rodar um script Electron que chama `app.setPath('appData', <pasta temporária>)` antes de carregar `src/main.js`, copiar para essa pasta só os arquivos necessários do Grok Bot e interceptar `shell.openExternal`; assim dá para simular envio e resposta sem tocar no Grok Bot real. (Só descrever; não criar o script.)
-7. **Fluxo de contribuição**: criar branch a partir da `main` (`feat/…`, `fix/…`), commits pequenos com mensagem no imperativo em português, abrir PR para `main`, CI precisa passar, pedir revisão do Pedro; mudanças de interface com captura de tela no PR.
-8. **Reportar problemas**: abrir issue com passos, o que esperava, o que aconteceu, versão do Windows e do Grok Bot.
+## 4. Prompt (interface)
+- **Aviso de limite** (quando `usage.blocked`): faixa discreta no topo da área de conteúdo, cor de alerta suave (`color-mix(in srgb, var(--error) 14%, var(--surface))`, texto `var(--text)`): "Seu limite do Grok Bot acabou. Renova {resetText}." O campo continua editável.
+- Ao tentar enviar e receber `error: 'limit'`: mostrar na linha de erro "O Grok Bot está sem limite agora (renova {resetText})." e um botão de texto **"Enviar mesmo assim"**, que reenvia com `force: true`.
+- **Indicador de uso**: se `percentUsed >= 80` e não bloqueado, no rodapé à direita (antes do "Enviar") um texto pequeno secundário "Uso: {percentUsed}%".
+- **Enquanto espera**: ao lado de "<bot> está respondendo…", um botão de texto pequeno **"Parar"** (chama `stopWaiting()` do preload). Após 15 s de espera sem a mensagem aparecer, trocar o texto de status para "Aguardando o Grok Bot receber a mensagem… Confirme no Grok Bot se ele pedir."
+- **`notDelivered`**: mostrar a bolha da mensagem enviada com um indicador de falha (ícone ⚠ pequeno) e abaixo: "A mensagem não chegou ao Grok Bot." + motivo provável: se `usage.blocked` → "Seu limite acabou (renova {resetText})."; senão → "Talvez a confirmação tenha sido cancelada ou o Grok Bot esteja fechado." + botão de texto **"Tentar de novo"** que reenvia o mesmo texto (com `force: true` se o motivo foi limite e o usuário clicou).
+- `preload.js`: expor `stopWaiting()`; `submit(text, options)` passa a enviar `{ text, force }` quando houver opções.
+- Tudo com `textContent`/`createElement`; CSP inalterada.
 
 ## Critérios de aceite
-- `npm run check` e `npm test` passam localmente.
-- YAML do workflow válido (indentação de 2 espaços, sem tabs).
-- Nenhum dado pessoal (nome de usuário, e-mail, caminhos `C:\Users\...`) nos arquivos novos.
+- `npm test` e `npm run check` passam (antigos + novos).
+- Cenário do bug: com `wouldRefuseSend: true` o envio **não fica preso**; o usuário vê o motivo na hora (antes de enviar) e, se forçar, em no máximo ~45 s vê "não chegou".
+- Um único `setInterval` de espera por vez; sempre limpo.
 
 ## O que NÃO fazer
-- NÃO alterar código em `src/`, testes existentes, `assets/`, `AGENTS.md`, `.gitignore`, `.handoff/HISTORICO.md`.
-- NÃO renormalizar os fins de linha dos arquivos existentes (o Claude Code faz isso depois, num commit separado).
-- NÃO instalar dependências. NÃO fazer commit nem push.
+- NÃO alterar `roster.js` (só usar), `markdown.js`, `link.js`, `settings.js`, `bot-picker`, `src/settings/*`, `assets/`, `scripts/`, `package.json`.
+- NÃO rodar o app. NÃO instalar dependências. NÃO fazer commit nem push. NÃO alterar `AGENTS.md`, `.gitignore` nem `.handoff/HISTORICO.md`.
 
 ## Ao terminar
 Substitua todo o conteúdo de `.handoff/RESULTADO.md` pelo resultado desta tarefa.

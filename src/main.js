@@ -6,7 +6,8 @@ const { createTrayIcon, appIconPath } = require('./icon');
 const { buildPromptLink, parseBotId, isValidBotId } = require('./lib/link');
 const { listBots } = require('./lib/roster');
 const { loadHistory, addToHistory, saveHistory } = require('./lib/history');
-const { readConversation, recentExchanges, latestReply } = require('./lib/transcript');
+const { readConversation, recentExchanges, latestReply, userMessageSince } = require('./lib/transcript');
+const { readUsage, isBlocked, formatReset } = require('./lib/usage');
 const { avatarColor, avatarInitial } = require('./lib/avatar');
 const { loadSettings, saveSettings, isValidShortcut, DEFAULT_SETTINGS } = require('./lib/settings');
 const { promptPosition } = require('./lib/position');
@@ -24,6 +25,7 @@ let hideTimer;
 let sendingPrompt = false;
 let pending;
 let responsePoll;
+let deliveryFailure;
 const historyFile = path.join(app.getPath('userData'), 'history.json');
 let history = [];
 
@@ -46,6 +48,7 @@ function resetDestination() {
   clearTimeout(hideTimer);
   sendingPrompt = false;
   stopWaiting();
+  deliveryFailure = undefined;
   clearUnread();
   promptWindow.webContents.send('prompt:conversation', { ...loadConversation(), waiting: false, bot: botDetails() });
 }
@@ -54,6 +57,13 @@ function loadConversation() {
   const result = readConversation(GROK_BOT_DIRECTORY, settings.botId);
   return result.ok ? { ok: true, entries: recentExchanges(result.entries, 6), latest: latestReply(result.entries) }
     : { ok: false };
+}
+
+function usageDetails() {
+  const usage = readUsage(GROK_BOT_DIRECTORY);
+  const now = Date.now();
+  return { blocked: isBlocked(usage, now), percentUsed: usage.ok ? usage.percentUsed : null,
+    resetText: formatReset(usage.ok ? usage.nextResetMs : null, now) };
 }
 
 function clearUnread() {
@@ -70,6 +80,7 @@ function stopWaiting() {
 
 function startWaiting(request) {
   stopWaiting();
+  deliveryFailure = undefined;
   pending = request;
   if (pending.mode === 'wait') promptWindow.setAlwaysOnTop(false);
   promptWindow.webContents.send('prompt:conversation', {
@@ -78,12 +89,32 @@ function startWaiting(request) {
   responsePoll = setInterval(() => {
     const result = readConversation(GROK_BOT_DIRECTORY, pending.botId);
     const reply = result.ok && latestReply(result.entries, { afterMs: pending.sentAt - 2000 });
+    pending.delivered = pending.delivered || Boolean(result.ok && userMessageSince(result.entries, pending.sentAt - 2000));
+    const elapsed = Date.now() - pending.sentAt;
+    const notDelivered = !pending.delivered && elapsed >= 45000 && !reply;
     const timedOut = Date.now() - pending.sentAt >= 10 * 60 * 1000;
-    if (!reply && !timedOut) return;
+    if (!reply && !timedOut && !notDelivered) {
+      const awaitingDelivery = !pending.delivered && elapsed >= 15000;
+      if (pending.awaitingDelivery !== awaitingDelivery) {
+        pending.awaitingDelivery = awaitingDelivery;
+        promptWindow.webContents.send('prompt:conversation', {
+          ...loadConversation(), waiting: true, sent: pending.sent,
+          awaitingDelivery,
+        });
+      }
+      return;
+    }
+    const request = pending;
     stopWaiting();
+    if (notDelivered) deliveryFailure = { notDelivered: true, sent: request.sent };
     promptWindow.webContents.send('prompt:conversation', {
-      ...loadConversation(), waiting: false, timedOut: !reply,
+      ...loadConversation(), waiting: false, timedOut: !reply && !notDelivered,
+      notDelivered, sent: notDelivered ? request.sent : undefined, usage: usageDetails(),
     });
+    if (notDelivered && request.mode === 'hide' && !promptWindow.isVisible()) {
+      tray.setImage(createTrayIcon({ unread: true }));
+      tray.setToolTip('GrokBot Assistant — A mensagem não chegou ao Grok Bot');
+    }
     if (reply && !promptWindow.isVisible()) {
       const roster = listBots(GROK_BOT_DIRECTORY);
       const name = settings.botName || (roster.ok && roster.bots.find((bot) => bot.id === result.agentId)?.name)
@@ -165,6 +196,9 @@ function togglePrompt() {
     history,
     botId: settings.botId, botName,
     conversation: loadConversation(), waiting: Boolean(pending), sent: pending?.sent,
+    ...deliveryFailure,
+    awaitingDelivery: Boolean(pending && !pending.delivered && Date.now() - pending.sentAt >= 15000),
+    usage: usageDetails(),
     botColor: settings.botId ? avatarColor(bot?.color, settings.botId) : '#1080f3',
     botInitial: settings.botId ? avatarInitial(botName) : 'G',
   });
@@ -356,9 +390,20 @@ if (!app.requestSingleInstanceLock()) {
       } catch { /* Ignora endereços inválidos. */ }
     });
 
-    ipcMain.handle('prompt:submit', async (_event, text) => {
+    ipcMain.handle('prompt:stop-waiting', () => {
+      stopWaiting();
+      const conversation = { ...loadConversation(), waiting: false };
+      promptWindow.webContents.send('prompt:conversation', conversation);
+      return conversation;
+    });
+    ipcMain.handle('prompt:submit', async (_event, payload) => {
+      const text = typeof payload === 'string' ? payload : payload?.text;
       const result = buildPromptLink({ text, botId: settings.botId });
       if (!result.ok) return result;
+      const usage = usageDetails();
+      if (usage.blocked && payload?.force !== true) {
+        return { ok: false, error: 'limit', resetText: usage.resetText, percentUsed: usage.percentUsed };
+      }
       if (!result.url.startsWith('grokbot://app/v1/prompt?')) {
         return { ok: false, error: 'open-failed' };
       }

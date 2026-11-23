@@ -4,6 +4,9 @@ const card = document.getElementById('card');
 const counter = document.getElementById('counter');
 const errorArea = document.getElementById('error');
 const send = document.getElementById('send');
+const usageWarning = document.getElementById('usage-warning');
+const usageIndicator = document.getElementById('usage-indicator');
+let usage = {};
 const MAX_TEXT_LENGTH = 1000;
 const errors = {
   empty: 'Digite uma mensagem.',
@@ -25,6 +28,8 @@ const waitingArea = document.getElementById('waiting-area');
 let conversation = { ok: false };
 let waiting = false;
 let timedOut = false;
+let notDelivered = false;
+let awaitingDelivery = false;
 let sent;
 let conversationView = false;
 let expanded = false;
@@ -61,6 +66,23 @@ pickerContainer.addEventListener('botpicker:toggle', updateLayout);
 function setBot(details) {
   destinationDetails = details;
   picker.setValue({ mode: details.botId ? 'list' : 'default', botId: details.botId || '', botName: details.botName || '' });
+}
+
+function setUsage(data) {
+  usage = data || {};
+  usageWarning.hidden = !usage.blocked;
+  usageWarning.textContent = usage.blocked ? `Seu limite do Grok Bot acabou. Renova ${usage.resetText}.` : '';
+  usageIndicator.hidden = usage.blocked || !(usage.percentUsed >= 80);
+  usageIndicator.textContent = usageIndicator.hidden ? '' : `Uso: ${usage.percentUsed}%`;
+}
+
+function textButton(label, action) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'text-button';
+  button.textContent = label;
+  button.addEventListener('click', action);
+  return button;
 }
 
 async function loadPickerBots() {
@@ -201,12 +223,14 @@ function renderConversation(animate = false) {
     responseBody.classList.add('new-reply');
   }
   waitingArea.replaceChildren();
-  waitingArea.hidden = !waiting && !timedOut;
+  waitingArea.hidden = !waiting && !timedOut && !notDelivered;
   if (waiting) {
     if (sent) waitingArea.append(bubble(sent));
     const status = document.createElement('p');
     status.className = 'waiting-status';
-    status.append(`${responseName.textContent} está respondendo`);
+    status.append(awaitingDelivery
+      ? 'Aguardando o Grok Bot receber a mensagem… Confirme no Grok Bot se ele pedir.'
+      : `${responseName.textContent} está respondendo`);
     const dots = document.createElement('span');
     dots.className = 'waiting-dots';
     dots.setAttribute('aria-hidden', 'true');
@@ -215,7 +239,32 @@ function renderConversation(animate = false) {
       dot.textContent = '.';
       dots.append(dot);
     }
-    status.append(dots);
+    if (!awaitingDelivery) status.append(dots);
+    status.append(textButton('Parar', async () => {
+      try { await window.grokbot.stopWaiting(); }
+      catch { showError('Não foi possível parar a espera.'); }
+    }));
+    waitingArea.append(status);
+  } else if (notDelivered) {
+    if (sent) {
+      const failed = bubble(sent);
+      const indicator = document.createElement('small');
+      indicator.className = 'delivery-failure';
+      indicator.textContent = '⚠';
+      indicator.setAttribute('aria-label', 'Falha na entrega');
+      failed.append(indicator);
+      waitingArea.append(failed);
+    }
+    const status = document.createElement('p');
+    status.className = 'waiting-status';
+    status.textContent = `A mensagem não chegou ao Grok Bot. ${usage.blocked
+      ? `Seu limite acabou (renova ${usage.resetText}).`
+      : 'Talvez a confirmação tenha sido cancelada ou o Grok Bot esteja fechado.'}`;
+    const retryText = sent?.text;
+    const force = usage.blocked === true;
+    status.append(textButton('Tentar de novo', () => {
+      if (typeof retryText === 'string') submit(force, retryText);
+    }));
     waitingArea.append(status);
   } else if (timedOut) {
     const status = document.createElement('p');
@@ -248,6 +297,9 @@ window.grokbot.onConversation((data) => {
   conversation = data;
   waiting = Boolean(data.waiting);
   timedOut = Boolean(data.timedOut);
+  notDelivered = Boolean(data.notDelivered);
+  awaitingDelivery = Boolean(data.awaitingDelivery);
+  if (data.usage) setUsage(data.usage);
   sent = data.sent;
   renderConversation(Boolean(changed && !waiting));
 });
@@ -274,15 +326,15 @@ function showError(message) {
   updateLayout();
 }
 
-async function submit() {
+async function submit(force = false, retryText) {
   if (submitting) return;
   const version = showVersion;
-  const submittedText = textarea.value;
+  const submittedText = retryText === undefined ? textarea.value : retryText;
   submitting = true;
   send.disabled = true;
   showError('');
   try {
-    const result = await window.grokbot.submit(submittedText);
+    const result = await window.grokbot.submit(submittedText, { force: force === true });
     if (version !== showVersion) return;
     if (result.ok) {
       const text = submittedText.trim();
@@ -300,7 +352,11 @@ async function submit() {
       }
       updateLayout();
     } else {
-      showError(errors[result.error] || 'Erro inesperado.');
+      if (result.error === 'limit') {
+        setUsage({ blocked: true, resetText: result.resetText, percentUsed: result.percentUsed });
+        showError(`O Grok Bot está sem limite agora (renova ${result.resetText}).`);
+        errorArea.append(textButton('Enviar mesmo assim', () => submit(true, submittedText)));
+      } else showError(errors[result.error] || 'Erro inesperado.');
       submitting = false;
       send.disabled = false;
     }
@@ -312,7 +368,7 @@ async function submit() {
   }
 }
 
-send.addEventListener('click', submit);
+send.addEventListener('click', () => submit());
 document.getElementById('settings').addEventListener('click', () => window.grokbot.openSettings());
 textarea.addEventListener('input', () => { historyIndex = null; updateLayout(); });
 document.addEventListener('keydown', (event) => {
@@ -339,7 +395,8 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
-window.grokbot.onShow(({ botId, botName, botColor, botInitial, history: savedHistory, conversation: data, waiting: isWaiting, sent: sentMessage }) => {
+window.grokbot.onShow(({ botId, botName, botColor, botInitial, history: savedHistory, conversation: data, waiting: isWaiting, sent: sentMessage,
+  usage: usageData, notDelivered: failedDelivery, awaitingDelivery: awaitingReceipt }) => {
   picker.close();
   loadPickerBots();
   const navigatingHistory = historyIndex !== null;
@@ -355,6 +412,9 @@ window.grokbot.onShow(({ botId, botName, botColor, botInitial, history: savedHis
   conversation = data || { ok: false };
   waiting = Boolean(isWaiting);
   timedOut = false;
+  notDelivered = Boolean(failedDelivery);
+  awaitingDelivery = Boolean(awaitingReceipt);
+  setUsage(usageData);
   sent = sentMessage;
   conversationView = false;
   expanded = false;

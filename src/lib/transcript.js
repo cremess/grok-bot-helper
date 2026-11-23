@@ -78,5 +78,9 @@ function recentExchanges(entries, limit = 6) {
   return Number.isInteger(limit) && limit > 0 ? entries.slice(-limit) : [];
 }
 
+function userMessageSince(entries, afterMs) {
+  return entries.some((entry) => entry.role === 'user' && entry.timestampMs >= afterMs);
+}
+
 module.exports = { escapeRegex, resolveAgentId, findTranscriptFile, parseTranscript,
-  readConversation, latestReply, recentExchanges };
+  readConversation, latestReply, recentExchanges, userMessageSince };

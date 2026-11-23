@@ -1,42 +1,28 @@
-# Resultado — Tarefa 16
-
-## Arquivos criados
-
-- `CONTRIBUTING.md`.
-- `.gitattributes`.
-- `.editorconfig`.
-- `.github/workflows/ci.yml`.
-- `.github/pull_request_template.md`.
-- `scripts/check-syntax.js`.
+﻿# Resultado — Tarefa 17
 
 ## Arquivos alterados
-
-- `README.md`: somente seção curta “Contribuindo” ao final.
-- `package.json`: somente script `check` e campo `engines.node`.
-- `.handoff/RESULTADO.md`: conteúdo substituído pelo resultado desta tarefa.
+- Criados: `src/lib/usage.js`, `test/usage.test.js`.
+- Alterados: `src/lib/transcript.js`, `test/transcript.test.js`, `src/main.js`, `src/preload.js`, `src/prompt/prompt.html`, `src/prompt/prompt.css`, `src/prompt/prompt.js`.
+- Substituído: `.handoff/RESULTADO.md`.
 
 ## Resumo das mudanças
-
-- Guia em português do Brasil com ambiente, comandos, estrutura, regras, fluxo de contribuição e relato de problemas, conferido com o código existente.
-- Descrita a técnica de teste isolado com pasta temporária de appData e interceptação de `shell.openExternal`, sem criar script Electron adicional.
-- Verificador recursivo de sintaxe usando Node puro; informa arquivos com falha e retorna código 1 se houver erro.
-- CI para push e PR destinados à main, em Windows com Node 22, instalação sem scripts, verificação de sintaxe e testes; permissões limitadas à leitura do conteúdo.
-- Modelo de PR com as seções e caixas de seleção solicitadas.
-- Configurados atributos Git e EditorConfig conforme a tarefa. Preservados os fins de linha dos arquivos existentes; sem renormalização.
-- A alteração preexistente em `.handoff/TAREFA.md` foi preservada.
+- Leitura tolerante do cache de uso, normalização dos campos, verificação de bloqueio e formatação da renovação em português e no fuso local.
+- Nova função `userMessageSince`, com corte inclusivo, e teste correspondente. As demais funções de transcript foram preservadas.
+- Envio aceita string ou `{ text, force }`. Quando há limite esgotado, retorna o motivo antes de abrir o link; `force: true` permite tentar mesmo assim.
+- Prompt recebe aviso de limite, indicador de uso a partir de 80%, ação “Enviar mesmo assim”, botão “Parar” e opção “Tentar de novo” com o mesmo texto.
+- Aos 15 segundos sem confirmação de entrega, o status orienta a conferir a confirmação no Grok Bot. Aos 45 segundos sem mensagem na conversa, encerra a espera, relê o uso e mostra falha e motivo provável. Mensagens entregues continuam sujeitas ao prazo existente de dez minutos para resposta.
+- Falha com o prompt oculto no modo hide sinaliza a bandeja; o estado da falha e a mensagem são preservados para reabertura do prompt.
+- Mantido um único intervalo de espera, limpo ao parar, substituir a espera, trocar destino, concluir, detectar falha ou atingir o prazo.
+- Interface construída com `textContent`/`createElement`; CSP preservada.
 
 ## Testes executados e resultado
-
-- `npm run check`: aprovado, “Sintaxe ok (34 arquivos)”.
-- `npm test`: 82 testes aprovados, zero falhas.
-- YAML analisado com `js-yaml` já disponível nas dependências locais; estrutura, eventos, permissões, versões e comandos conferidos por asserções. Indentação em múltiplos de 2 espaços, sem tabs.
-- Falha do verificador simulada em memória com `node:vm`: confirmado código 1, diagnóstico do arquivo e continuidade da verificação dos 34 arquivos, sem modificar código ou testes existentes.
-- Conferência automatizada: README original preservado integralmente antes da seção acrescentada; package.json sem outras mudanças; fins de linha preservados.
-- Arquivos novos conferidos quanto a LF, quebra final e ausência de caminhos pessoais e e-mails; revisão do conteúdo sem dados pessoais, tokens ou chaves.
+- `npm test`: aprovado, 88 testes, nenhuma falha.
+- `npm run check`: aprovado, sintaxe válida em 36 arquivos.
 - `git diff --check`: aprovado, sem erros de whitespace.
-- Validações locais executadas com Node v26.13.1. O workflow configura Node 22; a execução no GitHub Actions depende do envio pelo mantenedor.
+- Simulação isolada do poll via Node/VM, sem iniciar Electron: aprovados status aos 15 s, falha aos 45 s, aviso na bandeja, preservação da mensagem, continuidade após entrega, prazo de dez minutos, substituição e limpeza do intervalo. A primeira execução teve uma falha na expressão de verificação por codificação de acento no pipe do PowerShell; a expressão foi corrigida para escape Unicode e a simulação passou.
+- Simulação isolada do IPC de envio via Node/VM: aprovados compatibilidade com string, bloqueio sem abrir link e envio forçado.
 
 ## Dúvidas ou bloqueios
-
-- Nenhuma dúvida ou bloqueio de implementação.
-- Nenhuma dependência instalada, nenhum arquivo apagado e nenhum commit, push ou deploy realizado.
+- Nenhum bloqueio de implementação.
+- Validação visual e integração real com o Grok Bot não executadas: a tarefa proíbe rodar o app. Permanecem para revisão manual do orquestrador.
+- Nenhuma dependência instalada. Sem commit ou push. A alteração preexistente em `.handoff/TAREFA.md` foi preservada; `AGENTS.md` e `.handoff/HISTORICO.md` não foram alterados.

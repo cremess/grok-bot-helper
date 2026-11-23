@@ -5,7 +5,7 @@ const path = require('node:path');
 const os = require('node:os');
 const { encodeBase32, findPersistenceFile } = require('../src/lib/roster');
 const { escapeRegex, resolveAgentId, findTranscriptFile, parseTranscript,
-  readConversation, latestReply, recentExchanges } = require('../src/lib/transcript');
+  readConversation, latestReply, recentExchanges, userMessageSince } = require('../src/lib/transcript');
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'grokbot-transcript-'));
 after(() => {
@@ -29,6 +29,15 @@ const user = (id, seq, timestampMs, content = ' pergunta ') =>
 const bot = (id, seq, timestampMs, content = ' resposta ') =>
   ({ kind: 'send-message', id, seq, timestampMs, message: { type: 'text', content } });
 const transcript = (entries) => ({ schemaVersion: 1, value: { entries } });
+
+test('userMessageSince considera somente usuário com corte inclusivo', () => {
+  const entries = parseTranscript(transcript([user('u', 1, 100), bot('b', 2, 200)]));
+  assert.equal(userMessageSince(entries, 99), true);
+  assert.equal(userMessageSince(entries, 100), true);
+  assert.equal(userMessageSince(entries, 101), false);
+  assert.equal(userMessageSince(entries, 200), false);
+  assert.equal(userMessageSince([], 0), false);
+});
 
 test('busca genérica seleciona blob mais recente e não lança para pasta ou regex inválidos', () => {
   const dir = directory('generica');

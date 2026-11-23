@@ -9,7 +9,8 @@ contextBridge.exposeInMainWorld('grokbot', {
   onConversation: (callback) => {
     ipcRenderer.on('prompt:conversation', (_event, data) => callback(data));
   },
-  submit: (text) => ipcRenderer.invoke('prompt:submit', text),
+  submit: (text, options) => ipcRenderer.invoke('prompt:submit', options ? { text, force: options.force === true } : text),
+  stopWaiting: () => ipcRenderer.invoke('prompt:stop-waiting'),
   hide: () => ipcRenderer.invoke('prompt:hide'),
   openSettings: () => ipcRenderer.invoke('prompt:open-settings'),
   resize: (height) => ipcRenderer.invoke('prompt:resize', height),
