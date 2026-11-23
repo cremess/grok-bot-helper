@@ -32,7 +32,7 @@ test('promptBounds validates integer bounds, copies and persists position and si
 });
 after(() => fs.rmSync(temporaryDirectory, { recursive: true, force: true }));
 
-const validSettings = { botId: 'bot_123-ABC', botName: '', shortcut: 'Ctrl+Shift+G', selectionShortcut: '', launchAtLogin: true, afterSend: 'wait', notifyOnReply: false, theme: 'system', language: 'system', promptBounds: null, templates: [], checkForUpdates: false, lastUpdateCheckMs: 0 };
+const validSettings = { botId: 'bot_123-ABC', botName: '', shortcut: 'Ctrl+Shift+G', selectionShortcut: '', launchAtLogin: true, afterSend: 'wait', notifyOnReply: false, theme: 'system', language: 'system', promptBounds: null, templates: [], checkForUpdates: false, lastUpdateCheckMs: 0, assistant: 'grokbot', openbotAgentId: '', openbotAgentName: '', hermesPath: '', hermesModel: '', hermesProvider: '', hermesContinue: true, replyTimeoutMinutes: 10 };
 
 test('loading missing, empty or invalid files returns defaults', () => {
   assert.deepEqual(loadSettings(path.join(temporaryDirectory, 'missing.json')), DEFAULT_SETTINGS);
@@ -82,7 +82,7 @@ test('normalization requires a plain object and preserves defaults and input', (
     assert.deepEqual(normalizeSettings(raw), DEFAULT_SETTINGS);
   }
   assert.deepEqual(normalizeSettings(Object.assign(Object.create(null), validSettings)), validSettings);
-  const snapshot = { botId: '', botName: '', shortcut: 'Alt+Space', selectionShortcut: '', launchAtLogin: false, afterSend: 'wait', notifyOnReply: false, theme: 'system', language: 'system', promptBounds: null, templates: [], checkForUpdates: false, lastUpdateCheckMs: 0 };
+  const snapshot = { botId: '', botName: '', shortcut: 'Alt+Space', selectionShortcut: '', launchAtLogin: false, afterSend: 'wait', notifyOnReply: false, theme: 'system', language: 'system', promptBounds: null, templates: [], checkForUpdates: false, lastUpdateCheckMs: 0, assistant: 'grokbot', openbotAgentId: '', openbotAgentName: '', hermesPath: '', hermesModel: '', hermesProvider: '', hermesContinue: true, replyTimeoutMinutes: 10 };
   const input = { ...validSettings };
   const result = normalizeSettings(input);
   result.botId = 'other';
@@ -280,5 +280,49 @@ test('the update check is off by default and its settings are validated', () => 
   for (const value of ['true', 1, null, {}]) assert.equal(normalizeSettings({ checkForUpdates: value }).checkForUpdates, false);
   for (const value of [-1, NaN, Infinity, '5', null]) {
     assert.equal(normalizeSettings({ lastUpdateCheckMs: value }).lastUpdateCheckMs, 0, String(value));
+  }
+});
+
+test('the assistant defaults to Grok Bot and accepts only the three destinations', () => {
+  assert.equal(DEFAULT_SETTINGS.assistant, 'grokbot');
+  for (const assistant of ['grokbot', 'openbot', 'hermes']) {
+    assert.equal(normalizeSettings({ ...validSettings, assistant }).assistant, assistant);
+  }
+  for (const assistant of ['', 'OpenBot', 'other', null, 1]) {
+    assert.deepEqual(normalizeSettings({ ...validSettings, assistant }), validSettings);
+  }
+  // Settings from before this option keep sending to Grok Bot.
+  const { assistant, ...legacy } = validSettings;
+  assert.equal(normalizeSettings(legacy).assistant, 'grokbot');
+});
+
+test('the OpenBot agent id is validated and its name kept only with an id', () => {
+  const agent = { ...validSettings, assistant: 'openbot', openbotAgentId: 'agent-1', openbotAgentName: '  Fictional Helper ' };
+  assert.deepEqual(normalizeSettings(agent), { ...agent, openbotAgentName: 'Fictional Helper' });
+  for (const openbotAgentId of ['bad id', '../x', '.', '..', '.x', 'x'.repeat(129), 5]) {
+    const result = normalizeSettings({ ...agent, openbotAgentId });
+    assert.equal(result.openbotAgentId, '');
+    assert.equal(result.openbotAgentName, '');
+  }
+  assert.equal(normalizeSettings({ ...agent, openbotAgentName: 'n'.repeat(81) }).openbotAgentName, '');
+});
+
+test('Hermes settings: a local .exe path, strict model and provider names, continue on by default', () => {
+  assert.equal(DEFAULT_SETTINGS.hermesContinue, true);
+  const hermes = { ...validSettings, assistant: 'hermes', hermesPath: 'C:\\Tools\\hermes.exe', hermesModel: 'anthropic/claude-sonnet-4',
+    hermesProvider: 'openrouter', hermesContinue: false };
+  assert.deepEqual(normalizeSettings(hermes), hermes);
+  for (const [field, value] of [['hermesPath', 'hermes.exe'], ['hermesPath', 'C:\\Windows\\System32\\cmd.exe'], ['hermesPath', '\\\\server\\share\\hermes.exe'], ['hermesPath', 'C:\\x\\run.bat'],
+    ['hermesModel', '--yolo'], ['hermesModel', 'a b'], ['hermesProvider', 'x;y'], ['hermesProvider', 'p'.repeat(101)],
+    ['hermesContinue', 'no'], ['hermesContinue', null]]) {
+    assert.deepEqual(normalizeSettings({ ...hermes, [field]: value }), { ...hermes, [field]: DEFAULT_SETTINGS[field] }, `${field}=${value}`);
+  }
+});
+
+test('the reply timeout is 1 to 120 whole minutes, 10 by default', () => {
+  assert.equal(DEFAULT_SETTINGS.replyTimeoutMinutes, 10);
+  for (const value of [1, 30, 120]) assert.equal(normalizeSettings({ ...validSettings, replyTimeoutMinutes: value }).replyTimeoutMinutes, value);
+  for (const value of [0, 121, 2.5, '5', null]) {
+    assert.equal(normalizeSettings({ ...validSettings, replyTimeoutMinutes: value }).replyTimeoutMinutes, 10);
   }
 });

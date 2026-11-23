@@ -22,6 +22,9 @@ const { promptPosition, isBoundsVisible } = require('./lib/position');
 const { pickShortcut, isFirstRun } = require('./lib/first-run');
 const { validateTemplates } = require('./lib/templates');
 const { RELEASES_URL, UPDATE_TIMEOUT_MS, updateNotice, isSafeReleaseUrl, shouldCheckForUpdate } = require('./lib/update');
+const { isAssistant, isValidReplyTimeout } = require('./lib/assistant');
+const { OPENBOT_APP_URL, automationDirectory, createOpenBotClient, isValidAgentId, openBotState } = require('./lib/openbot-client');
+const { defaultHermesPath, hermesPathError, isValidHermesName } = require('./lib/hermes-client');
 
 // Keep the tray icon alive while the app runs.
 let tray;
@@ -41,6 +44,10 @@ let lastUpdateNotification;
 let partsJob;
 const settingsLocation = {};
 const GROK_BOT_DIRECTORY = path.join(app.getPath('appData'), 'Grok Bot', 'sand-client-persistence');
+// OpenBot's local API. The client reads the address and token from OpenBot's automation folder when it
+// needs them and keeps the token to itself (see lib/openbot-client.js).
+const openBotClient = createOpenBotClient({ directory: automationDirectory(app.getPath('appData')) });
+const HERMES_DEFAULT_PATH = defaultHermesPath(process.env.LOCALAPPDATA);
 let hideTimer;
 let sendingPrompt = false;
 let pending;
@@ -102,6 +109,19 @@ function botDetails() {
   return { botId: settings.botId, botName,
     botColor: settings.botId ? avatarColor(bot?.color, settings.botId) : '#1080f3',
     botInitial: settings.botId ? avatarInitial(botName) : 'G' };
+}
+
+// The OpenBot agents with Local scripts on, with avatars, and the state the UI explains when there are none.
+async function openBotAgents() {
+  const result = await openBotClient.listAgents();
+  return { ok: result.ok, state: openBotState(result), agents: result.ok ? result.agents.map((agent) => ({
+    ...agent, avatar: { color: avatarColor(undefined, agent.id), initial: avatarInitial(agent.name) },
+  })) : [] };
+}
+
+// Brings OpenBot up so the user can answer an agent or turn on Local scripts. Only this fixed link.
+function openOpenBot() {
+  return shell.openExternal(OPENBOT_APP_URL).then(() => ({ ok: true }), () => ({ ok: false }));
 }
 
 function updateSettingsBackground() {
@@ -671,6 +691,10 @@ if (!app.requestSingleInstanceLock()) {
       })) };
     };
     ipcMain.handle('settings:bots', botsWithAvatars);
+    ipcMain.handle('settings:openbot-agents', openBotAgents);
+    ipcMain.handle('settings:open-openbot', openOpenBot);
+    ipcMain.handle('settings:hermes-info', () => ({ defaultPath: HERMES_DEFAULT_PATH,
+      defaultFound: Boolean(HERMES_DEFAULT_PATH) && hermesPathError(HERMES_DEFAULT_PATH) === null }));
     ipcMain.handle('prompt:bots', botsWithAvatars);
     ipcMain.handle('settings:recording', (_event, isRecording) => {
       if (isRecording === true) {
@@ -685,14 +709,22 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle('settings:save', (_event, payload) => {
       let botId = '';
       let botName = '';
+      let botError = false;
       if (payload?.mode === 'list' && isValidBotId(payload.botId)) {
         botId = payload.botId;
         botName = typeof payload.botName === 'string' ? payload.botName.trim().slice(0, 80) : '';
       } else if (payload?.mode === 'manual') {
         botId = parseBotId(payload.botInput);
-        if (botId === null) return { ok: false, error: 'invalid-bot' };
+        if (botId === null) botError = true;
       } else if (payload?.mode !== 'default') {
-        return { ok: false, error: 'invalid-bot' };
+        botError = true;
+      }
+      if (botError) {
+        // The Grok Bot destination is hidden while OpenBot or Hermes is selected, so a half-typed bot link
+        // there doesn't block saving: the saved Grok Bot destination is kept.
+        if (!isAssistant(payload?.assistant) || payload.assistant === 'grokbot') return { ok: false, error: 'invalid-bot' };
+        botId = settings.botId;
+        botName = settings.botName;
       }
       const { shortcut, selectionShortcut, launchAtLogin, afterSend, notifyOnReply, theme, language, checkForUpdates } = payload;
       if (typeof notifyOnReply !== 'boolean' || typeof checkForUpdates !== 'boolean'
@@ -708,6 +740,34 @@ if (!app.requestSingleInstanceLock()) {
         ? selectionShortcutError(selectionShortcut, shortcut) : 'invalid';
       if (selectionError === 'conflict') return { ok: false, error: 'selection-shortcut-conflict' };
       if (selectionError) return { ok: false, error: 'invalid-selection-shortcut' };
+      const { assistant, openbotAgentId, hermesPath, hermesModel, hermesProvider, hermesContinue, replyTimeoutMinutes } = payload;
+      // Checked before anything changes, like the other options above.
+      if (!isAssistant(assistant)) return { ok: false, error: 'invalid-assistant' };
+      // The agent is saved only when OpenBot is the assistant; otherwise the saved one is kept.
+      let openbot = { openbotAgentId: settings.openbotAgentId, openbotAgentName: settings.openbotAgentName };
+      if (assistant === 'openbot') {
+        if (openbotAgentId !== '' && !isValidAgentId(openbotAgentId)) return { ok: false, error: 'invalid-openbot-agent' };
+        openbot = { openbotAgentId, openbotAgentName: openbotAgentId && typeof payload.openbotAgentName === 'string'
+          ? [...payload.openbotAgentName.trim()].slice(0, 80).join('') : '' };
+      }
+      // Fields of an assistant that isn't selected are hidden, so a bad value there can't block saving:
+      // it is checked strictly only for the selected assistant and otherwise the saved value is kept.
+      const hermesError = typeof hermesPath !== 'string' ? 'invalid' : hermesPath === '' ? null : hermesPathError(hermesPath);
+      if (hermesError && assistant === 'hermes') {
+        return { ok: false, error: hermesError === 'missing' ? 'missing-hermes-path' : 'invalid-hermes-path' };
+      }
+      const hermesNamesValid = isValidHermesName(hermesModel) && isValidHermesName(hermesProvider);
+      if (!hermesNamesValid && assistant === 'hermes') return { ok: false, error: 'invalid-hermes-name' };
+      if (typeof hermesContinue !== 'boolean') return { ok: false, error: 'invalid-option' };
+      const timeoutValid = isValidReplyTimeout(replyTimeoutMinutes);
+      if (!timeoutValid && assistant !== 'grokbot') return { ok: false, error: 'invalid-timeout' };
+      const hermes = {
+        hermesPath: hermesError === 'invalid' ? settings.hermesPath : hermesPath,
+        hermesModel: hermesNamesValid ? hermesModel : settings.hermesModel,
+        hermesProvider: hermesNamesValid ? hermesProvider : settings.hermesProvider,
+        hermesContinue,
+        replyTimeoutMinutes: timeoutValid ? replyTimeoutMinutes : settings.replyTimeoutMinutes,
+      };
       const previousSettings = settings;
       const selectionChanged = selectionShortcut !== settings.selectionShortcut;
       // Free the old selection shortcut first so the two shortcuts can swap keys in one save.
@@ -732,12 +792,14 @@ if (!app.requestSingleInstanceLock()) {
           ...settings,
           botId, botName, shortcut, selectionShortcut, launchAtLogin: Boolean(launchAtLogin), afterSend,
           notifyOnReply, theme, language, templates: templates.templates, checkForUpdates,
+          assistant, ...openbot, ...hermes,
         });
         if (checkForUpdates !== previousSettings.checkForUpdates) scheduleUpdateChecks(5000);
         nativeTheme.themeSource = settings.theme;
         updateSettingsBackground();
         const localeChanged = applyLanguage();
-        if (botId !== previousSettings.botId) {
+        if (botId !== previousSettings.botId || assistant !== previousSettings.assistant
+            || settings.openbotAgentId !== previousSettings.openbotAgentId) {
           resetDestination();
         }
         return { ok: true, settings, localeChanged };

@@ -2,6 +2,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { isValidBotId } = require('./link');
 const { normalizeTemplates } = require('./templates');
+const { isAssistant, isValidReplyTimeout, DEFAULT_REPLY_TIMEOUT_MINUTES } = require('./assistant');
+const { isValidAgentId } = require('./openbot-client');
+const { isHermesPathFormat, isValidHermesName } = require('./hermes-client');
 
 const DEFAULT_SETTINGS = Object.freeze({
   botId: '',
@@ -20,6 +23,18 @@ const DEFAULT_SETTINGS = Object.freeze({
   // The update check is the only network access, so it is opt-in.
   checkForUpdates: false,
   lastUpdateCheckMs: 0,
+  // Where messages go: 'grokbot' (deep links, the default), 'openbot' (local API) or 'hermes' (local CLI).
+  assistant: 'grokbot',
+  openbotAgentId: '',
+  openbotAgentName: '',
+  // Empty means the default location, %LOCALAPPDATA%\hermes\bin\hermes.exe.
+  hermesPath: '',
+  // Empty means Hermes's own default.
+  hermesModel: '',
+  hermesProvider: '',
+  hermesContinue: true,
+  // How long the prompt waits for an OpenBot or Hermes reply.
+  replyTimeoutMinutes: DEFAULT_REPLY_TIMEOUT_MINUTES,
 });
 
 const LANGUAGES = ['system', 'en', 'pt-BR'];
@@ -117,6 +132,16 @@ function normalizeSettings(raw) {
   settings.templates = normalizeTemplates(raw.templates);
   if (typeof raw.checkForUpdates === 'boolean') settings.checkForUpdates = raw.checkForUpdates;
   if (Number.isFinite(raw.lastUpdateCheckMs) && raw.lastUpdateCheckMs >= 0) settings.lastUpdateCheckMs = raw.lastUpdateCheckMs;
+  if (isAssistant(raw.assistant)) settings.assistant = raw.assistant;
+  if (raw.openbotAgentId === '' || isValidAgentId(raw.openbotAgentId)) settings.openbotAgentId = raw.openbotAgentId;
+  if (settings.openbotAgentId && typeof raw.openbotAgentName === 'string' && raw.openbotAgentName.trim().length <= 80) {
+    settings.openbotAgentName = raw.openbotAgentName.trim();
+  }
+  if (raw.hermesPath === '' || isHermesPathFormat(raw.hermesPath)) settings.hermesPath = raw.hermesPath;
+  if (isValidHermesName(raw.hermesModel)) settings.hermesModel = raw.hermesModel;
+  if (isValidHermesName(raw.hermesProvider)) settings.hermesProvider = raw.hermesProvider;
+  if (typeof raw.hermesContinue === 'boolean') settings.hermesContinue = raw.hermesContinue;
+  if (isValidReplyTimeout(raw.replyTimeoutMinutes)) settings.replyTimeoutMinutes = raw.replyTimeoutMinutes;
   return settings;
 }
 

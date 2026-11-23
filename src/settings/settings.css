@@ -71,3 +71,16 @@ footer button { height: 34px; }
 .footer-actions #close { border-color: transparent; background: transparent; }
 .footer-actions #close:hover { background: var(--hover); }
 .setting-row > .row-control, .setting-row > button, .setting-row > input[role="switch"], #clear-confirmation { margin-left: auto; }
+#openbot-fields .setting-row, #hermes-fields { box-shadow: inset 0 1px var(--border); }
+#openbot-agent { width: 200px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
+#openbot-status { font-size: 12px; }
+#openbot-status.warning, .assistant-warning { color: var(--error); }
+.assistant-help { display: grid; gap: 8px; justify-items: start; padding: 0 16px 12px 58px; }
+.assistant-help p { font-size: 12px; line-height: 16px; }
+.assistant-fields { display: grid; gap: 5px; padding: 12px 16px 12px 58px; }
+.assistant-fields label { font-size: 12.5px; }
+.assistant-fields p { font-size: 12px; }
+.assistant-fields input, #reply-timeout { width: 100%; padding: 7px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
+.assistant-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+.assistant-pair > div { display: grid; gap: 5px; }
+#reply-timeout { width: 72px; }

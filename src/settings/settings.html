@@ -19,14 +19,52 @@
     <img src="../../assets/icons/icon-256.png" width="36" height="36" alt="">
     <div><h1 data-i18n="settings.title">Settings</h1><p data-i18n="app.tagline">Your Grok Bot, one shortcut away.</p></div>
   </header>
-  <form id="settings-form">
+  <form id="settings-form" novalidate>
     <main>
       <section id="welcome" aria-labelledby="welcome-title" hidden>
         <h2 id="welcome-title" data-i18n="settings.welcome.title">Welcome to Grok Bot Helper</h2>
         <p id="welcome-message"></p>
       </section>
       <fieldset id="fields" disabled>
-        <section class="settings-group" aria-labelledby="destination-title">
+        <section class="settings-group" aria-labelledby="assistant-title">
+          <h2 id="assistant-title" data-i18n="settings.assistant">Assistant</h2>
+          <div class="section-card">
+            <div class="setting-row" role="group" aria-labelledby="assistant-row-title">
+              <span class="row-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="8" cy="6" r="3"/><path d="M2.5 14a5.5 5.5 0 0 1 11 0"/></svg></span>
+              <div class="row-copy"><h3 id="assistant-row-title" data-i18n="settings.assistant.title">Talk to</h3><p id="assistant-help"></p></div>
+              <div class="segmented row-control"><label><input type="radio" name="assistant" value="grokbot" checked aria-describedby="assistant-help"><span>Grok Bot</span></label><label><input type="radio" name="assistant" value="openbot" aria-describedby="assistant-help"><span>OpenBot</span></label><label><input type="radio" name="assistant" value="hermes" aria-describedby="assistant-help"><span>Hermes</span></label></div>
+            </div>
+            <div id="openbot-fields" hidden>
+              <div class="setting-row">
+                <span class="row-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="5" width="10" height="8" rx="2"/><path d="M8 2v3M6 9h0m4 0h0"/></svg></span>
+                <div class="row-copy"><h3 data-i18n="settings.openbot.agent">OpenBot agent</h3><p id="openbot-status" role="status" aria-live="polite"></p></div>
+                <div class="row-control"><select id="openbot-agent" data-i18n-aria-label="settings.openbot.agentLabel" aria-label="OpenBot agent to talk to"></select><button id="openbot-refresh" type="button" class="icon-button" data-i18n-aria-label="settings.openbot.refresh" aria-label="Refresh agents" data-i18n-title="settings.openbot.refresh" title="Refresh agents"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="M13 6A5 5 0 1 0 13 10M13 2v4H9"/></svg></button></div>
+              </div>
+              <div id="openbot-help" class="assistant-help" hidden><p data-i18n="openbot.steps">In OpenBot, open the agent's chat, open the side panel (agent settings), go to Permissions and turn on Local scripts. Do this for each agent you want to use here.</p><button id="open-openbot" type="button" class="small" data-i18n="openbot.open">Open OpenBot</button></div>
+            </div>
+            <div id="hermes-fields" class="assistant-fields" hidden>
+              <label for="hermes-path" data-i18n="settings.hermes.path">Hermes executable</label>
+              <input id="hermes-path" type="text" maxlength="1024" spellcheck="false" autocomplete="off" aria-describedby="hermes-path-help">
+              <p id="hermes-path-help" data-i18n="settings.hermes.pathHelp">Leave empty to use the default location.</p>
+              <p id="hermes-not-found" class="assistant-warning" role="status" hidden data-i18n="settings.hermes.notFound">Hermes wasn't found at the default location. Install Hermes Agent or enter the path to hermes.exe.</p>
+              <div class="assistant-pair">
+                <div><label for="hermes-model" data-i18n="settings.hermes.model">Model</label><input id="hermes-model" type="text" maxlength="100" spellcheck="false" autocomplete="off" data-i18n-placeholder="settings.hermes.namePlaceholder" placeholder="Hermes default" aria-describedby="hermes-name-help"></div>
+                <div><label for="hermes-provider" data-i18n="settings.hermes.provider">Provider</label><input id="hermes-provider" type="text" maxlength="100" spellcheck="false" autocomplete="off" data-i18n-placeholder="settings.hermes.namePlaceholder" placeholder="Hermes default" aria-describedby="hermes-name-help"></div>
+              </div>
+              <p id="hermes-name-help" data-i18n="settings.hermes.nameHelp">Optional. Letters, numbers and . _ : / - only.</p>
+            </div>
+            <label id="hermes-continue-row" class="setting-row switch-row" for="hermes-continue" hidden>
+              <span class="row-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="M2 3h12v8H6l-4 3ZM5 7h6"/></svg></span>
+              <span class="row-copy"><span class="row-title" data-i18n="settings.hermes.continue">Continue the conversation</span><span class="description" data-i18n="settings.hermes.continueHelp">Hermes remembers earlier messages from this app in a session of its own.</span></span><input id="hermes-continue" type="checkbox" role="switch">
+            </label>
+            <div id="timeout-row" class="setting-row" hidden>
+              <span class="row-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/></svg></span>
+              <div class="row-copy"><h3 data-i18n="settings.timeout.title">Wait for a reply</h3><p id="timeout-help" data-i18n="settings.timeout.help">Minutes before the prompt stops waiting for OpenBot or Hermes (1 to 120).</p></div>
+              <div class="row-control"><input id="reply-timeout" type="number" min="1" max="120" step="1" data-i18n-aria-label="settings.timeout.label" aria-label="Minutes to wait for a reply" aria-describedby="timeout-help"></div>
+            </div>
+          </div>
+        </section>
+        <section id="destination-group" class="settings-group" aria-labelledby="destination-title">
           <h2 id="destination-title" data-i18n="settings.destination">Destination</h2>
           <div class="section-card">
             <div class="setting-row destination-row">
