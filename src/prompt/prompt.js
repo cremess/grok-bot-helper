@@ -63,9 +63,13 @@ async function submit() {
 }
 
 send.addEventListener('click', submit);
+document.getElementById('settings').addEventListener('click', () => window.grokbot.openSettings());
 textarea.addEventListener('input', updateLayout);
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') {
+  if (event.ctrlKey && event.key === ',' && !event.altKey && !event.shiftKey) {
+    event.preventDefault();
+    window.grokbot.openSettings();
+  } else if (event.key === 'Escape') {
     event.preventDefault();
     window.grokbot.hide();
   } else if (event.target === textarea && event.key === 'Enter' && !event.shiftKey && event.isComposing === false) {

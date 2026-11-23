@@ -230,6 +230,10 @@ if (!app.requestSingleInstanceLock()) {
       }
     });
     ipcMain.handle('prompt:hide', () => promptWindow.hide());
+    ipcMain.handle('prompt:open-settings', () => {
+      promptWindow.hide();
+      openSettings();
+    });
 
     await promptWindow.loadFile(path.join(__dirname, 'prompt', 'prompt.html'));
     applyShortcut(settings.shortcut);

@@ -2,7 +2,13 @@ body { margin: 0; padding: 20px; background: transparent; overflow: hidden; }
 main { padding: 14px 18px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card); box-shadow: 0 24px 64px rgba(0,0,0,.45); }
 main.opening { animation: appear var(--transition) both; }
 @keyframes appear { from { opacity: 0; transform: translateY(-8px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
-header { display: flex; margin-bottom: 10px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+#settings { display: inline-grid; place-items: center; flex-shrink: 0; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--secondary); }
+#settings:hover { background: var(--hover); color: var(--text); }
+#settings svg { transition: transform var(--transition); }
+@media (prefers-reduced-motion: no-preference) {
+  #settings:hover svg { transform: rotate(30deg); }
+}
 .destination { display: inline-flex; align-items: center; gap: 7px; min-width: 0; max-width: 100%; padding: 3px 8px 3px 3px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; color: var(--secondary); }
 .destination > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .destination strong { color: var(--text); font-weight: 600; }

@@ -13,3 +13,4 @@
 | 2026-11-23 | T10: ícone de verdade | aceita (1ª tentativa) | 47 testes ok; ícones gerados pelo Claude com npm run icons (PNG 16/32/256 + ICO multicamada) e conferidos visualmente. |
 | 2026-11-23 | T11: visual novo + seletor de bots (1ª tentativa) | devolvida | Lógica e segurança ok (50 testes), mas captura visual mostrou: contorno azul no campo do prompt, rolagem dupla com barras padrão, seleção fora de vista, layout do atalho solto. |
 | 2026-11-23 | T11: visual novo + seletor de bots (2ª tentativa) | aceita | Capturas conferidas: prompt sem contorno, configurações sem rolagem dupla, seleção visível com check, atalho e interruptor alinhados. 50 testes ok. |
+| 2026-11-23 | T12: abrir configurações pelo prompt | aceita (1ª tentativa) | Testado por script: engrenagem abre configurações, esconde o prompt preservando o texto; Ctrl+, também abre. 50 testes ok. |
