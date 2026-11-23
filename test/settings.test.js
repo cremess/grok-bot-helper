@@ -10,7 +10,7 @@ const {
 const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'grokbot-'));
 after(() => fs.rmSync(temporaryDirectory, { recursive: true, force: true }));
 
-const validSettings = { botId: 'bot_123-ABC', shortcut: 'Ctrl+Shift+G', launchAtLogin: true };
+const validSettings = { botId: 'bot_123-ABC', botName: '', shortcut: 'Ctrl+Shift+G', launchAtLogin: true };
 
 test('carregar arquivo inexistente, vazio ou inválido retorna os padrões', () => {
   assert.deepEqual(loadSettings(path.join(temporaryDirectory, 'ausente.json')), DEFAULT_SETTINGS);
@@ -60,7 +60,7 @@ test('normalização exige objeto simples e preserva os padrões e a entrada', (
     assert.deepEqual(normalizeSettings(raw), DEFAULT_SETTINGS);
   }
   assert.deepEqual(normalizeSettings(Object.assign(Object.create(null), validSettings)), validSettings);
-  const snapshot = { botId: '', shortcut: 'Alt+Space', launchAtLogin: false };
+  const snapshot = { botId: '', botName: '', shortcut: 'Alt+Space', launchAtLogin: false };
   const input = { ...validSettings };
   const result = normalizeSettings(input);
   result.botId = 'outro';
@@ -68,6 +68,29 @@ test('normalização exige objeto simples e preserva os padrões e a entrada', (
   assert.deepEqual(DEFAULT_SETTINGS, snapshot);
   assert.equal(Object.isFrozen(DEFAULT_SETTINGS), true);
   assert.notStrictEqual(normalizeSettings(null), DEFAULT_SETTINGS);
+});
+
+test('botName usa padrão vazio, aplica trim e aceita até 80 caracteres', () => {
+  assert.equal(DEFAULT_SETTINGS.botName, '');
+  assert.equal(normalizeSettings({ botId: 'bot' }).botName, '');
+  assert.equal(normalizeSettings({ botId: 'bot', botName: '  Grok  ' }).botName, 'Grok');
+  assert.equal(normalizeSettings({ botId: 'bot', botName: ` ${'a'.repeat(80)} ` }).botName, 'a'.repeat(80));
+  for (const botName of ['a'.repeat(81), null, 123, {}, []]) {
+    assert.equal(normalizeSettings({ botId: 'bot', botName }).botName, '');
+  }
+});
+
+test('botName é zerado quando o botId final é vazio e persiste com ID válido', () => {
+  for (const botId of ['', undefined, 'inválido com espaço']) {
+    assert.equal(normalizeSettings({ botId, botName: 'Grok' }).botName, '');
+  }
+  const filePath = path.join(temporaryDirectory, 'nome.json');
+  const named = { ...validSettings, botName: 'Grok' };
+  assert.deepEqual(saveSettings(filePath, named), named);
+  assert.deepEqual(loadSettings(filePath), named);
+  assert.equal(saveSettings(filePath, { ...named, botId: '' }).botName, '');
+  fs.writeFileSync(filePath, `\uFEFF${JSON.stringify(named)}`, 'utf8');
+  assert.deepEqual(loadSettings(filePath), named);
 });
 
 test('aceita todos os exemplos válidos de atalho', () => {

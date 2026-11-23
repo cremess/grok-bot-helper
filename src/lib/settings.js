@@ -4,6 +4,7 @@ const { isValidBotId } = require('./link');
 
 const DEFAULT_SETTINGS = Object.freeze({
   botId: '',
+  botName: '',
   shortcut: 'Alt+Space',
   launchAtLogin: false,
 });
@@ -40,6 +41,9 @@ function normalizeSettings(raw) {
   if (prototype !== Object.prototype && prototype !== null) return settings;
 
   if (raw.botId === '' || isValidBotId(raw.botId)) settings.botId = raw.botId;
+  if (settings.botId && typeof raw.botName === 'string' && raw.botName.trim().length <= 80) {
+    settings.botName = raw.botName.trim();
+  }
   if (isValidShortcut(raw.shortcut)) settings.shortcut = raw.shortcut;
   if (typeof raw.launchAtLogin === 'boolean') settings.launchAtLogin = raw.launchAtLogin;
   return settings;
