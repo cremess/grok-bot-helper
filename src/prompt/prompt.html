@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GrokBot Assistant</title>
+  <link rel="stylesheet" href="prompt.css">
+  <script src="prompt.js" defer></script>
+</head>
+<body>
+  <main>
+    <textarea id="message" aria-label="Mensagem para o Grok Bot" placeholder="Mensagem para o Grok Bot…"></textarea>
+    <footer>
+      <span id="destination">Destino: bot padrão do Grok Bot</span>
+      <span id="counter" aria-live="polite">0/1000</span>
+    </footer>
+    <div id="error" role="alert"></div>
+  </main>
+</body>
+</html>
