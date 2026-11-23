@@ -37,6 +37,7 @@ On macOS, Grok Bot ships with a built-in quick prompt you can summon from anywhe
 - **A real window when you want it** — drag it, resize it, pin it so it stays open; it remembers where you left it.
 - **Knows when Grok Bot can't take messages** — warns you when you're out of Grok Bot usage instead of waiting forever.
 - **Small touches** — copy a reply, open the conversation in Grok Bot, browse your previous prompts with `↑`/`↓`, light and dark themes, launch at startup.
+- **English or Portuguese** — the app follows your Windows language (Brazilian Portuguese for any Portuguese locale, English otherwise), or pick one under **Settings → Appearance → Language**. If you're updating from an older version, it stays in English until you change it.
 
 <table>
   <tr>

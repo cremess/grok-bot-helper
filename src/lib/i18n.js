@@ -174,12 +174,222 @@
     'usage.soon': "soon",
     'usage.today': "today",
     'usage.tomorrow': "tomorrow",
-    'usage.reset': "{day} at {time}"
-} };
-  const LOCALES = ['en'];
+    'usage.reset': "{day} at {time}",
+    'settings.language.title': "Language",
+    'settings.language.help': "App language. System follows your Windows language.",
+    'settings.language.system': "System",
+    'settings.errors.language': "Select a valid language."
+  },
+  'pt-BR': {
+    'app.tagline': "Seu Grok Bot a um atalho de distância.",
+    'prompt.empty': "Nenhuma resposta ainda. Diga oi para {bot}.",
+    'prompt.notFound': "Não encontramos o Grok Bot neste PC.",
+    'app.name': "Grok Bot Helper",
+    'settings.windowTitle': "Grok Bot Helper: Configurações",
+    'prompt.pin': "Fixar",
+    'prompt.unpin': "Desafixar",
+    'prompt.pinHelp': "Fixar (manter aberto ao clicar fora)",
+    'prompt.close': "Fechar",
+    'prompt.closeHelp': "Fechar (Esc)",
+    'prompt.settings': "Abrir configurações",
+    'prompt.settingsHelp': "Configurações (Ctrl+,)",
+    'prompt.response': "Resposta do bot",
+    'prompt.copy': "Copiar resposta",
+    'prompt.openConversation': "Abrir conversa no Grok Bot",
+    'prompt.conversation': "Conversa",
+    'prompt.latest': "Última resposta",
+    'prompt.more': "Mostrar mais",
+    'prompt.less': "Mostrar menos",
+    'prompt.message': "Mensagem para o Grok Bot",
+    'prompt.placeholder': "Pergunte ou peça qualquer coisa ao Grok…",
+    'prompt.send': "Enviar",
+    'prompt.sent': "Enviado ✓",
+    'prompt.stop': "Parar",
+    'prompt.retry': "Tentar de novo",
+    'prompt.sendAnyway': "Enviar mesmo assim",
+    'prompt.awaitingDelivery': "Esperando o Grok Bot receber sua mensagem… Confirme no Grok Bot se ele pedir.",
+    'prompt.deliveryFailed': "Falha na entrega",
+    'prompt.deliveryHelp': "A confirmação pode ter sido cancelada ou o Grok Bot pode estar fechado.",
+    'prompt.timeout': "A resposta está demorando. Confira no Grok Bot.",
+    'prompt.selection.empty': "Nenhum texto estava selecionado.",
+    'prompt.selection.clipped': "O texto selecionado foi cortado nos primeiros {max} caracteres.",
+    'errors.pin': "Não deu para fixar ou desafixar o prompt.",
+    'errors.empty': "Digite uma mensagem.",
+    'errors.tooLong': "Sua mensagem passa de 1000 caracteres.",
+    'errors.busy': "A mensagem anterior ainda está sendo enviada.",
+    'prompt.parts.send': "Enviar em {count} partes",
+    'prompt.parts.tooMany': "Sua mensagem é longa demais mesmo dividida em {max} partes.",
+    'prompt.parts.progress': "Enviando a parte {part} de {total}. Confirme no Grok Bot se ele pedir.",
+    'prompt.parts.cancel': "Cancelar",
+    'prompt.parts.failed': "A parte {part} de {total} não chegou ao Grok Bot, então o resto não foi enviado.",
+    'prompt.parts.cancelled': "Envio interrompido depois de {sent} de {total} partes.",
+    'prompt.parts.cancelledPending': "Envio interrompido depois de {sent} de {total} partes. A parte {part} ainda pode chegar se você confirmar no Grok Bot.",
+    'errors.configuredBot': "O bot escolhido é inválido. Troque nas Configurações.",
+    'errors.open': "Não deu para abrir o Grok Bot.",
+    'errors.selectBot': "Não deu para trocar de bot.",
+    'errors.copy': "Não deu para copiar a resposta.",
+    'errors.stop': "Não deu para parar de esperar.",
+    'errors.unexpected': "Algo deu errado.",
+    'settings.title': "Configurações",
+    'settings.welcome.title': "Boas-vindas ao Grok Bot Helper",
+    'settings.destination': "Destino",
+    'picker.destination': "Bot de destino",
+    'settings.destination.description': "Para onde vão suas mensagens.",
+    'settings.destination.warning': "Não encontramos seus bots do Grok Bot. Abra o Grok Bot uma vez e clique em Atualizar lista, ou escolha Outro bot.",
+    'settings.refresh': "Atualizar lista",
+    'settings.manual.label': "Cole o link ou o ID do bot",
+    'settings.manual.placeholder': "Cole o link ou o ID do bot",
+    'settings.manual.help': "Use o link do bot no Grok Bot ou cole o ID dele.",
+    'settings.shortcut': "Atalho",
+    'settings.shortcut.title': "Abrir o prompt",
+    'settings.shortcut.help': "Funciona em qualquer app.",
+    'settings.shortcut.label': "Atalho global",
+    'settings.shortcut.change': "Trocar",
+    'settings.shortcut.restore': "Restaurar padrão",
+    'settings.selection.title': "Enviar texto selecionado",
+    'settings.selection.help': "Copia para o prompt o texto que você selecionou em qualquer app. Fica desligado até você escolher as teclas.",
+    'settings.selection.label': "Atalho para enviar o texto selecionado",
+    'settings.selection.off': "Desligado",
+    'settings.selection.clear': "Desligar",
+    'settings.behavior': "Comportamento",
+    'settings.rows.afterSend.title': "Depois de enviar",
+    'settings.rows.afterSend.wait': "Esperar resposta",
+    'settings.rows.afterSend.hide': "Fechar e avisar",
+    'settings.rows.afterSend.hideHelp': "Fecha o prompt e marca o ícone da bandeja quando a resposta chegar.",
+    'settings.rows.afterSend.waitHelp': "Mostra a resposta no prompt.",
+    'settings.rows.notify.title': "Avisar quando chegar resposta",
+    'settings.rows.notify.help': "Mostra uma notificação do Windows quando o prompt está fechado.",
+    'settings.rows.startup.title': "Abrir ao iniciar",
+    'settings.rows.startup.help': "Abre o app quando você entra no Windows.",
+    'settings.appearance': "Aparência",
+    'settings.theme.title': "Tema",
+    'settings.theme.help': "Aparência do app.",
+    'settings.theme.system': "Sistema",
+    'settings.theme.dark': "Escuro",
+    'settings.theme.light': "Claro",
+    'settings.templates': "Modelos",
+    'settings.templates.title': "Modelos de prompt",
+    'settings.templates.help': "Textos que você coloca no começo da mensagem com Ctrl+T no prompt.",
+    'settings.templates.add': "Adicionar",
+    'settings.templates.empty': "Nenhum modelo ainda.",
+    'settings.templates.name': "Nome",
+    'settings.templates.text': "Texto",
+    'settings.templates.namePlaceholder': "Resumir",
+    'settings.templates.textPlaceholder': "Resuma isto em três tópicos:",
+    'settings.templates.done': "Pronto",
+    'settings.templates.cancel': "Cancelar",
+    'settings.templates.edit': "Editar {name}",
+    'settings.templates.editShort': "Editar",
+    'settings.templates.remove': "Remover {name}",
+    'settings.templates.editor': "Editar modelo",
+    'settings.templates.list': "Modelos salvos",
+    'settings.templates.unsaved': "Clique em Salvar para guardar as mudanças nos modelos.",
+    'settings.errors.template': "Dê um nome e um texto para o modelo.",
+    'settings.errors.templates': "Alguns modelos são inválidos. Confira os nomes (até 40 caracteres) e os textos (até 500).",
+    'prompt.templates': "Modelos",
+    'prompt.templatesHelp': "Modelos (Ctrl+T)",
+    'prompt.templates.none': "Nenhum modelo ainda. Adicione nas Configurações.",
+    'settings.data': "Dados",
+    'settings.history.title': "Mensagens enviadas",
+    'settings.history.help': "Guarda até 50 mensagens neste computador.",
+    'settings.history.clear': "Limpar",
+    'settings.history.confirmLabel': "Confirmar limpeza das mensagens enviadas",
+    'settings.history.yes': "Sim",
+    'settings.history.no': "Não",
+    'settings.save': "Salvar",
+    'settings.saveStart': "Salvar e começar",
+    'settings.saved': "Configurações salvas",
+    'settings.history.cleared': "Mensagens enviadas apagadas",
+    'settings.errors.option': "Escolha opções válidas de notificação e tema.",
+    'settings.errors.bot': "Link ou ID de bot inválido.",
+    'settings.errors.shortcut': "Atalho inválido.",
+    'settings.errors.afterSend': "Escolha uma opção válida para depois de enviar.",
+    'settings.errors.shortcutTaken': "Esse atalho já é usado por outro app.",
+    'settings.errors.selectionShortcut': "Use Ctrl ou Alt no atalho do texto selecionado, sem a tecla Win e sem ser Ctrl+C.",
+    'settings.errors.selectionConflict': "O atalho do texto selecionado precisa ser diferente do atalho do prompt.",
+    'settings.errors.selectionTaken': "O atalho do texto selecionado já é usado por outro app.",
+    'settings.shortcut.press': "Aperte uma combinação de teclas…",
+    'settings.shortcut.recording': "Gravando…",
+    'settings.welcome.missing': "Não encontramos o Grok Bot neste computador. Instale e abra o Grok Bot, depois clique em Atualizar lista.",
+    'picker.to': "Para ",
+    'picker.search': "Buscar bots…",
+    'picker.searchLabel': "Buscar bots",
+    'picker.default': "Padrão do Grok Bot",
+    'picker.manual': "Outro bot (colar link ou ID)…",
+    'picker.heading': "Seus bots",
+    'picker.mostUsed': "mais usado",
+    'picker.empty': "Nenhum bot encontrado",
+    'bot.default': "bot padrão",
+    'tray.openPrompt': "Abrir prompt",
+    'tray.settings': "Configurações…",
+    'tray.resetPosition': "Redefinir posição do prompt",
+    'tray.quit': "Sair",
+    'balloon.ready.title': "O Grok Bot Helper está pronto",
+    'bot.fallback': "bot {id}",
+    'picker.compactDefault': "Grok",
+    'picker.selectedLabel': "Bot de destino: {name}",
+    'picker.shortcutTitle': "{name} (Ctrl+K)",
+    'prompt.waiting': "{bot} está respondendo",
+    'prompt.moreComing': "Conferindo se {bot} vai mandar mais alguma coisa",
+    'prompt.usage': "Uso: {percent}%",
+    'prompt.usageBlocked': "Seu uso do Grok Bot acabou. Renova {reset}.",
+    'prompt.limit': "O uso do Grok Bot não está disponível agora (renova {reset}).",
+    'prompt.deliveryMessage': "Sua mensagem não chegou ao Grok Bot. {detail}",
+    'prompt.deliveryLimit': "Seu uso acabou (renova {reset}).",
+    'tray.deliveryFailed': "Grok Bot Helper: sua mensagem não chegou ao Grok Bot",
+    'tray.newReply': "Grok Bot Helper: nova resposta de {name}",
+    'balloon.shortcutUnavailable': "Não deu para registrar {shortcut}. Outro app pode estar usando.",
+    'balloon.ready.body': "Use {shortcut} para abrir o prompt. O ícone fica aqui na bandeja.",
+    'settings.welcome.message': "Boas-vindas! Escolha para qual bot do Grok Bot vão suas mensagens. Depois aperte {shortcut} em qualquer lugar.",
+    'settings.history.confirm': "Limpar?",
+    'prompt.hints.send': "enviar",
+    'prompt.hints.newLine': "nova linha",
+    'prompt.hints.close': "fechar",
+    'prompt.counter': "{length}/{max}",
+    'prompt.responseTime': "· {time}",
+    'time.justNow': "agora mesmo",
+    'time.minutesAgo': "há {count} min",
+    'time.hoursAgo': "há {count} h",
+    'time.yesterday': "ontem, {time}",
+    'time.date': "{date}, {time}",
+    'usage.soon': "em breve",
+    'usage.today': "hoje",
+    'usage.tomorrow': "amanhã",
+    'usage.reset': "{day} às {time}",
+    'settings.language.title': "Idioma",
+    'settings.language.help': "Idioma do app. A opção Sistema segue o idioma do Windows.",
+    'settings.language.system': "Sistema",
+    'settings.errors.language': "Escolha um idioma válido."
+  }
+};
+  const LOCALES = ['en', 'pt-BR'];
   const DEFAULT_LOCALE = 'en';
+  // Each language's name in that language, so people can find theirs whatever the current locale is.
+  const LANGUAGE_NAMES = { en: 'English', 'pt-BR': 'Portugu\u00eas (Brasil)' };
+  let activeLocale = DEFAULT_LOCALE;
 
-  function t(key, params = {}, locale = DEFAULT_LOCALE) {
+  // Turns the Language setting into a locale. "system" uses the Windows locale reported by Electron:
+  // any Portuguese (pt, pt-BR, pt-PT) gets pt-BR, everything else English.
+  function resolveLocale(setting, systemLocale) {
+    if (setting === 'en' || setting === 'pt-BR') return setting;
+    return typeof systemLocale === 'string' && /^pt(?:[-_]|$)/i.test(systemLocale) ? 'pt-BR' : DEFAULT_LOCALE;
+  }
+
+  function setLocale(locale) {
+    activeLocale = LOCALES.includes(locale) ? locale : DEFAULT_LOCALE;
+    return activeLocale;
+  }
+
+  function getLocale() {
+    return activeLocale;
+  }
+
+  // Locale for Intl date and time formatting.
+  function intlLocale(locale = activeLocale) {
+    return locale === 'pt-BR' ? 'pt-BR' : 'en-US';
+  }
+
+  function t(key, params = {}, locale = activeLocale) {
     try {
       const table = Object.hasOwn(STRINGS, locale) ? STRINGS[locale] : STRINGS[DEFAULT_LOCALE];
       if (!Object.hasOwn(table, key)) return key;
@@ -191,6 +401,7 @@
   }
 
   function applyI18n(root = document) {
+    if (root.documentElement) root.documentElement.lang = activeLocale;
     for (const [attribute, target] of [
       ['data-i18n', null], ['data-i18n-placeholder', 'placeholder'],
       ['data-i18n-title', 'title'], ['data-i18n-aria-label', 'aria-label'],
@@ -203,7 +414,12 @@
     }
   }
 
-  const api = { STRINGS, LOCALES, DEFAULT_LOCALE, t, applyI18n };
+  const api = { STRINGS, LOCALES, DEFAULT_LOCALE, LANGUAGE_NAMES, t, applyI18n, resolveLocale, setLocale, getLocale,
+    intlLocale };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
-  else Object.assign(globalThis, api);
+  else {
+    // Renderers get the locale the main process uses through the page query (?locale=pt-BR).
+    try { setLocale(new URLSearchParams(globalThis.location?.search || '').get('locale')); } catch { /* Keep English. */ }
+    Object.assign(globalThis, api);
+  }
 })();

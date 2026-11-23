@@ -1,5 +1,5 @@
 (() => {
-  const { t } = typeof module !== 'undefined' && module.exports ? require('./i18n') : globalThis;
+  const { t, intlLocale } = typeof module !== 'undefined' && module.exports ? require('./i18n') : globalThis;
 
   function relativeTime(timestampMs, nowMs = Date.now()) {
     const date = new Date(timestampMs);
@@ -10,11 +10,11 @@
     const sameDay = (a, b) => a.getFullYear() === b.getFullYear()
       && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
     if (sameDay(date, now)) return t('time.hoursAgo', { count: Math.floor(seconds / 3600) });
-    const time = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(date);
+    const time = new Intl.DateTimeFormat(intlLocale(), { hour: 'numeric', minute: '2-digit' }).format(date);
     const yesterday = new Date(now);
     yesterday.setDate(yesterday.getDate() - 1);
     if (sameDay(date, yesterday)) return t('time.yesterday', { time });
-    const day = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
+    const day = new Intl.DateTimeFormat(intlLocale(), { month: 'short', day: 'numeric' }).format(date);
     return t('time.date', { date: day, time });
   }
 

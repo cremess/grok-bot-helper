@@ -1,4 +1,8 @@
 applyI18n();
+// Language names are shown in their own language, whatever the current locale is.
+for (const element of document.querySelectorAll('[data-language-name]')) {
+  element.textContent = LANGUAGE_NAMES[element.dataset.languageName] || element.textContent;
+}
 
 // Measure the selected label so the pill follows both keyboard and pointer changes.
 const segmentedControls = [...document.querySelectorAll('.segmented')];
@@ -33,9 +37,11 @@ const save = document.getElementById('save');
 const launchAtLogin = document.getElementById('launch-at-login');
 const notifyOnReply = document.getElementById('notify-on-reply');
 const themeOptions = [...document.querySelectorAll('input[name="theme"]')];
+const languageOptions = [...document.querySelectorAll('input[name="language"]')];
 function renderGeneral(settings) {
   notifyOnReply.checked = settings.notifyOnReply;
   for (const option of themeOptions) option.checked = option.value === settings.theme;
+  for (const option of languageOptions) option.checked = option.value === settings.language;
   updateSegments();
 }
 const clearHistory = document.getElementById('clear-history');
@@ -90,6 +96,7 @@ let toastTimer;
 
 const errors = {
   'invalid-templates': t('settings.errors.templates'),
+  'invalid-language': t('settings.errors.language'),
   'invalid-option': t('settings.errors.option'),
   'invalid-bot': t('settings.errors.bot'),
   'invalid-shortcut': t('settings.errors.shortcut'),
@@ -424,6 +431,7 @@ form.addEventListener('submit', async (event) => {
       afterSend: afterSendOptions.find((option) => option.checked)?.value,
       notifyOnReply: notifyOnReply.checked,
       theme: themeOptions.find((option) => option.checked)?.value,
+      language: languageOptions.find((option) => option.checked)?.value,
       templates: templates.map(({ name, text }) => ({ name, text })),
     });
     if (!result.ok) {
@@ -444,6 +452,8 @@ form.addEventListener('submit', async (event) => {
     renderTemplates();
     showToast(t('settings.saved'));
     if (welcomeMode) setTimeout(() => window.close(), 800);
+    // The page was localized at load; reload it in the new language once the toast was seen.
+    else if (result.localeChanged) setTimeout(() => window.grokbotSettings.reload().catch(() => {}), 700);
   } catch {
     showError();
   } finally {

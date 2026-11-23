@@ -32,7 +32,7 @@ test('promptBounds validates integer bounds, copies and persists position and si
 });
 after(() => fs.rmSync(temporaryDirectory, { recursive: true, force: true }));
 
-const validSettings = { botId: 'bot_123-ABC', botName: '', shortcut: 'Ctrl+Shift+G', selectionShortcut: '', launchAtLogin: true, afterSend: 'wait', notifyOnReply: false, theme: 'system', promptBounds: null, templates: [] };
+const validSettings = { botId: 'bot_123-ABC', botName: '', shortcut: 'Ctrl+Shift+G', selectionShortcut: '', launchAtLogin: true, afterSend: 'wait', notifyOnReply: false, theme: 'system', language: 'system', promptBounds: null, templates: [] };
 
 test('loading missing, empty or invalid files returns defaults', () => {
   assert.deepEqual(loadSettings(path.join(temporaryDirectory, 'missing.json')), DEFAULT_SETTINGS);
@@ -82,7 +82,7 @@ test('normalization requires a plain object and preserves defaults and input', (
     assert.deepEqual(normalizeSettings(raw), DEFAULT_SETTINGS);
   }
   assert.deepEqual(normalizeSettings(Object.assign(Object.create(null), validSettings)), validSettings);
-  const snapshot = { botId: '', botName: '', shortcut: 'Alt+Space', selectionShortcut: '', launchAtLogin: false, afterSend: 'wait', notifyOnReply: false, theme: 'system', promptBounds: null, templates: [] };
+  const snapshot = { botId: '', botName: '', shortcut: 'Alt+Space', selectionShortcut: '', launchAtLogin: false, afterSend: 'wait', notifyOnReply: false, theme: 'system', language: 'system', promptBounds: null, templates: [] };
   const input = { ...validSettings };
   const result = normalizeSettings(input);
   result.botId = 'other';
@@ -252,4 +252,20 @@ test('templates default to an empty list and are persisted after validation', ()
   for (const value of [null, 'text', {}, 3]) assert.deepEqual(normalizeSettings({ templates: value }).templates, []);
   assert.deepEqual(normalizeSettings({ templates: [{ name: ' A ', text: ' B ' }, { name: '', text: 'x' }] }).templates,
     [{ name: 'A', text: 'B' }]);
+});
+
+test('a fresh install follows the system language and accepts only system, en and pt-BR', () => {
+  assert.equal(DEFAULT_SETTINGS.language, 'system');
+  assert.equal(loadSettings(path.join(temporaryDirectory, 'no-such-settings.json')).language, 'system');
+  for (const language of ['system', 'en', 'pt-BR']) {
+    const file = path.join(temporaryDirectory, 'language.json');
+    assert.equal(saveSettings(file, { ...validSettings, language }).language, language);
+    assert.equal(loadSettings(file).language, language);
+  }
+  for (const language of [undefined, null, '', 'pt', 'pt-PT', 'PT-BR', 'fr', 1, {}]) {
+    // Settings saved before the option existed (or with a bad value) keep the English interface.
+    assert.equal(normalizeSettings({ ...validSettings, language }).language, 'en', String(language));
+  }
+  const { language, ...olderFile } = validSettings;
+  assert.equal(normalizeSettings(olderFile).language, 'en');
 });

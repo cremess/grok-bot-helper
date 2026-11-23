@@ -1,4 +1,4 @@
-const { t } = require('./lib/i18n');
+const { t, setLocale, getLocale, resolveLocale } = require('./lib/i18n');
 const path = require('node:path');
 const fs = require('node:fs');
 const { execFile } = require('node:child_process');
@@ -17,7 +17,7 @@ const { readConversation, recentExchanges, latestReply, replyState, resolveAgent
   waitDecision, NOT_DELIVERED_MS } = require('./lib/transcript');
 const { readUsage, isBlocked, formatReset } = require('./lib/usage');
 const { avatarColor, avatarInitial } = require('./lib/avatar');
-const { loadSettings, saveSettings, isValidShortcut, selectionShortcutError, DEFAULT_SETTINGS } = require('./lib/settings');
+const { loadSettings, saveSettings, isValidShortcut, selectionShortcutError, DEFAULT_SETTINGS, LANGUAGES } = require('./lib/settings');
 const { promptPosition, isBoundsVisible } = require('./lib/position');
 const { pickShortcut, isFirstRun } = require('./lib/first-run');
 const { validateTemplates } = require('./lib/templates');
@@ -222,9 +222,16 @@ function usageDetails() {
     resetText: formatReset(usage.ok ? usage.nextResetMs : null, now) };
 }
 
+// Remembers the tooltip's key so a language change can show the same tooltip in the new language.
+let trayTooltip = { key: 'app.name', params: {} };
+function setTrayTooltip(key, params = {}) {
+  trayTooltip = { key, params };
+  tray.setToolTip(t(key, params));
+}
+
 function clearUnread() {
   tray.setImage(createTrayIcon());
-  tray.setToolTip(t('app.name'));
+  setTrayTooltip('app.name');
 }
 
 function stopWaiting() {
@@ -290,14 +297,14 @@ function startWaiting(request) {
     });
     if (notDelivered && request.mode === 'hide' && !promptWindow.isVisible()) {
       tray.setImage(createTrayIcon({ unread: true }));
-      tray.setToolTip(t('tray.deliveryFailed'));
+      setTrayTooltip('tray.deliveryFailed');
     }
     if (reply && !promptWindow.isVisible()) {
       const roster = listBots(GROK_BOT_DIRECTORY);
       const name = settings.botName || (roster.ok && roster.bots.find((bot) => bot.id === request.agentId)?.name)
         || (settings.botId ? t('bot.fallback', { id: settings.botId.slice(0, 8) }) : t('bot.default'));
       tray.setImage(createTrayIcon({ unread: true }));
-      tray.setToolTip(t('tray.newReply', { name }));
+      setTrayTooltip('tray.newReply', { name });
       if (settings.notifyOnReply && Notification.isSupported()) {
         const notification = new Notification({ title: name,
           body: [...reply.text.replace(/[*`#]/g, '')].slice(0, 140).join(''),
@@ -348,7 +355,7 @@ function openSettings({ welcome = false } = {}) {
     applySelectionShortcut(settings.selectionShortcut);
   });
   settingsWindow.loadFile(path.join(__dirname, 'settings', 'settings.html'), {
-    query: welcome ? { welcome: '1' } : {},
+    query: welcome ? { welcome: '1', locale: getLocale() } : { locale: getLocale() },
   });
 }
 
@@ -501,6 +508,34 @@ function applySelectionShortcut(accelerator) {
   return false;
 }
 
+function buildTrayMenu() {
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: t('tray.openPrompt'), click: () => {
+      if (promptWindow && !promptWindow.isVisible()) togglePrompt();
+    } },
+    { label: t('tray.settings'), click: () => openSettings() },
+    { label: t('tray.resetPosition'), click: resetPromptBounds },
+    { type: 'separator' },
+    { label: t('tray.quit'), click: () => app.quit() },
+  ]));
+}
+
+function loadPrompt() {
+  return promptWindow.loadFile(path.join(__dirname, 'prompt', 'prompt.html'), { query: { locale: getLocale() } });
+}
+
+// Main and renderers share one locale: main switches here, then the windows reload with it in the query.
+function applyLanguage() {
+  const previous = getLocale();
+  const locale = setLocale(resolveLocale(settings.language, app.getLocale()));
+  if (locale === previous) return false;
+  buildTrayMenu();
+  setTrayTooltip(trayTooltip.key, trayTooltip.params);
+  // A visible prompt would sit empty after the reload, so fill it again.
+  loadPrompt().then(() => { if (promptWindow.isVisible()) showPrompt(); }).catch(() => {});
+  return true;
+}
+
 function applyShortcut(accelerator) {
   if (registeredShortcut) {
     globalShortcut.unregister(registeredShortcut);
@@ -532,20 +567,13 @@ if (!app.requestSingleInstanceLock()) {
     Object.freeze(settingsLocation);
     const firstRun = isFirstRun(fs.existsSync(settingsLocation.path));
     settings = loadSettings(settingsLocation.path);
+    setLocale(resolveLocale(settings.language, app.getLocale()));
     history = loadHistory(historyFile);
     nativeTheme.themeSource = settings.theme;
     nativeTheme.on('updated', updateSettingsBackground);
     tray = new Tray(createTrayIcon());
-    tray.setToolTip(t('app.name'));
-    tray.setContextMenu(Menu.buildFromTemplate([
-      { label: t('tray.openPrompt'), click: () => {
-        if (promptWindow && !promptWindow.isVisible()) togglePrompt();
-      } },
-      { label: t('tray.settings'), click: () => openSettings() },
-      { label: t('tray.resetPosition'), click: resetPromptBounds },
-      { type: 'separator' },
-      { label: t('tray.quit'), click: () => app.quit() },
-    ]));
+    setTrayTooltip('app.name');
+    buildTrayMenu();
     tray.on('click', () => {
       if (promptWindow && !promptWindow.isVisible()) togglePrompt();
     });
@@ -585,11 +613,12 @@ if (!app.requestSingleInstanceLock()) {
       } else if (payload?.mode !== 'default') {
         return { ok: false, error: 'invalid-bot' };
       }
-      const { shortcut, selectionShortcut, launchAtLogin, afterSend, notifyOnReply, theme } = payload;
+      const { shortcut, selectionShortcut, launchAtLogin, afterSend, notifyOnReply, theme, language } = payload;
       if (typeof notifyOnReply !== 'boolean' || !['system', 'dark', 'light'].includes(theme)) {
         return { ok: false, error: 'invalid-option' };
       }
       if (afterSend !== 'wait' && afterSend !== 'hide') return { ok: false, error: 'invalid-after-send' };
+      if (!LANGUAGES.includes(language)) return { ok: false, error: 'invalid-language' };
       const templates = validateTemplates(payload.templates);
       if (!templates.ok) return { ok: false, error: 'invalid-templates' };
       if (!isValidShortcut(shortcut)) return { ok: false, error: 'invalid-shortcut' };
@@ -620,14 +649,15 @@ if (!app.requestSingleInstanceLock()) {
         settings = saveSettings(settingsLocation.path, {
           ...settings,
           botId, botName, shortcut, selectionShortcut, launchAtLogin: Boolean(launchAtLogin), afterSend,
-          notifyOnReply, theme, templates: templates.templates,
+          notifyOnReply, theme, language, templates: templates.templates,
         });
         nativeTheme.themeSource = settings.theme;
         updateSettingsBackground();
+        const localeChanged = applyLanguage();
         if (botId !== previousSettings.botId) {
           resetDestination();
         }
-        return { ok: true, settings };
+        return { ok: true, settings, localeChanged };
       } catch {
         if (shortcut !== previousSettings.shortcut) applyShortcut(previousSettings.shortcut);
         if (selectionChanged) applySelectionShortcut(previousSettings.selectionShortcut);
@@ -635,6 +665,13 @@ if (!app.requestSingleInstanceLock()) {
       }
     });
 
+    // Reloads the settings window in the new language after a change (keeps welcome mode out of it).
+    ipcMain.handle('settings:reload', () => {
+      if (!settingsWindow || settingsWindow.isDestroyed()) return;
+      settingsWindow.setTitle(t('settings.windowTitle'));
+      settingsWindow.loadFile(path.join(__dirname, 'settings', 'settings.html'), { query: { locale: getLocale() } })
+        .catch(() => {});
+    });
     ipcMain.handle('settings:clear-history', () => {
       try {
         saveHistory(historyFile, []);
@@ -832,7 +869,7 @@ if (!app.requestSingleInstanceLock()) {
       openSettings();
     });
 
-    await promptWindow.loadFile(path.join(__dirname, 'prompt', 'prompt.html'));
+    await loadPrompt();
     if (firstRun) {
       const chosen = pickShortcut(settings.shortcut, (accelerator) => {
         try {

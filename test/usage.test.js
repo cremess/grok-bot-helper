@@ -5,6 +5,7 @@ const path = require('node:path');
 const os = require('node:os');
 const { encodeBase32 } = require('../src/lib/roster');
 const { readUsage, isBlocked, formatReset } = require('../src/lib/usage');
+const { setLocale } = require('../src/lib/i18n');
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'grokbot-usage-'));
 after(() => {
@@ -71,4 +72,18 @@ test('formatReset uses fixed local dates across year boundaries', () => {
   assert.equal(formatReset(new Date(2026, 10, 25, 8, 25).getTime(), now), 'Wed, Nov 25 at 8:25 AM');
   assert.equal(formatReset(new Date(2027, 0, 1, 8, 25).getTime(),
     new Date(2026, 11, 31, 23).getTime()), 'tomorrow at 8:25 AM');
+});
+
+test('formatReset follows the active locale', (context) => {
+  context.after(() => setLocale('en'));
+  setLocale('pt-BR');
+  const now = new Date(2026, 10, 23, 7).getTime();
+  assert.equal(formatReset(null, now), 'em breve');
+  // ICU versions differ on a leading zero in the hour; either is fine.
+  assert.match(formatReset(new Date(2026, 10, 23, 8, 25).getTime(), now), /^hoje \u00e0s 0?8:25$/);
+  assert.match(formatReset(new Date(2026, 10, 24, 8, 25).getTime(), now), /^amanh\u00e3 \u00e0s 0?8:25$/);
+  const later = formatReset(new Date(2026, 10, 25, 8, 25).getTime(), now);
+  assert.match(later, /25/);
+  assert.match(later, / \u00e0s 0?8:25$/);
+  assert.doesNotMatch(later, /Wed|Nov/);
 });

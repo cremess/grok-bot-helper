@@ -13,9 +13,13 @@ const DEFAULT_SETTINGS = Object.freeze({
   afterSend: 'wait',
   notifyOnReply: false,
   theme: 'system',
+  // 'system' follows the Windows language; 'en' and 'pt-BR' pick one.
+  language: 'system',
   promptBounds: null,
   templates: Object.freeze([]),
 });
+
+const LANGUAGES = ['system', 'en', 'pt-BR'];
 
 const MODIFIERS = new Set([
   'Alt', 'Shift', 'Control', 'Ctrl', 'CommandOrControl', 'CmdOrCtrl', 'Super',
@@ -96,6 +100,9 @@ function normalizeSettings(raw) {
   if (raw.afterSend === 'wait' || raw.afterSend === 'hide') settings.afterSend = raw.afterSend;
   if (typeof raw.notifyOnReply === 'boolean') settings.notifyOnReply = raw.notifyOnReply;
   if (['system', 'dark', 'light'].includes(raw.theme)) settings.theme = raw.theme;
+  // Settings saved before the language option existed keep the English interface the user already had;
+  // only a fresh install (no settings file) starts on 'system'.
+  settings.language = LANGUAGES.includes(raw.language) ? raw.language : 'en';
   const bounds = raw.promptBounds;
   if (bounds && !Array.isArray(bounds)
       && ['x', 'y', 'width', 'height'].every((key) => Number.isInteger(bounds[key]))
@@ -127,6 +134,7 @@ function saveSettings(filePath, settings) {
 
 module.exports = {
   DEFAULT_SETTINGS,
+  LANGUAGES,
   isValidShortcut,
   canonicalShortcut,
   sameShortcut,
