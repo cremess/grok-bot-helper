@@ -100,3 +100,7 @@ Os testes cobrem a montagem do link, a validação do texto e do bot, a leitura 
 | `test/` | Testes automatizados. |
 
 O fluxo de trabalho entre Claude Code e Codex está descrito em `AGENTS.md`. Na pasta `.handoff/`, o Claude Code escreve `TAREFA.md`, o Codex registra a execução em `RESULTADO.md` e o Claude Code mantém `HISTORICO.md` com o resultado das revisões.
+
+## Contribuindo
+
+Veja o [guia de contribuição](CONTRIBUTING.md) para preparar o ambiente, testar e abrir um PR.

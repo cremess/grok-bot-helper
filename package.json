@@ -9,9 +9,11 @@
   "scripts": {
     "start": "electron .",
     "test": "node --test",
+    "check": "node scripts/check-syntax.js",
     "icons": "electron scripts/build-icons.js",
     "dist": "electron-builder --win nsis --x64"
   },
+  "engines": { "node": ">=22" },
   "devDependencies": {
     "electron": "45.2.3",
     "electron-builder": "26.18.1"
