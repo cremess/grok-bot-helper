@@ -24,6 +24,7 @@ footer { display: flex; align-items: center; gap: 10px; margin-top: 10px; color:
 #send:disabled { opacity: .4; background: var(--secondary); box-shadow: none; }
 #send.sent { opacity: 1; }
 #error { margin-top: 8px; }
+#notice { flex-shrink: 0; margin-top: 8px; color: var(--secondary); font-size: 12px; }
 #error, #counter.over-limit { color: var(--error); }
 
 #card { display: flex; flex-direction: column; }

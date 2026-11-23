@@ -6,6 +6,8 @@ const DEFAULT_SETTINGS = Object.freeze({
   botId: '',
   botName: '',
   shortcut: 'Alt+Space',
+  // Empty means off: the "send selected text" shortcut is opt-in so it never takes keys by surprise.
+  selectionShortcut: '',
   launchAtLogin: false,
   afterSend: 'wait',
   notifyOnReply: false,
@@ -37,6 +39,42 @@ function isValidShortcut(value) {
     && new Set(parts).size === parts.length;
 }
 
+const CANONICAL_MODIFIERS = {
+  Control: 'Ctrl', Ctrl: 'Ctrl', CommandOrControl: 'Ctrl', CmdOrCtrl: 'Ctrl',
+  Alt: 'Alt', Shift: 'Shift', Super: 'Super',
+};
+const MODIFIER_ORDER = ['Ctrl', 'Alt', 'Shift', 'Super'];
+
+// Writes a valid shortcut in one spelling (on Windows, Control and CommandOrControl are both Ctrl)
+// so two shortcuts can be compared.
+function canonicalShortcut(value) {
+  if (!isValidShortcut(value)) return null;
+  const parts = value.split('+');
+  const key = parts.pop();
+  const modifiers = new Set(parts.map((part) => CANONICAL_MODIFIERS[part]));
+  return [...MODIFIER_ORDER.filter((modifier) => modifiers.has(modifier)), key].join('+');
+}
+
+function sameShortcut(a, b) {
+  const first = canonicalShortcut(a);
+  return first !== null && first === canonicalShortcut(b);
+}
+
+// The app simulates Ctrl+C right after this shortcut fires, so it must not be a copy shortcut itself,
+// must not use Super (Windows would read Super+Ctrl+C as a system shortcut while the key is still held)
+// and needs Ctrl or Alt so it doesn't take a plain key or Shift+letter away from typing.
+// Returns null when the value is usable, 'invalid' or 'conflict' (same as the prompt shortcut).
+function selectionShortcutError(value, mainShortcut) {
+  if (value === '') return null;
+  const canonical = canonicalShortcut(value);
+  if (canonical === null) return 'invalid';
+  const modifiers = canonical.split('+').slice(0, -1);
+  if (modifiers.includes('Super') || !(modifiers.includes('Ctrl') || modifiers.includes('Alt'))
+      || canonical === 'Ctrl+C' || canonical === 'Ctrl+Insert') return 'invalid';
+  if (sameShortcut(value, mainShortcut)) return 'conflict';
+  return null;
+}
+
 function normalizeSettings(raw) {
   const settings = { ...DEFAULT_SETTINGS };
   if (raw === null || typeof raw !== 'object') return settings;
@@ -49,6 +87,9 @@ function normalizeSettings(raw) {
     settings.botName = raw.botName.trim();
   }
   if (isValidShortcut(raw.shortcut)) settings.shortcut = raw.shortcut;
+  if (typeof raw.selectionShortcut === 'string' && selectionShortcutError(raw.selectionShortcut, settings.shortcut) === null) {
+    settings.selectionShortcut = raw.selectionShortcut;
+  }
   if (typeof raw.launchAtLogin === 'boolean') settings.launchAtLogin = raw.launchAtLogin;
   if (raw.afterSend === 'wait' || raw.afterSend === 'hide') settings.afterSend = raw.afterSend;
   if (typeof raw.notifyOnReply === 'boolean') settings.notifyOnReply = raw.notifyOnReply;
@@ -84,6 +125,9 @@ function saveSettings(filePath, settings) {
 module.exports = {
   DEFAULT_SETTINGS,
   isValidShortcut,
+  canonicalShortcut,
+  sameShortcut,
+  selectionShortcutError,
   normalizeSettings,
   loadSettings,
   saveSettings,

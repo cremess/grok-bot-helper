@@ -29,6 +29,7 @@ On macOS, Grok Bot ships with a built-in quick prompt you can summon from anywhe
 
 - **Quick prompt from anywhere** — press `Alt+Space` (configurable) in any app, type, hit `Enter`. Your message goes straight to the bot you picked.
 - **See the reply right there** — the latest reply shows up in the prompt with proper formatting (lists, bold, code). Switch to **Conversation** to see the recent back-and-forth. If the bot answers in several messages, the prompt keeps reading until it stops writing, and notifies you once.
+- **Send the text you selected** (optional) — pick a shortcut in Settings, select text in any app and press it: the prompt opens with that text, ready to send. Off by default.
 - **Pick any of your bots** — the bot picker lists the bots from your Grok Bot app, with search. Switch with `Ctrl+K` without leaving the prompt.
 - **Wait or get notified** — keep the prompt open until the reply arrives, or let it close and get a dot on the tray icon (and an optional Windows notification).
 - **A real window when you want it** — drag it, resize it, pin it so it stays open; it remembers where you left it.
@@ -86,6 +87,7 @@ To uninstall: **Windows Settings → Apps**.
 | Action | What it does |
 | --- | --- |
 | Shortcut (default `Alt+Space`) | Opens / closes the prompt |
+| Selected-text shortcut (off by default, set it in Settings) | Copies the text selected in the app in front and opens the prompt with it (up to 1000 characters, added after any draft) |
 | `Enter` | Sends the message |
 | `Shift+Enter` | New line |
 | `Esc` or click outside | Closes the prompt (unless it's pinned) |
@@ -97,6 +99,8 @@ To uninstall: **Windows Settings → Apps**.
 Tray icon: left-click opens the prompt; right-click shows **Open prompt**, **Settings…**, **Reset prompt position** and **Quit**.
 
 Settings are stored in `%APPDATA%\grok-bot-helper\settings.json`.
+
+**About the selected-text shortcut:** it presses `Ctrl+C` for you in the app in front (through PowerShell and .NET `SendKeys`, both part of Windows), reads the copied text and then puts your previous clipboard back. Text, HTML, RTF and images are restored; other formats (such as copied files) can't be. The copied text is never logged or saved. If Windows clipboard history (`Win+V`) is on, the copied selection may show up there. It doesn't press `Ctrl+C` in a terminal (cmd, PowerShell, Windows Terminal), where it would stop the running program. If the clipboard held a secret marked by a password manager as private, it is cleared instead of written back, so the secret doesn't lose that mark. It needs Ctrl or Alt and can't use the Windows key or `Ctrl+C` itself; release the keys after pressing it so the copy isn't mixed with them.
 
 ## Troubleshooting
 

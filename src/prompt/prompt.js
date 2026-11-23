@@ -39,6 +39,7 @@ document.querySelector('header').addEventListener('dblclick', (event) => {
 window.grokbot.onBoundsReset(() => { picker.close(); updateLayout(); });
 const counter = document.getElementById('counter');
 const errorArea = document.getElementById('error');
+const noticeArea = document.getElementById('notice');
 const send = document.getElementById('send');
 const usageWarning = document.getElementById('usage-warning');
 const usageIndicator = document.getElementById('usage-indicator');
@@ -385,6 +386,13 @@ function updateLayout() {
   });
 }
 
+// A quiet status line, for things that aren't errors (like a selection that was cut to fit).
+function showNotice(message) {
+  noticeArea.textContent = message;
+  noticeArea.hidden = !message;
+  updateLayout();
+}
+
 function showError(message) {
   errorArea.textContent = message;
   errorArea.hidden = !message;
@@ -398,6 +406,7 @@ async function submit(force = false, retryText) {
   submitting = true;
   send.disabled = true;
   showError('');
+  showNotice('');
   try {
     const result = await window.grokbot.submit(submittedText, { force: force === true });
     if (version !== showVersion) return;
@@ -464,7 +473,8 @@ document.addEventListener('keydown', (event) => {
 });
 
 window.grokbot.onShow(({ botId, botName, botColor, botInitial, history: savedHistory, conversation: data, waiting: isWaiting, sent: sentMessage,
-  partial: isPartial, usage: usageData, notDelivered: failedDelivery, awaitingDelivery: awaitingReceipt, pinned: isPinned, userSized: isUserSized }) => {
+  partial: isPartial, usage: usageData, notDelivered: failedDelivery, awaitingDelivery: awaitingReceipt, pinned: isPinned, userSized: isUserSized,
+  prefill }) => {
   showPinned(Boolean(isPinned));
   setUserSized(isUserSized);
   picker.close();
@@ -473,6 +483,14 @@ window.grokbot.onShow(({ botId, botName, botColor, botInitial, history: savedHis
   history = savedHistory || [];
   const previousIndex = history.indexOf(textarea.value);
   historyIndex = navigatingHistory && previousIndex !== -1 ? previousIndex : null;
+  // Text selected in another app fills the prompt (the main process already cut it to the limit).
+  // A draft already there is kept, with the selection added after it.
+  const selected = prefill && typeof prefill.text === 'string' ? prefill : null;
+  if (selected?.text) {
+    const text = [...selected.text].slice(0, MAX_TEXT_LENGTH).join('');
+    textarea.value = textarea.value.trim() ? `${textarea.value.trimEnd()}\n\n${text}` : text;
+    historyIndex = null;
+  }
   showVersion += 1;
   submitting = false;
   send.disabled = !textarea.value.trim();
@@ -493,9 +511,12 @@ window.grokbot.onShow(({ botId, botName, botColor, botInitial, history: savedHis
   renderConversation();
   startRelativeTimer();
   showError('');
+  showNotice(!selected ? '' : selected.empty ? t('prompt.selection.empty')
+    : selected.clipped ? t('prompt.selection.clipped', { max: MAX_TEXT_LENGTH }) : '');
   document.body.classList.remove('opening');
   void document.body.offsetWidth;
   document.body.classList.add('opening');
   textarea.focus();
-  textarea.select();
+  if (selected) textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+  else textarea.select();
 });

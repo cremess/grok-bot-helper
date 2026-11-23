@@ -5,6 +5,7 @@ const path = require('node:path');
 const os = require('node:os');
 const {
   DEFAULT_SETTINGS, isValidShortcut, normalizeSettings, loadSettings, saveSettings,
+  canonicalShortcut, sameShortcut, selectionShortcutError,
 } = require('../src/lib/settings');
 
 const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'grokbot-'));
@@ -31,7 +32,7 @@ test('promptBounds validates integer bounds, copies and persists position and si
 });
 after(() => fs.rmSync(temporaryDirectory, { recursive: true, force: true }));
 
-const validSettings = { botId: 'bot_123-ABC', botName: '', shortcut: 'Ctrl+Shift+G', launchAtLogin: true, afterSend: 'wait', notifyOnReply: false, theme: 'system', promptBounds: null };
+const validSettings = { botId: 'bot_123-ABC', botName: '', shortcut: 'Ctrl+Shift+G', selectionShortcut: '', launchAtLogin: true, afterSend: 'wait', notifyOnReply: false, theme: 'system', promptBounds: null };
 
 test('loading missing, empty or invalid files returns defaults', () => {
   assert.deepEqual(loadSettings(path.join(temporaryDirectory, 'missing.json')), DEFAULT_SETTINGS);
@@ -81,7 +82,7 @@ test('normalization requires a plain object and preserves defaults and input', (
     assert.deepEqual(normalizeSettings(raw), DEFAULT_SETTINGS);
   }
   assert.deepEqual(normalizeSettings(Object.assign(Object.create(null), validSettings)), validSettings);
-  const snapshot = { botId: '', botName: '', shortcut: 'Alt+Space', launchAtLogin: false, afterSend: 'wait', notifyOnReply: false, theme: 'system', promptBounds: null };
+  const snapshot = { botId: '', botName: '', shortcut: 'Alt+Space', selectionShortcut: '', launchAtLogin: false, afterSend: 'wait', notifyOnReply: false, theme: 'system', promptBounds: null };
   const input = { ...validSettings };
   const result = normalizeSettings(input);
   result.botId = 'other';
@@ -184,4 +185,53 @@ test('notification and every valid theme are persisted', () => {
       assert.deepEqual(loadSettings(file), expected);
     }
   }
+});
+
+test('canonicalShortcut treats Windows spellings of Ctrl and modifier order as the same shortcut', () => {
+  assert.equal(canonicalShortcut('Shift+Control+K'), 'Ctrl+Shift+K');
+  assert.equal(canonicalShortcut('CommandOrControl+Alt+K'), 'Ctrl+Alt+K');
+  assert.equal(canonicalShortcut('Super+Alt+F1'), 'Alt+Super+F1');
+  assert.equal(canonicalShortcut('Alt+k'), null);
+  assert.equal(canonicalShortcut(''), null);
+  assert.equal(sameShortcut('Ctrl+Shift+G', 'Shift+CmdOrCtrl+G'), true);
+  assert.equal(sameShortcut('Ctrl+Shift+G', 'Ctrl+Alt+G'), false);
+  assert.equal(sameShortcut('', ''), false);
+  assert.equal(sameShortcut('bad', 'bad'), false);
+});
+
+test('the selection shortcut is off by default and accepts Ctrl or Alt combinations', () => {
+  assert.equal(DEFAULT_SETTINGS.selectionShortcut, '');
+  assert.equal(normalizeSettings({}).selectionShortcut, '');
+  for (const value of ['', 'Ctrl+Shift+S', 'Alt+Q', 'Control+Alt+Space', 'CmdOrCtrl+F2', 'Alt+Shift+1']) {
+    assert.equal(selectionShortcutError(value, 'Alt+Space'), null, value);
+  }
+});
+
+test('the selection shortcut rejects copy keys, Super, missing Ctrl or Alt and bad values', () => {
+  for (const value of ['Ctrl+C', 'Control+C', 'CommandOrControl+C', 'Ctrl+Insert', 'Super+Shift+S',
+    'Ctrl+Super+S', 'Shift+S', 'Shift+F1', 'S', 'Ctrl+s', 'Ctrl + S', null, undefined, 42, {}]) {
+    assert.equal(selectionShortcutError(value, 'Alt+Space'), 'invalid', String(value));
+  }
+  // Ctrl+Shift+C is not a copy shortcut, so it stays allowed.
+  assert.equal(selectionShortcutError('Ctrl+Shift+C', 'Alt+Space'), null);
+});
+
+test('the selection shortcut cannot collide with the prompt shortcut, in any spelling', () => {
+  assert.equal(selectionShortcutError('Alt+Space', 'Alt+Space'), 'conflict');
+  assert.equal(selectionShortcutError('Shift+Control+G', 'Ctrl+Shift+G'), 'conflict');
+  assert.equal(selectionShortcutError('CmdOrCtrl+Shift+G', 'Ctrl+Shift+G'), 'conflict');
+  assert.equal(selectionShortcutError('Ctrl+Alt+G', 'Ctrl+Shift+G'), null);
+});
+
+test('normalizeSettings keeps a valid selection shortcut and drops invalid or colliding ones', () => {
+  const file = path.join(temporaryDirectory, 'selection.json');
+  const saved = saveSettings(file, { ...validSettings, selectionShortcut: 'Ctrl+Alt+S' });
+  assert.equal(saved.selectionShortcut, 'Ctrl+Alt+S');
+  assert.equal(loadSettings(file).selectionShortcut, 'Ctrl+Alt+S');
+  for (const selectionShortcut of ['Ctrl+C', 'Ctrl+Shift+G', 'Shift+Ctrl+G', 'Super+S', 'Shift+S', 7, null, []]) {
+    assert.equal(normalizeSettings({ ...validSettings, selectionShortcut }).selectionShortcut, '', String(selectionShortcut));
+  }
+  // The comparison uses the final prompt shortcut, including the default when the saved one is invalid.
+  assert.equal(normalizeSettings({ shortcut: 'Space', selectionShortcut: 'Alt+Space' }).selectionShortcut, '');
+  assert.equal(normalizeSettings({ shortcut: 'Ctrl+Shift+G', selectionShortcut: 'Alt+Space' }).selectionShortcut, 'Alt+Space');
 });

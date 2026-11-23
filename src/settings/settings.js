@@ -94,6 +94,9 @@ const errors = {
   'invalid-shortcut': t('settings.errors.shortcut'),
   'invalid-after-send': t('settings.errors.afterSend'),
   'shortcut-taken': t('settings.errors.shortcutTaken'),
+  'invalid-selection-shortcut': t('settings.errors.selectionShortcut'),
+  'selection-shortcut-conflict': t('settings.errors.selectionConflict'),
+  'selection-shortcut-taken': t('settings.errors.selectionTaken'),
 };
 
 function showToast(message, isError = false) {
@@ -108,19 +111,84 @@ function showError(error) {
   showToast(errors[error] || t('errors.unexpected'), true);
 }
 
-function renderShortcut() {
-  renderWelcome();
-  shortcut.replaceChildren();
-  if (recording) {
-    shortcut.textContent = t('settings.shortcut.press');
+function renderKeys(display, value, isRecording, emptyText) {
+  display.replaceChildren();
+  if (isRecording) {
+    display.textContent = t('settings.shortcut.press');
     return;
   }
-  for (const key of currentShortcut.split('+')) {
+  if (!value) {
+    display.textContent = emptyText;
+    return;
+  }
+  for (const key of value.split('+')) {
     const kbd = document.createElement('kbd');
     kbd.textContent = key;
-    shortcut.append(kbd);
+    display.append(kbd);
   }
 }
+
+function renderShortcut() {
+  renderWelcome();
+  renderKeys(shortcut, currentShortcut, recording, '');
+}
+
+// The optional "send selected text" shortcut. Empty means off.
+const selectionDisplay = document.getElementById('selection-shortcut');
+const selectionRecord = document.getElementById('selection-record');
+let currentSelectionShortcut = '';
+let previousSelectionShortcut = '';
+let recordingSelection = false;
+
+function renderSelectionShortcut() {
+  renderKeys(selectionDisplay, currentSelectionShortcut, recordingSelection, t('settings.selection.off'));
+}
+
+function stopSelectionRecording() {
+  if (!recordingSelection) return;
+  recordingSelection = false;
+  selectionRecord.classList.remove('recording');
+  selectionRecord.textContent = t('settings.shortcut.change');
+  renderSelectionShortcut();
+  window.grokbotSettings.setRecording(false).catch(() => showError());
+}
+
+selectionRecord.addEventListener('click', () => {
+  if (recordingSelection) return;
+  previousSelectionShortcut = currentSelectionShortcut;
+  recordingSelection = true;
+  selectionRecord.classList.add('recording');
+  selectionRecord.textContent = t('settings.shortcut.recording');
+  renderSelectionShortcut();
+  window.grokbotSettings.setRecording(true).catch(() => {
+    stopSelectionRecording();
+    showError();
+  });
+});
+selectionRecord.addEventListener('keydown', (event) => {
+  if (!recordingSelection) return;
+  if (event.code === 'Tab') {
+    stopSelectionRecording();
+    return;
+  }
+  event.preventDefault();
+  if (event.code === 'Escape') {
+    currentSelectionShortcut = previousSelectionShortcut;
+    stopSelectionRecording();
+    return;
+  }
+  const value = acceleratorFromKeyEvent(event);
+  if (value !== null) {
+    currentSelectionShortcut = value;
+    stopSelectionRecording();
+  }
+});
+selectionRecord.addEventListener('blur', stopSelectionRecording);
+document.getElementById('selection-clear').addEventListener('click', () => {
+  stopSelectionRecording();
+  currentSelectionShortcut = '';
+  renderSelectionShortcut();
+});
 
 function renderWelcome() {
   if (!welcomeMode) return;
@@ -242,12 +310,14 @@ form.addEventListener('submit', async (event) => {
   event.preventDefault();
   if (fields.disabled) return;
   stopRecording();
+  stopSelectionRecording();
   fields.disabled = true;
   save.disabled = true;
   try {
     const result = await window.grokbotSettings.save({
       mode: selection.mode, botId: selection.botId, botName: selection.botName,
-      botInput: bot.value, shortcut: currentShortcut, launchAtLogin: launchAtLogin.checked,
+      botInput: bot.value, shortcut: currentShortcut, selectionShortcut: currentSelectionShortcut,
+      launchAtLogin: launchAtLogin.checked,
       afterSend: afterSendOptions.find((option) => option.checked)?.value,
       notifyOnReply: notifyOnReply.checked,
       theme: themeOptions.find((option) => option.checked)?.value,
@@ -260,6 +330,8 @@ form.addEventListener('submit', async (event) => {
     renderBots();
     currentShortcut = result.settings.shortcut;
     renderShortcut();
+    currentSelectionShortcut = result.settings.selectionShortcut;
+    renderSelectionShortcut();
     launchAtLogin.checked = result.settings.launchAtLogin;
     renderAfterSend(result.settings.afterSend);
     renderGeneral(result.settings);
@@ -283,6 +355,8 @@ async function initialize() {
     currentShortcut = settings.shortcut;
     defaultShortcut = settings.defaultShortcut;
     renderShortcut();
+    currentSelectionShortcut = settings.selectionShortcut || '';
+    renderSelectionShortcut();
     launchAtLogin.checked = settings.launchAtLogin;
     renderAfterSend(settings.afterSend);
     renderGeneral(settings);

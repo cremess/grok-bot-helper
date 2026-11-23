@@ -30,9 +30,10 @@ button.small { padding: 5px 8px; font-size: 12px; white-space: nowrap; }
 #manual-field label { display: block; margin-bottom: 5px; font-size: 12.5px; }
 #bot { width: 100%; padding: 7px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
 #manual-field p { margin-top: 4px; font-size: 12px; }
-#shortcut { display: flex; align-items: center; flex-wrap: wrap; gap: 3px; max-width: 160px; font-size: 12px; }
-#shortcut kbd { padding: 3px 5px; white-space: nowrap; }
-#record.recording { color: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
+#shortcut, .shortcut-keys { display: flex; align-items: center; flex-wrap: wrap; gap: 3px; max-width: 160px; font-size: 12px; }
+#shortcut kbd, .shortcut-keys kbd { padding: 3px 5px; white-space: nowrap; }
+.shortcut-keys { color: var(--secondary); }
+#record.recording, #selection-record.recording { color: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); } }
 .switch-row { cursor: pointer; }
 input[role="switch"] { appearance: none; flex-shrink: 0; width: 36px; height: 20px; border: 1px solid var(--secondary); border-radius: 20px; background: var(--surface); position: relative; cursor: pointer; margin: 0; }

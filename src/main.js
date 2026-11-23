@@ -1,6 +1,7 @@
 const { t } = require('./lib/i18n');
 const path = require('node:path');
 const fs = require('node:fs');
+const { execFile } = require('node:child_process');
 const { app, BrowserWindow, globalShortcut, ipcMain, Menu, nativeTheme, screen, shell, Tray, clipboard, Notification } = require('electron');
 const { migrateUserData } = require('./lib/migrate');
 const appData = app.getPath('appData');
@@ -8,14 +9,15 @@ const userData = path.join(appData, 'grok-bot-helper');
 migrateUserData(path.join(appData, 'grokbot-assistant'), userData);
 app.setPath('userData', userData);
 const { createTrayIcon, appIconPath } = require('./icon');
-const { buildPromptLink, parseBotId, isValidBotId } = require('./lib/link');
+const { buildPromptLink, parseBotId, isValidBotId, MAX_TEXT_LENGTH } = require('./lib/link');
+const { clipSelection, selectionPollDecision, restorePlan } = require('./lib/selection');
 const { listBots } = require('./lib/roster');
 const { loadHistory, addToHistory, saveHistory } = require('./lib/history');
 const { readConversation, recentExchanges, latestReply, replyState, resolveAgentId, trackTranscriptChange,
   waitDecision } = require('./lib/transcript');
 const { readUsage, isBlocked, formatReset } = require('./lib/usage');
 const { avatarColor, avatarInitial } = require('./lib/avatar');
-const { loadSettings, saveSettings, isValidShortcut, DEFAULT_SETTINGS } = require('./lib/settings');
+const { loadSettings, saveSettings, isValidShortcut, selectionShortcutError, DEFAULT_SETTINGS } = require('./lib/settings');
 const { promptPosition, isBoundsVisible } = require('./lib/position');
 const { pickShortcut, isFirstRun } = require('./lib/first-run');
 
@@ -25,6 +27,8 @@ let promptWindow;
 let settingsWindow;
 let settings;
 let registeredShortcut;
+let registeredSelectionShortcut;
+let capturingSelection = false;
 const settingsLocation = {};
 const GROK_BOT_DIRECTORY = path.join(app.getPath('appData'), 'Grok Bot', 'sand-client-persistence');
 let hideTimer;
@@ -265,6 +269,7 @@ function openSettings({ welcome = false } = {}) {
   settingsWindow.on('closed', () => {
     settingsWindow = undefined;
     applyShortcut(settings.shortcut);
+    applySelectionShortcut(settings.selectionShortcut);
   });
   settingsWindow.loadFile(path.join(__dirname, 'settings', 'settings.html'), {
     query: welcome ? { welcome: '1' } : {},
@@ -279,7 +284,12 @@ function togglePrompt() {
     promptWindow.hide();
     return;
   }
+  showPrompt();
+}
 
+function showPrompt(extra = {}) {
+  clearTimeout(hideTimer);
+  sendingPrompt = false;
   // A slow confirmation in Grok Bot can deliver the message after we gave up waiting;
   // drop the stale failure so "Try again" doesn't send it twice.
   if (deliveryFailure && failedRequest) {
@@ -307,7 +317,110 @@ function togglePrompt() {
     usage: usageDetails(),
     botColor: settings.botId ? avatarColor(bot?.color, settings.botId) : '#1080f3',
     botInitial: settings.botId ? avatarInitial(botName) : 'G',
+    ...extra,
   });
+}
+
+// Simulates Ctrl+C in the focused app with PowerShell and .NET SendKeys, which ship with Windows, so no
+// native module or new dependency is needed. The command line is a fixed string: no user text, clipboard
+// content or setting is ever put on it. It first waits (up to 1 s) for Ctrl, Shift and Alt from the
+// shortcut to be released, otherwise the app would receive Ctrl+Alt+C instead of Ctrl+C.
+// In a terminal (cmd, PowerShell, Windows Terminal, mintty) Ctrl+C interrupts the running program, so the
+// command checks the focused window's class and exits with code 3 instead of sending the keys.
+const TERMINAL_EXIT_CODE = 3;
+const COPY_COMMAND = [
+  'Add-Type -AssemblyName System.Windows.Forms',
+  "Add-Type -Namespace GrokBotHelper -Name Win -MemberDefinition '[DllImport(\"user32.dll\")] public static extern System.IntPtr GetForegroundWindow(); [DllImport(\"user32.dll\", CharSet = CharSet.Unicode)] public static extern int GetClassName(System.IntPtr hWnd, System.Text.StringBuilder name, int max);'",
+  '$deadline = [DateTime]::UtcNow.AddMilliseconds(1000)',
+  "while ([System.Windows.Forms.Control]::ModifierKeys -ne 'None' -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 20 }",
+  '$name = New-Object System.Text.StringBuilder 256',
+  '[void][GrokBotHelper.Win]::GetClassName([GrokBotHelper.Win]::GetForegroundWindow(), $name, 256)',
+  `if (@('ConsoleWindowClass', 'CASCADIA_HOSTING_WINDOW_CLASS', 'mintty', 'VirtualConsoleClass') -contains $name.ToString()) { exit ${TERMINAL_EXIT_CODE} }`,
+  "[System.Windows.Forms.SendKeys]::SendWait('^c')",
+].join('; ');
+
+function pressCopy() {
+  const powershell = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+  return new Promise((resolve, reject) => {
+    execFile(powershell, ['-NoProfile', '-NonInteractive', '-Command', COPY_COMMAND],
+      { windowsHide: true, timeout: 4000 }, (error) => (error ? reject(error) : resolve()));
+  });
+}
+
+function snapshotClipboard() {
+  const image = clipboard.readImage();
+  return { text: clipboard.readText(), html: clipboard.readHTML(), rtf: clipboard.readRTF(),
+    image: image.isEmpty() ? null : image, formats: clipboard.availableFormats() };
+}
+
+function restoreClipboard(snapshot) {
+  const plan = restorePlan(snapshot);
+  if (plan.action === 'write') clipboard.write(plan.data);
+  else clipboard.clear();
+}
+
+async function waitForCopiedText() {
+  const startedAt = Date.now();
+  for (;;) {
+    const text = clipboard.readText();
+    const decision = selectionPollDecision({ text, formats: clipboard.availableFormats(),
+      elapsedMs: Date.now() - startedAt });
+    if (decision === 'text') return text;
+    if (decision !== 'wait') return '';
+    await new Promise((resolve) => setTimeout(resolve, 30));
+  }
+}
+
+// Copies the selection of the focused app and opens the prompt with it. The clipboard is cleared first so
+// an unchanged clipboard can't be mistaken for a new copy, and it is always restored afterwards. The copied
+// text and the clipboard contents are never logged or saved.
+async function sendSelection() {
+  if (!promptWindow || capturingSelection) return;
+  // With the prompt focused, Ctrl+C would copy from the prompt itself.
+  if (promptWindow.isVisible() && promptWindow.isFocused()) return;
+  capturingSelection = true;
+  let copied = '';
+  let snapshot;
+  try {
+    snapshot = snapshotClipboard();
+    clipboard.clear();
+    await pressCopy();
+    copied = await waitForCopiedText();
+  } catch {
+    copied = '';
+  } finally {
+    try { if (snapshot) restoreClipboard(snapshot); } catch { /* Nothing else can be done here. */ }
+    capturingSelection = false;
+  }
+  // A slow app may still answer the Ctrl+C after we gave up and restored; put the clipboard back again.
+  if (!copied && snapshot) {
+    setTimeout(() => {
+      try { if (clipboard.readText() !== snapshot.text) restoreClipboard(snapshot); } catch { /* Ignore. */ }
+    }, 400);
+  }
+  const { text, clipped } = clipSelection(copied, MAX_TEXT_LENGTH);
+  showPrompt({ prefill: { text, clipped, empty: !text } });
+}
+
+function applySelectionShortcut(accelerator) {
+  if (registeredSelectionShortcut) {
+    globalShortcut.unregister(registeredSelectionShortcut);
+    registeredSelectionShortcut = undefined;
+  }
+  if (!accelerator) return true;
+  try {
+    if (globalShortcut.register(accelerator, () => { sendSelection(); })) {
+      registeredSelectionShortcut = accelerator;
+      return true;
+    }
+  } catch {
+    // Also warn when Electron rejects the accelerator.
+  }
+  tray.displayBalloon({
+    title: t('app.name'),
+    content: t('balloon.shortcutUnavailable', { shortcut: accelerator }),
+  });
+  return false;
 }
 
 function applyShortcut(accelerator) {
@@ -376,8 +489,10 @@ if (!app.requestSingleInstanceLock()) {
       if (isRecording === true) {
         if (registeredShortcut) globalShortcut.unregister(registeredShortcut);
         registeredShortcut = undefined;
+        applySelectionShortcut('');
       } else if (isRecording === false) {
         applyShortcut(settings.shortcut);
+        applySelectionShortcut(settings.selectionShortcut);
       }
     });
     ipcMain.handle('settings:save', (_event, payload) => {
@@ -392,16 +507,30 @@ if (!app.requestSingleInstanceLock()) {
       } else if (payload?.mode !== 'default') {
         return { ok: false, error: 'invalid-bot' };
       }
-      const { shortcut, launchAtLogin, afterSend, notifyOnReply, theme } = payload;
+      const { shortcut, selectionShortcut, launchAtLogin, afterSend, notifyOnReply, theme } = payload;
       if (typeof notifyOnReply !== 'boolean' || !['system', 'dark', 'light'].includes(theme)) {
         return { ok: false, error: 'invalid-option' };
       }
       if (afterSend !== 'wait' && afterSend !== 'hide') return { ok: false, error: 'invalid-after-send' };
       if (!isValidShortcut(shortcut)) return { ok: false, error: 'invalid-shortcut' };
+      const selectionError = typeof selectionShortcut === 'string'
+        ? selectionShortcutError(selectionShortcut, shortcut) : 'invalid';
+      if (selectionError === 'conflict') return { ok: false, error: 'selection-shortcut-conflict' };
+      if (selectionError) return { ok: false, error: 'invalid-selection-shortcut' };
       const previousSettings = settings;
+      const selectionChanged = selectionShortcut !== settings.selectionShortcut;
+      // Free the old selection shortcut first so the two shortcuts can swap keys in one save.
+      if (selectionChanged) applySelectionShortcut('');
       if (shortcut !== settings.shortcut && !applyShortcut(shortcut)) {
         applyShortcut(settings.shortcut);
+        if (selectionChanged) applySelectionShortcut(settings.selectionShortcut);
         return { ok: false, error: 'shortcut-taken' };
+      }
+      if (selectionChanged && !applySelectionShortcut(selectionShortcut)) {
+        // Give the prompt shortcut its keys back first: the old selection shortcut may use them.
+        if (shortcut !== settings.shortcut) applyShortcut(settings.shortcut);
+        applySelectionShortcut(settings.selectionShortcut);
+        return { ok: false, error: 'selection-shortcut-taken' };
       }
       try {
         app.setLoginItemSettings({
@@ -410,7 +539,8 @@ if (!app.requestSingleInstanceLock()) {
         });
         settings = saveSettings(settingsLocation.path, {
           ...settings,
-          botId, botName, shortcut, launchAtLogin: Boolean(launchAtLogin), afterSend, notifyOnReply, theme,
+          botId, botName, shortcut, selectionShortcut, launchAtLogin: Boolean(launchAtLogin), afterSend,
+          notifyOnReply, theme,
         });
         nativeTheme.themeSource = settings.theme;
         updateSettingsBackground();
@@ -420,6 +550,7 @@ if (!app.requestSingleInstanceLock()) {
         return { ok: true, settings };
       } catch {
         if (shortcut !== previousSettings.shortcut) applyShortcut(previousSettings.shortcut);
+        if (selectionChanged) applySelectionShortcut(previousSettings.selectionShortcut);
         return { ok: false, error: 'unexpected' };
       }
     });
@@ -587,6 +718,7 @@ if (!app.requestSingleInstanceLock()) {
       });
       if (chosen.changed) settings.shortcut = chosen.shortcut;
       applyShortcut(settings.shortcut);
+      applySelectionShortcut(settings.selectionShortcut);
       if (app.isPackaged) {
         app.setLoginItemSettings({ openAtLogin: true });
         settings.launchAtLogin = true;
@@ -606,6 +738,7 @@ if (!app.requestSingleInstanceLock()) {
     // Keep startup registration pointing to the installed executable.
     if (app.isPackaged && settings.launchAtLogin) app.setLoginItemSettings({ openAtLogin: true });
     applyShortcut(settings.shortcut);
+    applySelectionShortcut(settings.selectionShortcut);
   });
 
   app.on('second-instance', () => {
