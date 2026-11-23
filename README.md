@@ -3,6 +3,8 @@
 App companheiro do Grok Bot para Windows.
 Um atalho global abre uma caixa de texto flutuante para enviar uma mensagem ao bot escolhido do Grok Bot.
 
+> **Projeto não oficial, feito pela comunidade.** Não tem vínculo com a xAI nem com os criadores do Grok Bot. O app usa links e arquivos locais do Grok Bot que não são documentados e podem mudar em atualizações; ele apenas **lê** esses arquivos no seu computador e não envia dados para nenhum servidor.
+
 ## Como funciona
 
 O app gera o link `grokbot://app/v1/prompt?id=<bot>&text=<texto>`, com o texto codificado para uso na URL. O Windows entrega esse link ao Grok Bot. Quando nenhum bot está configurado, o parâmetro `id` é omitido e a mensagem vai para o bot padrão.
