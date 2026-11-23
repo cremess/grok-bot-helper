@@ -35,6 +35,14 @@
         <section class="section-card" aria-labelledby="general-title">
           <h2 id="general-title">Geral</h2>
           <label class="switch-row" for="launch-at-login"><span>Iniciar com o Windows<small>Abre o GrokBot Assistant ao entrar no Windows</small></span><input id="launch-at-login" type="checkbox" role="switch"></label>
+          <div class="after-send" role="group" aria-labelledby="after-send-title">
+            <p id="after-send-title">Depois de enviar</p>
+            <div class="segmented">
+              <label><input type="radio" name="after-send" value="wait" checked aria-describedby="after-send-help"><span>Esperar a resposta</span></label>
+              <label><input type="radio" name="after-send" value="hide" aria-describedby="after-send-help"><span>Fechar e avisar</span></label>
+            </div>
+            <p id="after-send-help"></p>
+          </div>
         </section>
       </fieldset>
     </main>

@@ -24,3 +24,46 @@ footer { display: flex; align-items: center; gap: 10px; margin-top: 10px; color:
 #send.sent { color: var(--success); opacity: 1; }
 #error { margin-top: 8px; }
 #error, #counter.over-limit { color: var(--error); }
+
+#card { max-height: 560px; display: flex; flex-direction: column; }
+#card > header, #card > footer, #card > textarea, #card > #error { flex-shrink: 0; }
+#response { min-height: 50px; flex: 0 1 auto; overflow: hidden; margin-bottom: 10px; }
+#response:not([hidden]) { display: flex; flex-direction: column; }
+.response-heading, #expand-response { flex-shrink: 0; }
+#response-body { min-height: 0; }
+.response-heading { display: flex; align-items: center; gap: 6px; color: var(--secondary); font-size: 12px; margin-bottom: 8px; }
+.response-heading strong { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.response-heading .avatar { width: 18px; height: 18px; flex-shrink: 0; font-size: 11px; }
+#response-time { white-space: nowrap; }
+.text-button { padding: 3px 0; border: 0; background: transparent; color: var(--secondary); font-size: 12px; cursor: pointer; }
+.text-button:hover { color: var(--text); }
+#conversation-toggle { margin-left: auto; flex-shrink: 0; }
+#response-body { line-height: 1.5; font-size: 14px; overflow-wrap: anywhere; }
+#response-body.collapsed { max-height: 105px; overflow: hidden; mask-image: linear-gradient(to bottom, black 65%, transparent); }
+#response-body.expanded { max-height: 320px; overflow-y: auto; }
+#response-body p, .bubble p { margin: 0 0 8px; }
+#response-body h1, #response-body h2, #response-body h3, .bubble h1, .bubble h2, .bubble h3 { margin: 10px 0 6px; font-size: 15px; }
+#response-body ul, #response-body ol, .bubble ul, .bubble ol { padding-left: 22px; margin: 6px 0; }
+#response-body blockquote, .bubble blockquote { border-left: 2px solid var(--border); margin: 8px 0; padding-left: 10px; color: var(--secondary); }
+#response-body code, .bubble code { font-family: 'Cascadia Mono', Consolas, monospace; background: var(--surface); border-radius: 4px; padding: 1px 3px; }
+#response-body pre, .bubble pre { background: var(--surface); padding: 10px; border-radius: 6px; overflow-x: auto; }
+#response-body pre code, .bubble pre code { padding: 0; }
+#response-body a, .bubble a { color: var(--accent); }
+.bubble { max-width: 88%; width: fit-content; padding: 8px 10px; margin: 6px 0; border-radius: 10px; line-height: 1.5; overflow-wrap: anywhere; font-size: 14px; }
+.bubble.user { margin-left: auto; background: color-mix(in srgb, var(--accent) 22%, var(--surface)); }
+.bubble.bot { background: var(--surface); }
+.bubble small { display: block; font-size: 11px; color: var(--secondary); }
+#waiting-area { overflow-y: auto; max-height: 130px; flex-shrink: 0; margin-bottom: 10px; }
+.waiting-status { color: var(--secondary); font-size: 13px; margin: 6px 0; }
+.waiting-dots span { display: inline-block; animation: dots 1.2s infinite; }
+.waiting-dots span:nth-child(2) { animation-delay: .15s; }
+.waiting-dots span:nth-child(3) { animation-delay: .3s; }
+@keyframes dots { 50% { opacity: .25; transform: translateY(-2px); } }
+.new-reply { animation: reply-in .2s ease-out; }
+@keyframes reply-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .waiting-dots span, .new-reply { animation: none; } }
+:root { --scroll-thumb: rgba(255,255,255,.18); }
+@media (prefers-color-scheme: light) { :root { --scroll-thumb: rgba(0,0,0,.2); } }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 10px; border: 3px solid transparent; background-clip: padding-box; }

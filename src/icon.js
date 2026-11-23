@@ -1,8 +1,8 @@
 const { nativeImage } = require('electron');
 const path = require('node:path');
 
-function createTrayIcon() {
-  const image = nativeImage.createFromPath(path.join(__dirname, '..', 'assets', 'icons', 'tray.png'));
+function createTrayIcon({ unread = false } = {}) {
+  const image = nativeImage.createFromPath(path.join(__dirname, '..', 'assets', 'icons', unread ? 'tray-unread.png' : 'tray.png'));
   return image.isEmpty() ? createFallbackIcon() : image;
 }
 

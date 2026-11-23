@@ -9,6 +9,15 @@ const shortcut = document.getElementById('shortcut');
 const record = document.getElementById('record');
 const save = document.getElementById('save');
 const launchAtLogin = document.getElementById('launch-at-login');
+const afterSendOptions = [...document.querySelectorAll('input[name="after-send"]')];
+const afterSendHelp = document.getElementById('after-send-help');
+function renderAfterSend(value) {
+  if (value) for (const option of afterSendOptions) option.checked = option.value === value;
+  afterSendHelp.textContent = afterSendOptions.find((option) => option.checked)?.value === 'hide'
+    ? 'O prompt fecha e o ícone da bandeja ganha um ponto quando a resposta chegar.'
+    : 'O prompt fica aberto e mostra a resposta quando chegar.';
+}
+for (const option of afterSendOptions) option.addEventListener('change', () => renderAfterSend());
 const status = document.getElementById('status');
 const welcomeMode = new URLSearchParams(location.search).get('welcome') === '1';
 const welcomeCard = document.getElementById('welcome');
@@ -30,6 +39,7 @@ let toastTimer;
 const errors = {
   'invalid-bot': 'Link ou ID do bot inválido.',
   'invalid-shortcut': 'Atalho inválido.',
+  'invalid-after-send': 'Selecione uma opção válida para depois de enviar.',
   'shortcut-taken': 'Esse atalho já está em uso por outro programa.',
 };
 
@@ -241,6 +251,7 @@ form.addEventListener('submit', async (event) => {
     const result = await window.grokbotSettings.save({
       mode: selection.mode, botId: selection.botId, botName: selection.botName,
       botInput: bot.value, shortcut: currentShortcut, launchAtLogin: launchAtLogin.checked,
+      afterSend: afterSendOptions.find((option) => option.checked)?.value,
     });
     if (!result.ok) {
       showError(result.error);
@@ -251,6 +262,7 @@ form.addEventListener('submit', async (event) => {
     currentShortcut = result.settings.shortcut;
     renderShortcut();
     launchAtLogin.checked = result.settings.launchAtLogin;
+    renderAfterSend(result.settings.afterSend);
     showToast('Configurações salvas');
     if (welcomeMode) setTimeout(() => window.close(), 800);
   } catch {
@@ -272,6 +284,7 @@ async function initialize() {
     defaultShortcut = settings.defaultShortcut;
     renderShortcut();
     launchAtLogin.checked = settings.launchAtLogin;
+    renderAfterSend(settings.afterSend);
     fields.disabled = false;
     save.disabled = false;
   } catch {

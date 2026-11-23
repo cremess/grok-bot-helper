@@ -48,6 +48,10 @@ app.on('window-all-closed', () => {});
 
 app.whenReady().then(async () => {
   const traySvg = await fs.readFile(path.join(root, 'assets', 'tray.svg'), 'utf8');
+  const unreadSvg = await fs.readFile(path.join(root, 'assets', 'tray-unread.svg'), 'utf8');
+  for (const size of [16, 32]) {
+    await writeOutput(`assets/icons/tray-unread${size === 32 ? '@2x' : ''}.png`, await renderSvg(unreadSvg, size));
+  }
   const iconSvg = await fs.readFile(path.join(root, 'assets', 'icon.svg'), 'utf8');
   const entries = [];
   for (const size of [16, 32, 48, 64, 128, 256]) {

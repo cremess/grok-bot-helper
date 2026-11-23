@@ -5,6 +5,7 @@ app.setPath('userData', path.join(app.getPath('appData'), 'grokbot-assistant'));
 const { createTrayIcon, appIconPath } = require('./icon');
 const { buildPromptLink, parseBotId, isValidBotId } = require('./lib/link');
 const { listBots } = require('./lib/roster');
+const { readConversation, recentExchanges, latestReply } = require('./lib/transcript');
 const { avatarColor, avatarInitial } = require('./lib/avatar');
 const { loadSettings, saveSettings, isValidShortcut, DEFAULT_SETTINGS } = require('./lib/settings');
 const { promptPosition } = require('./lib/position');
@@ -20,6 +21,53 @@ const settingsLocation = {};
 const GROK_BOT_DIRECTORY = path.join(app.getPath('appData'), 'Grok Bot', 'sand-client-persistence');
 let hideTimer;
 let sendingPrompt = false;
+let pending;
+let responsePoll;
+
+function loadConversation() {
+  const result = readConversation(GROK_BOT_DIRECTORY, settings.botId);
+  return result.ok ? { ok: true, entries: recentExchanges(result.entries, 6), latest: latestReply(result.entries) }
+    : { ok: false };
+}
+
+function clearUnread() {
+  tray.setImage(createTrayIcon());
+  tray.setToolTip('GrokBot Assistant');
+}
+
+function stopWaiting() {
+  clearInterval(responsePoll);
+  responsePoll = undefined;
+  pending = undefined;
+  if (promptWindow && !promptWindow.isDestroyed()) promptWindow.setAlwaysOnTop(true);
+}
+
+function startWaiting(request) {
+  stopWaiting();
+  pending = request;
+  if (pending.mode === 'wait') promptWindow.setAlwaysOnTop(false);
+  promptWindow.webContents.send('prompt:conversation', {
+    ...loadConversation(), waiting: true, sent: pending.sent,
+  });
+  responsePoll = setInterval(() => {
+    const result = readConversation(GROK_BOT_DIRECTORY, pending.botId);
+    const reply = result.ok && latestReply(result.entries, { afterMs: pending.sentAt - 2000 });
+    const timedOut = Date.now() - pending.sentAt >= 10 * 60 * 1000;
+    if (!reply && !timedOut) return;
+    stopWaiting();
+    promptWindow.webContents.send('prompt:conversation', {
+      ...loadConversation(), waiting: false, timedOut: !reply,
+    });
+    if (reply && !promptWindow.isVisible()) {
+      const roster = listBots(GROK_BOT_DIRECTORY);
+      const name = settings.botName || (roster.ok && roster.bots.find((bot) => bot.id === result.agentId)?.name)
+        || (settings.botId ? `bot ${settings.botId.slice(0, 8)}` : 'bot padrão');
+      tray.setImage(createTrayIcon({ unread: true }));
+      // Prompt escondido (Esc ou modo 'hide'): só avisa na bandeja, sem reabrir a janela.
+      tray.setToolTip(`GrokBot Assistant — Nova resposta de ${name}`);
+    }
+  }, 1000);
+}
 
 function openSettings({ welcome = false } = {}) {
   if (settingsWindow && !settingsWindow.isDestroyed()) {
@@ -31,7 +79,7 @@ function openSettings({ welcome = false } = {}) {
   settingsWindow = new BrowserWindow({
     icon: appIconPath(),
     width: 520,
-    height: 720,
+    height: 780,
     resizable: false,
     minimizable: false,
     maximizable: false,
@@ -47,7 +95,7 @@ function openSettings({ welcome = false } = {}) {
     },
   });
   settingsWindow.setMenu(null);
-  if (welcome) settingsWindow.setSize(520, 780);
+  if (welcome) settingsWindow.setSize(520, 840);
   settingsWindow.webContents.on('will-navigate', (event) => event.preventDefault());
   settingsWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   settingsWindow.on('closed', () => {
@@ -72,6 +120,7 @@ function togglePrompt() {
   const [width, height] = promptWindow.getSize();
   const { x, y } = promptPosition(workArea, { width, height });
   promptWindow.setPosition(x, y);
+  clearUnread();
   promptWindow.show();
   promptWindow.focus();
   const roster = listBots(GROK_BOT_DIRECTORY);
@@ -79,6 +128,7 @@ function togglePrompt() {
   const botName = settings.botName || bot?.name || '';
   promptWindow.webContents.send('prompt:show', {
     botId: settings.botId, botName,
+    conversation: loadConversation(), waiting: Boolean(pending), sent: pending?.sent,
     botColor: settings.botId ? avatarColor(bot?.color, settings.botId) : '#1080f3',
     botInitial: settings.botId ? avatarInitial(botName) : 'G',
   });
@@ -160,7 +210,8 @@ if (!app.requestSingleInstanceLock()) {
       } else if (payload?.mode !== 'default') {
         return { ok: false, error: 'invalid-bot' };
       }
-      const { shortcut, launchAtLogin } = payload;
+      const { shortcut, launchAtLogin, afterSend } = payload;
+      if (afterSend !== 'wait' && afterSend !== 'hide') return { ok: false, error: 'invalid-after-send' };
       if (!isValidShortcut(shortcut)) return { ok: false, error: 'invalid-shortcut' };
       const previousSettings = settings;
       if (shortcut !== settings.shortcut && !applyShortcut(shortcut)) {
@@ -173,8 +224,15 @@ if (!app.requestSingleInstanceLock()) {
           ...(!app.isPackaged ? { path: process.execPath, args: [app.getAppPath()] } : {}),
         });
         settings = saveSettings(settingsLocation.path, {
-          botId, botName, shortcut, launchAtLogin: Boolean(launchAtLogin),
+          botId, botName, shortcut, launchAtLogin: Boolean(launchAtLogin), afterSend,
         });
+        if (botId !== previousSettings.botId) {
+          clearTimeout(hideTimer);
+          sendingPrompt = false;
+          stopWaiting();
+          clearUnread();
+          promptWindow.webContents.send('prompt:conversation', { ...loadConversation(), waiting: false });
+        }
         return { ok: true, settings };
       } catch {
         if (shortcut !== previousSettings.shortcut) applyShortcut(previousSettings.shortcut);
@@ -208,12 +266,20 @@ if (!app.requestSingleInstanceLock()) {
     promptWindow.webContents.on('will-navigate', (event) => event.preventDefault());
     promptWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     promptWindow.on('blur', () => {
-      if (!sendingPrompt) promptWindow.hide();
+      if (!sendingPrompt && pending?.mode !== 'wait') promptWindow.hide();
     });
     ipcMain.handle('prompt:resize', (_event, height) => {
       if (typeof height !== 'number' || !Number.isFinite(height)) return;
       const bounds = promptWindow.getBounds();
-      promptWindow.setBounds({ ...bounds, height: Math.max(128, Math.min(360, Math.ceil(height))) });
+      promptWindow.setBounds({ ...bounds, height: Math.max(128, Math.min(600, Math.ceil(height))) });
+    });
+
+    ipcMain.handle('prompt:open-link', (_event, url) => {
+      if (typeof url !== 'string') return;
+      try {
+        const protocol = new URL(url).protocol;
+        if (protocol === 'http:' || protocol === 'https:') return shell.openExternal(url).catch(() => {});
+      } catch { /* Ignora endereços inválidos. */ }
     });
 
     ipcMain.handle('prompt:submit', async (_event, text) => {
@@ -223,15 +289,23 @@ if (!app.requestSingleInstanceLock()) {
         return { ok: false, error: 'open-failed' };
       }
 
+      const request = { sentAt: Date.now(), botId: settings.botId, mode: settings.afterSend,
+        sent: { role: 'user', text: text.trim(), timestampMs: Date.now() } };
       try {
         sendingPrompt = true;
         await shell.openExternal(result.url);
         clearTimeout(hideTimer);
-        hideTimer = setTimeout(() => {
-          sendingPrompt = false;
-          promptWindow.hide();
-        }, 280);
-        return { ok: true };
+        sendingPrompt = false;
+        if (request.botId !== settings.botId) return { ok: true, afterSend: request.mode };
+        startWaiting(request);
+        if (request.mode === 'hide') {
+          sendingPrompt = true;
+          hideTimer = setTimeout(() => {
+            sendingPrompt = false;
+            promptWindow.hide();
+          }, 280);
+        }
+        return { ok: true, afterSend: request.mode };
       } catch {
         sendingPrompt = false;
         return { ok: false, error: 'open-failed' };
@@ -279,6 +353,8 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.on('will-quit', () => {
+    clearTimeout(hideTimer);
+    stopWaiting();
     globalShortcut.unregisterAll();
   });
 
