@@ -1,6 +1,6 @@
 const path = require('node:path');
 const { app, BrowserWindow, globalShortcut, ipcMain, Menu, screen, shell, Tray } = require('electron');
-const { createTrayIcon } = require('./icon');
+const { createTrayIcon, appIconPath } = require('./icon');
 const { buildPromptLink, parseBotId } = require('./lib/link');
 const { loadSettings, saveSettings, isValidShortcut, DEFAULT_SETTINGS } = require('./lib/settings');
 const { promptPosition } = require('./lib/position');
@@ -21,6 +21,7 @@ function openSettings() {
   }
 
   settingsWindow = new BrowserWindow({
+    icon: appIconPath(),
     width: 480,
     height: 440,
     resizable: false,
@@ -148,6 +149,7 @@ if (!app.requestSingleInstanceLock()) {
     });
 
     promptWindow = new BrowserWindow({
+      icon: appIconPath(),
       width: 640,
       height: 150,
       frame: false,

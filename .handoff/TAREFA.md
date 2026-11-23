@@ -1,62 +1,46 @@
-# Tarefa 7 — Ler a lista de bots do Grok Bot + guardar o nome do bot
+# Tarefa 8 — Ícone de verdade (app, bandeja e instalador)
 
-## Contexto
-O usuário não quer digitar o ID do bot. O Grok Bot (app desktop) guarda a lista de bots do usuário localmente:
-- Pasta: `%APPDATA%\Grok Bot\sand-client-persistence\` (em Node: `path.join(app.getPath('appData'), 'Grok Bot', 'sand-client-persistence')`; o módulo recebe o caminho por parâmetro).
-- Cada arquivo se chama `<chave codificada em base32>.blob`. A codificação é base32 RFC 4648, **alfabeto minúsculo** `abcdefghijklmnopqrstuvwxyz234567`, **sem padding** `=`.
-- O arquivo da lista é aquele cuja chave decodificada casa com `/^sand\.client\.slice\.account\..+\.roster\.last-roster$/` (exemplo de chave: `sand.client.slice.account.grok%7Cuser_01ABC.roster.last-roster`).
-- Conteúdo (JSON UTF-8):
-  ```json
-  { "schemaVersion": 4, "value": { "rows": [
-    { "id": "1f0c9a2e-5b7d-4c3a-9e8f-2a6b4d0c7e15", "name": "Grok", "avatarColor": "black",
-      "isGroup": false, "isHiddenFromSidebar": false, "isRemovedFromSidebar": false,
-      "lastActivityAt": 1795384795161, "...": "outros campos que devem ser ignorados" }
-  ] } }
-  ```
-- O ID do bot (UUID com hífens) passa em `isValidBotId` de `src/lib/link.js`.
+## Objetivo
+Trocar o quadrado azul gerado em código por um ícone desenhado, nítido na bandeja (16/32 px) e no instalador (até 256 px), sem dependências novas.
 
 ## Arquivos envolvidos
-- Criar: `src/lib/roster.js`, `test/roster.test.js`
-- Alterar: `src/lib/settings.js`, `test/settings.test.js` (somente para o novo campo `botName`)
+- Criar: `assets/icon.svg`, `assets/tray.svg`, `scripts/build-icons.js`, `scripts/ico.js`, `test/ico.test.js`
+- Alterar: `src/icon.js`, `package.json` (só o script novo `icons`), `src/main.js` (só a opção `icon` das janelas)
+- Arquivos GERADOS pelo script (o Claude Code roda o script; você NÃO gera): `assets/icons/tray.png`, `assets/icons/tray@2x.png`, `assets/icons/icon-256.png`, `build/icon.ico`
 
-## Especificação
+## Desenho
+- `assets/icon.svg` (viewBox `0 0 256 256`): quadrado com cantos bem arredondados (raio ~56) preenchido com gradiente diagonal de `#1080f3` (topo-esquerda) para `#5b3df5` (baixo-direita). No centro, um balão de conversa branco (forma arredondada com "rabinho" embaixo à esquerda) e, dentro dele, um sinal de prompt `›` em azul `#1080f3`, traço grosso e cantos arredondados. Leve brilho/realce sutil no topo é opcional. Estilo flat, moderno, legível em 16 px.
+- `assets/tray.svg` (viewBox `0 0 32 32`): versão simplificada para 16/32 px — o mesmo quadrado arredondado com gradiente e só o balão branco com o `›` (traços mais grossos, sem detalhes finos).
+- SVG puro, sem fontes, sem imagens embutidas, sem scripts.
 
-### `src/lib/roster.js` (CommonJS, só `node:fs`/`node:path`, sem Electron)
-Exportar:
-1. `decodeBase32(text)` → string UTF-8 (alfabeto acima, ignora maiúsculas/minúsculas; retorna `null` se houver caractere inválido).
-2. `encodeBase32(text)` → string (inverso; usado nos testes e útil para depuração).
-3. `findRosterFile(dir)` → caminho absoluto ou `null`. Lista `dir` (se não existir → `null`), decodifica o nome de cada `*.blob`, filtra pelo regex acima. Se houver mais de um (várias contas), escolhe o de `mtime` mais recente.
-4. `parseRoster(json)` → array de `{ id, name, color }`:
-   - aceita string ou objeto; JSON inválido ou formato inesperado → `[]` (nunca lança);
-   - lê `value.rows`; mantém só linhas com `id` válido (`isValidBotId`) e `name` string não vazia;
-   - descarta `isRemovedFromSidebar === true` e `isGroup === true`;
-   - `color` = `avatarColor` se for string não vazia, senão `null`;
-   - `name` com `trim()` e no máximo 80 caracteres;
-   - ordena por `lastActivityAt` decrescente (ausente = 0) e, empatando, por nome (`localeCompare` com `'pt-BR'`);
-   - remove IDs duplicados (mantém o primeiro).
-5. `listBots(dir)` → `{ ok: true, bots }` ou `{ ok: false, error: 'not-found' | 'unreadable' }`. Nunca lança.
+## `scripts/ico.js` (puro, sem Electron)
+- `buildIco(entries)`: recebe `[{ size, png: Buffer }]` (tamanhos 16–256) e retorna um `Buffer` no formato ICO com entradas PNG (cabeçalho ICONDIR de 6 bytes + ICONDIRENTRY de 16 bytes por imagem; largura/altura `0` significa 256; planes `1`; bitCount `32`; offsets corretos).
+- Teste em `test/ico.test.js`: gerar um ICO com 2 PNGs falsos (buffers com a assinatura PNG de 8 bytes + bytes quaisquer) e conferir cabeçalho, quantidade, tamanhos (256 → 0), offsets e que os bytes de cada PNG aparecem no offset indicado.
 
-### `src/lib/settings.js`
-- Adicionar `botName: ''` em `DEFAULT_SETTINGS`.
-- `normalizeSettings`: aceitar `botName` string com até 80 caracteres (aplicar `trim()`); senão `''`. Se `botId` final for `''`, `botName` também vira `''`.
-- Nada mais muda (manter a remoção do BOM em `loadSettings`).
+## `scripts/build-icons.js` (roda com `electron scripts/build-icons.js`)
+- Em `app.whenReady()`: para cada saída, renderiza o SVG numa `BrowserWindow` invisível (`show: false`, `width`/`height` = tamanho, `transparent: true`, `frame: false`, `webPreferences: { offscreen: true }`) carregando um `data:text/html` com o SVG ocupando 100% e fundo transparente; espera `did-finish-load` + um pequeno atraso (~150 ms); usa `webContents.capturePage()` e `toPNG()`.
+  - Considerar o fator de escala: se o `NativeImage` capturado vier maior que o pedido, redimensionar com `.resize({ width, height, quality: 'best' })`.
+- Saídas: `assets/icons/tray.png` (16, de `tray.svg`), `assets/icons/tray@2x.png` (32, de `tray.svg`), `assets/icons/icon-256.png` (256, de `icon.svg`) e `build/icon.ico` com as camadas 16 e 32 (de `tray.svg`) e 48, 64, 128, 256 (de `icon.svg`), montado com `buildIco`.
+- Criar as pastas que faltarem; imprimir o que foi gerado; `app.quit()` no fim (e `app.exit(1)` em caso de erro).
+- `package.json`: adicionar o script `"icons": "electron scripts/build-icons.js"`.
 
-### Testes
-- `test/roster.test.js` (pasta temporária com `fs.mkdtempSync`, removida no final):
-  - base32: ida e volta com ASCII, `%7C`, acentos; caractere inválido → `null`; um vetor conhecido: `encodeBase32('sand')` === `'onqw4za'`.
-  - `findRosterFile`: pasta inexistente → `null`; pasta sem roster → `null`; com outros `.blob` + o roster → acha o roster; dois rosters de contas diferentes → o mais recente (usar `fs.utimesSync`).
-  - `parseRoster`: exemplo válido; JSON inválido; `rows` ausente; filtra removidos, grupos, ID inválido, nome vazio; ordenação; duplicados; nome longo cortado em 80.
-  - `listBots`: `not-found`, arquivo ilegível/JSON quebrado → `{ ok: true, bots: [] }` (JSON quebrado não é erro de leitura), caso feliz.
-- `test/settings.test.js`: cobrir `botName` (padrão, trim, limite, zera quando `botId` é vazio).
+## `src/icon.js`
+- `createTrayIcon()` passa a carregar `assets/icons/tray.png` com `nativeImage.createFromPath` (o Electron pega o `tray@2x.png` sozinho em telas de alta densidade). Se a imagem vier vazia (`isEmpty()`), cair no quadrado azul atual como reserva (manter esse código numa função interna).
+- Exportar também `appIconPath()` → caminho de `assets/icons/icon-256.png`.
+
+## `src/main.js`
+- Só adicionar `icon: appIconPath()` nas opções das janelas de prompt e de configurações. Nada mais.
 
 ## Critérios de aceite
-- `npm test` passa (antigos + novos).
-- Sem dependências externas.
+- `npm test` passa (antigos + novo).
+- `node --check` em todos os `.js` novos/alterados.
+- SVGs válidos (abrir como XML sem erro).
 
 ## O que NÃO fazer
-- NÃO alterar `src/main.js`, janelas, preloads, `src/lib/link.js` ou `package.json` (a interface vem na próxima tarefa).
-- NÃO ler a pasta real do Grok Bot do usuário nos testes; usar só a pasta temporária.
-- NÃO instalar dependências. NÃO fazer commit nem push. NÃO alterar `AGENTS.md`, `.gitignore` nem `.handoff/HISTORICO.md`.
+- NÃO rodar o script de ícones nem abrir o app (o Claude Code faz isso e revisa o resultado visual).
+- NÃO instalar dependências (nada de sharp, png-to-ico etc.).
+- NÃO mexer no visual das janelas (é a próxima tarefa).
+- NÃO fazer commit nem push. NÃO alterar `AGENTS.md`, `.gitignore` nem `.handoff/HISTORICO.md`.
 
 ## Ao terminar
 Substitua todo o conteúdo de `.handoff/RESULTADO.md` pelo resultado desta tarefa.

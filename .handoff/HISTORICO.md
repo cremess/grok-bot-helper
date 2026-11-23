@@ -10,3 +10,4 @@
 | 2026-11-23 | T6+T7: configurações + menu da bandeja | aceita (1ª tentativa) | 31 testes ok; diff revisado (gravação de atalho desliga/religa o global, restaura atalho antigo em caso de falha); Pedro testou troca de bot e de atalho. |
 | 2026-11-23 | T8: README | aceita (1ª tentativa) + ajuste do Claude | Conteúdo conferido com o código; ajuste: título com # e descrição do AGENTS.md atualizada com o bot de destino. |
 | 2026-11-23 | T9: leitura da lista de bots + botName | aceita (1ª tentativa) | 46 testes ok; listBots validado nos dados reais do Grok Bot (7 bots, ordenados por uso). |
+| 2026-11-23 | T10: ícone de verdade | aceita (1ª tentativa) | 47 testes ok; ícones gerados pelo Claude com npm run icons (PNG 16/32/256 + ICO multicamada) e conferidos visualmente. |

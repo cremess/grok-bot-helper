@@ -1,6 +1,16 @@
 const { nativeImage } = require('electron');
+const path = require('node:path');
 
 function createTrayIcon() {
+  const image = nativeImage.createFromPath(path.join(__dirname, '..', 'assets', 'icons', 'tray.png'));
+  return image.isEmpty() ? createFallbackIcon() : image;
+}
+
+function appIconPath() {
+  return path.join(__dirname, '..', 'assets', 'icons', 'icon-256.png');
+}
+
+function createFallbackIcon() {
   const size = 16;
   const bitmap = Buffer.alloc(size * size * 4);
 
@@ -15,4 +25,4 @@ function createTrayIcon() {
   return nativeImage.createFromBitmap(bitmap, { width: size, height: size });
 }
 
-module.exports = { createTrayIcon };
+module.exports = { createTrayIcon, appIconPath };
