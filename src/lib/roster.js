@@ -39,7 +39,7 @@ function encodeBase32(text) {
   return encoded;
 }
 
-// A versão interna preserva erros de acesso para listBots distinguir falhas de leitura.
+// Preserve access errors internally so listBots can distinguish read failures.
 function locatePersistenceFile(dir, keyRegex) {
   let newest = null;
   let newestTime = -Infinity;
@@ -87,7 +87,7 @@ function parseRoster(json) {
         activity: typeof row.lastActivityAt === 'number' && Number.isFinite(row.lastActivityAt)
           ? row.lastActivityAt : 0,
       }))
-      .sort((a, b) => b.activity - a.activity || a.name.localeCompare(b.name, 'pt-BR'));
+      .sort((a, b) => b.activity - a.activity || a.name.localeCompare(b.name, 'en-US'));
     const seen = new Set();
     return rows.filter((row) => {
       if (seen.has(row.id)) return false;

@@ -4,7 +4,7 @@
   "author": "GrokBot Assistant",
   "version": "0.1.0",
   "private": true,
-  "description": "App companheiro do Grok Bot para Windows.",
+  "description": "Unofficial Windows companion for Grok Bot: a global shortcut opens a floating prompt that talks to your bots.",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",

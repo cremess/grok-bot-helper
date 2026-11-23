@@ -17,7 +17,7 @@ function parseInline(text, depth = 0) {
       try {
         const url = new URL(link[2]);
         safe = url.protocol === 'http:' || url.protocol === 'https:';
-      } catch { /* Endereço inválido permanece literal. */ }
+      } catch { /* Invalid URLs remain literal. */ }
       if (safe) nodes.push({ type: 'link', text: link[1], href: link[2] });
       else literal(link[0]);
       index += link[0].length;
@@ -33,7 +33,7 @@ function parseInline(text, depth = 0) {
         index = end + marker.length;
         continue;
       }
-      // Preserva marcadores incompletos sem reinterpretar seus caracteres.
+      // Preserve incomplete markers without reinterpreting their characters.
       literal(marker);
       index += marker.length;
       continue;

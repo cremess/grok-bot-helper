@@ -16,7 +16,7 @@ function checkDirectory(directory) {
       const result = spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' });
       if (result.status !== 0) {
         failed = true;
-        console.error(`Falha de sintaxe: ${path.relative(root, file)}`);
+        console.error(`Syntax error: ${path.relative(root, file)}`);
         if (result.error) console.error(result.error.message);
         if (result.stdout) console.error(result.stdout.trimEnd());
         if (result.stderr) console.error(result.stderr.trimEnd());
@@ -32,5 +32,5 @@ for (const directory of ['src', 'scripts', 'test']) {
 if (failed) {
   process.exitCode = 1;
 } else {
-  console.log(`Sintaxe ok (${count} arquivos)`);
+  console.log(`Syntax OK (${count} files)`);
 }

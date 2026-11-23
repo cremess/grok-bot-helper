@@ -1,6 +1,6 @@
 (() => {
   let sequence = 0;
-  const normalize = (text) => String(text).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+  const normalize = (text) => String(text).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('en-US');
   const element = (tag, className, text) => {
     const node = document.createElement(tag);
     if (className) node.className = className;
@@ -14,7 +14,7 @@
       const root = element('div', `bot-picker${compact ? ' bot-picker-compact' : ''}`);
       const trigger = element('button', 'bot-picker-trigger');
       trigger.type = 'button';
-      trigger.setAttribute('aria-label', 'Bot de destino');
+      trigger.setAttribute('aria-label', t('picker.destination'));
       trigger.setAttribute('aria-haspopup', 'listbox');
       trigger.setAttribute('aria-expanded', 'false');
       trigger.setAttribute('aria-controls', `${id}-list`);
@@ -22,7 +22,7 @@
       image.setAttribute('aria-hidden', 'true');
       const label = element('span', 'bot-picker-label');
       const name = element('strong');
-      if (compact) label.append('Para ');
+      if (compact) label.append(t('picker.to'));
       label.append(name);
       const chevron = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       chevron.setAttribute('viewBox', '0 0 16 16');
@@ -35,8 +35,8 @@
       popover.hidden = true;
       const search = element('input', 'bot-picker-search');
       search.type = 'search';
-      search.placeholder = 'Buscar bot…';
-      search.setAttribute('aria-label', 'Buscar bot');
+      search.placeholder = t('picker.search');
+      search.setAttribute('aria-label', t('picker.searchLabel'));
       search.setAttribute('role', 'combobox');
       search.setAttribute('aria-autocomplete', 'list');
       search.setAttribute('aria-expanded', 'false');
@@ -45,7 +45,7 @@
       list.id = `${id}-list`;
       list.tabIndex = -1;
       list.setAttribute('role', 'listbox');
-      list.setAttribute('aria-label', 'Bot de destino');
+      list.setAttribute('aria-label', t('picker.destination'));
       popover.append(search, list);
       root.append(trigger, popover);
       container.append(root);
@@ -60,13 +60,13 @@
       }
       function renderTrigger() {
         const bot = bots.find((item) => item.id === value.botId);
-        name.textContent = value.mode === 'default' ? (compact ? 'Grok' : 'Bot padrão do Grok Bot')
-          : value.mode === 'manual' ? 'Outro bot (colar link ou ID)…'
-            : bot?.name || value.botName || `bot ${String(value.botId).slice(0, 8)}`;
+        name.textContent = value.mode === 'default' ? (compact ? t('picker.compactDefault') : t('picker.default'))
+          : value.mode === 'manual' ? t('picker.manual')
+            : bot?.name || value.botName || t('bot.fallback', { id: String(value.botId).slice(0, 8) });
         image.textContent = bot?.avatar?.initial || (value.mode === 'manual' ? '+' : name.textContent[0]);
         image.style.backgroundColor = bot?.avatar?.color || '#1080f3';
-        trigger.setAttribute('aria-label', `Bot de destino: ${name.textContent}`);
-        trigger.title = compact ? `${name.textContent} (Ctrl+K)` : name.textContent;
+        trigger.setAttribute('aria-label', t('picker.selectedLabel', { name: name.textContent }));
+        trigger.title = compact ? t('picker.shortcutTitle', { name: name.textContent }) : name.textContent;
       }
       function setActive(index, scroll = false) {
         active = options.length ? (index + options.length) % options.length : -1;
@@ -97,7 +97,7 @@
         search.hidden = bots.length <= 5;
         const query = normalize(search.value);
         const filtered = bots.filter((bot) => normalize(bot.name).includes(query));
-        const heading = element('div', 'bot-picker-heading', 'Seus bots');
+        const heading = element('div', 'bot-picker-heading', t('picker.heading'));
         heading.setAttribute('role', 'presentation');
         list.append(heading);
         function append(option, avatar, badge = false) {
@@ -109,7 +109,7 @@
           icon.setAttribute('aria-hidden', 'true');
           icon.style.backgroundColor = avatar?.color || '#1080f3';
           node.append(icon, element('span', 'bot-picker-name', option.botName));
-          if (badge) node.append(element('span', 'bot-picker-badge', 'mais usado'));
+          if (badge) node.append(element('span', 'bot-picker-badge', t('picker.mostUsed')));
           const check = element('span', 'bot-picker-check', matches(option) ? '✓' : '');
           check.setAttribute('aria-hidden', 'true');
           node.append(check);
@@ -121,7 +121,7 @@
         }
         for (const bot of filtered) append({ mode: 'list', botId: bot.id, botName: bot.name }, bot.avatar, bot === bots[0]);
         if (!filtered.length) {
-          const empty = element('div', 'bot-picker-empty', 'Nenhum bot encontrado');
+          const empty = element('div', 'bot-picker-empty', t('picker.empty'));
           empty.setAttribute('role', 'presentation');
           list.append(empty);
         }
@@ -130,8 +130,8 @@
           divider.setAttribute('role', 'presentation');
           list.append(divider);
         }
-        if (includeDefault) append({ mode: 'default', botId: '', botName: 'Bot padrão do Grok Bot' });
-        if (includeManual) append({ mode: 'manual', botName: 'Outro bot (colar link ou ID)…' }, { initial: '+', color: '#71717a' });
+        if (includeDefault) append({ mode: 'default', botId: '', botName: t('picker.default') });
+        if (includeManual) append({ mode: 'manual', botName: t('picker.manual') }, { initial: '+', color: '#71717a' });
         setActive(Math.max(0, options.findIndex(matches)));
       }
       function open() {
@@ -156,7 +156,7 @@
           close();
           trigger.focus({ preventScroll: true });
         } else if (event.key === 'Tab') {
-          // Devolve o ponto de partida à ordem natural de tabulação antes de fechar.
+          // Return focus to the trigger before closing to preserve tab order.
           trigger.focus({ preventScroll: true });
           close();
         } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {

@@ -40,10 +40,10 @@ async function writeOutput(relativePath, buffer) {
   const outputPath = path.join(root, relativePath);
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
   await fs.writeFile(outputPath, buffer);
-  console.log(`Gerado: ${relativePath}`);
+  console.log(`Generated: ${relativePath}`);
 }
 
-// Mantém o processo ativo entre as janelas invisíveis de renderização.
+// Keep the process alive between hidden rendering windows.
 app.on('window-all-closed', () => {});
 
 app.whenReady().then(async () => {
@@ -64,6 +64,6 @@ app.whenReady().then(async () => {
   await writeOutput('build/icon.ico', buildIco(entries));
   app.quit();
 }).catch((error) => {
-  console.error('Erro ao gerar os ícones:', error);
+  console.error('Failed to generate icons:', error);
   app.exit(1);
 });

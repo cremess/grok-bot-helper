@@ -1,3 +1,4 @@
+const { t } = require('./i18n');
 const fs = require('node:fs');
 const { findPersistenceFile } = require('./roster');
 
@@ -6,7 +7,7 @@ const numberOrNull = (value) => typeof value === 'number' && Number.isFinite(val
 
 function readUsage(dir) {
   try {
-    // Preserva erros de acesso que a busca tolerante transforma em null.
+    // Preserve access errors that tolerant search turns into null.
     fs.readdirSync(dir);
     const file = findPersistenceFile(dir, USAGE_KEY);
     if (!file) return { ok: false, error: 'not-found' };
@@ -28,16 +29,16 @@ function isBlocked(usage, nowMs) {
 }
 
 function formatReset(nextResetMs, nowMs) {
-  if (nextResetMs === null) return 'em breve';
+  if (nextResetMs === null) return t('usage.soon');
   const reset = new Date(nextResetMs);
   const now = new Date(nowMs);
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
   const sameDay = (date) => reset.toDateString() === date.toDateString();
-  const time = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(reset);
-  const day = sameDay(now) ? 'hoje' : sameDay(tomorrow) ? 'amanhã'
-    : `${new Intl.DateTimeFormat('pt-BR', { weekday: 'short' }).format(reset)}, ${new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(reset)}`;
-  return `${day} às ${time}`;
+  const time = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(reset);
+  const day = sameDay(now) ? t('usage.today') : sameDay(tomorrow) ? t('usage.tomorrow')
+    : new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).format(reset);
+  return t('usage.reset', { day, time });
 }
 
 module.exports = { readUsage, isBlocked, formatReset };

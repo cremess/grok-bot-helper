@@ -66,7 +66,7 @@ function normalizeSettings(raw) {
 
 function loadSettings(filePath) {
   try {
-    // Remove o BOM que editores como o Bloco de Notas podem adicionar.
+    // Remove the BOM that editors such as Notepad may add.
     return normalizeSettings(JSON.parse(fs.readFileSync(filePath, 'utf8').replace(/^﻿/, '')));
   } catch {
     return { ...DEFAULT_SETTINGS };

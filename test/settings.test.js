@@ -9,7 +9,7 @@ const {
 
 const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'grokbot-'));
 
-test('promptBounds valida limites inteiros, copia e persiste a posição e o tamanho', () => {
+test('promptBounds validates integer bounds, copies and persists position and size', () => {
   assert.equal(normalizeSettings({}).promptBounds, null);
   for (const bounds of [
     { x: -1920, y: -50, width: 460, height: 160 },
@@ -33,9 +33,9 @@ after(() => fs.rmSync(temporaryDirectory, { recursive: true, force: true }));
 
 const validSettings = { botId: 'bot_123-ABC', botName: '', shortcut: 'Ctrl+Shift+G', launchAtLogin: true, afterSend: 'wait', notifyOnReply: false, theme: 'system', promptBounds: null };
 
-test('carregar arquivo inexistente, vazio ou inválido retorna os padrões', () => {
-  assert.deepEqual(loadSettings(path.join(temporaryDirectory, 'ausente.json')), DEFAULT_SETTINGS);
-  for (const [name, contents] of [['vazio', ''], ['invalido', '{']]) {
+test('loading missing, empty or invalid files returns defaults', () => {
+  assert.deepEqual(loadSettings(path.join(temporaryDirectory, 'missing.json')), DEFAULT_SETTINGS);
+  for (const [name, contents] of [['empty', ''], ['invalid', '{']]) {
     const filePath = path.join(temporaryDirectory, `${name}.json`);
     fs.writeFileSync(filePath, contents, 'utf8');
     assert.deepEqual(loadSettings(filePath), DEFAULT_SETTINGS);
@@ -44,8 +44,8 @@ test('carregar arquivo inexistente, vazio ou inválido retorna os padrões', () 
   assert.deepEqual(loadSettings(temporaryDirectory), DEFAULT_SETTINGS);
 });
 
-test('salvar cria pastas, permite carregar de volta e não deixa arquivo temporário', () => {
-  const filePath = path.join(temporaryDirectory, 'pasta', 'interna', 'settings.json');
+test('saving creates directories, round-trips and leaves no temporary file', () => {
+  const filePath = path.join(temporaryDirectory, 'folder', 'inner', 'settings.json');
   assert.deepEqual(saveSettings(filePath, validSettings), validSettings);
   assert.deepEqual(loadSettings(filePath), validSettings);
   assert.equal(fs.existsSync(`${filePath}.tmp`), false);
@@ -57,17 +57,17 @@ test('salvar cria pastas, permite carregar de volta e não deixa arquivo tempor�
   assert.equal(fs.existsSync(`${filePath}.tmp`), false);
 });
 
-test('valores inválidos usam o padrão somente no campo correspondente', () => {
-  for (const [field, value] of [['botId', 'bot com espaço'], ['shortcut', 'Space'], ['launchAtLogin', 'sim']]) {
+test('invalid values default only the corresponding field', () => {
+  for (const [field, value] of [['botId', 'bot with spaces'], ['shortcut', 'Space'], ['launchAtLogin', 'yes']]) {
     assert.deepEqual(normalizeSettings({ ...validSettings, [field]: value }), {
       ...validSettings, [field]: DEFAULT_SETTINGS[field],
     });
   }
 });
 
-test('salvar e carregar normalizam os valores e descartam chaves desconhecidas', () => {
-  const filePath = path.join(temporaryDirectory, 'normalizado.json');
-  const raw = { ...validSettings, shortcut: 'Space', extra: 'ignorado' };
+test('saving and loading normalize values and discard unknown keys', () => {
+  const filePath = path.join(temporaryDirectory, 'normalized.json');
+  const raw = { ...validSettings, shortcut: 'Space', extra: 'ignored' };
   const expected = { ...validSettings, shortcut: DEFAULT_SETTINGS.shortcut };
   assert.deepEqual(saveSettings(filePath, raw), expected);
   assert.deepEqual(JSON.parse(fs.readFileSync(filePath, 'utf8')), expected);
@@ -76,22 +76,22 @@ test('salvar e carregar normalizam os valores e descartam chaves desconhecidas',
   assert.deepEqual(normalizeSettings({ ...validSettings, extra: true }), validSettings);
 });
 
-test('normalização exige objeto simples e preserva os padrões e a entrada', () => {
-  for (const raw of [undefined, null, [], 'texto', 123, true, new Date(), new (class Settings {})()]) {
+test('normalization requires a plain object and preserves defaults and input', () => {
+  for (const raw of [undefined, null, [], 'text', 123, true, new Date(), new (class Settings {})()]) {
     assert.deepEqual(normalizeSettings(raw), DEFAULT_SETTINGS);
   }
   assert.deepEqual(normalizeSettings(Object.assign(Object.create(null), validSettings)), validSettings);
   const snapshot = { botId: '', botName: '', shortcut: 'Alt+Space', launchAtLogin: false, afterSend: 'wait', notifyOnReply: false, theme: 'system', promptBounds: null };
   const input = { ...validSettings };
   const result = normalizeSettings(input);
-  result.botId = 'outro';
+  result.botId = 'other';
   assert.deepEqual(input, validSettings);
   assert.deepEqual(DEFAULT_SETTINGS, snapshot);
   assert.equal(Object.isFrozen(DEFAULT_SETTINGS), true);
   assert.notStrictEqual(normalizeSettings(null), DEFAULT_SETTINGS);
 });
 
-test('afterSend aceita wait e hide, persiste e usa wait para valores inválidos ou ausentes', () => {
+test('afterSend accepts and persists wait and hide and defaults to wait for invalid or absent values', () => {
   assert.equal(DEFAULT_SETTINGS.afterSend, 'wait');
   for (const afterSend of ['wait', 'hide']) {
     const expected = { ...validSettings, afterSend };
@@ -100,14 +100,14 @@ test('afterSend aceita wait e hide, persiste e usa wait para valores inválidos 
     assert.deepEqual(saveSettings(file, expected), expected);
     assert.deepEqual(loadSettings(file), expected);
   }
-  for (const afterSend of [undefined, null, '', 'WAIT', 'outro', 1, true, {}, []]) {
+  for (const afterSend of [undefined, null, '', 'WAIT', 'other', 1, true, {}, []]) {
     assert.deepEqual(normalizeSettings({ ...validSettings, afterSend }), validSettings);
   }
   const { afterSend, ...legacy } = validSettings;
   assert.deepEqual(normalizeSettings(legacy), validSettings);
 });
 
-test('botName usa padrão vazio, aplica trim e aceita até 80 caracteres', () => {
+test('botName defaults to empty, trims and accepts up to 80 characters', () => {
   assert.equal(DEFAULT_SETTINGS.botName, '');
   assert.equal(normalizeSettings({ botId: 'bot' }).botName, '');
   assert.equal(normalizeSettings({ botId: 'bot', botName: '  Grok  ' }).botName, 'Grok');
@@ -117,11 +117,11 @@ test('botName usa padrão vazio, aplica trim e aceita até 80 caracteres', () =>
   }
 });
 
-test('botName é zerado quando o botId final é vazio e persiste com ID válido', () => {
-  for (const botId of ['', undefined, 'inválido com espaço']) {
+test('botName is cleared when the final botId is empty and persists with a valid ID', () => {
+  for (const botId of ['', undefined, 'invalid with spaces']) {
     assert.equal(normalizeSettings({ botId, botName: 'Grok' }).botName, '');
   }
-  const filePath = path.join(temporaryDirectory, 'nome.json');
+  const filePath = path.join(temporaryDirectory, 'name.json');
   const named = { ...validSettings, botName: 'Grok' };
   assert.deepEqual(saveSettings(filePath, named), named);
   assert.deepEqual(loadSettings(filePath), named);
@@ -130,19 +130,19 @@ test('botName é zerado quando o botId final é vazio e persiste com ID válido'
   assert.deepEqual(loadSettings(filePath), named);
 });
 
-test('aceita todos os exemplos válidos de atalho', () => {
+test('accepts all valid shortcut examples', () => {
   for (const shortcut of ['Alt+Space', 'Ctrl+Shift+G', 'CommandOrControl+Alt+K', 'Super+Shift+F12']) {
     assert.equal(isValidShortcut(shortcut), true, shortcut);
   }
 });
 
-test('rejeita todos os exemplos inválidos de atalho', () => {
-  for (const shortcut of ['Space', 'Alt', 'Alt+Shift', 'Alt+Alt+K', 'Alt+Space+K', 'Alt + K', '', '123', 'Alt+Ç']) {
+test('rejects all invalid shortcut examples', () => {
+  for (const shortcut of ['Space', 'Alt', 'Alt+Shift', 'Alt+Alt+K', 'Alt+Space+K', 'Alt + K', '', '123', 'Alt+\u00c7']) {
     assert.equal(isValidShortcut(shortcut), false, shortcut);
   }
 });
 
-test('aceita os modificadores, teclas e símbolos especificados', () => {
+test('accepts the specified modifiers, keys and symbols', () => {
   for (const modifier of ['Alt', 'Shift', 'Control', 'Ctrl', 'CommandOrControl', 'CmdOrCtrl', 'Super']) {
     assert.equal(isValidShortcut(`${modifier}+K`), true);
   }
@@ -156,7 +156,7 @@ test('aceita os modificadores, teclas e símbolos especificados', () => {
   for (const key of keys) assert.equal(isValidShortcut(`Alt+${key}`), true, key);
 });
 
-test('rejeita tipos, teclas, separadores e modificadores fora do formato', () => {
+test('rejects malformed types, keys, separators and modifiers', () => {
   for (const shortcut of [null, undefined, 123, {}, 'Alt+k', 'Alt+F0', 'Alt+F25', 'Alt+F01',
     'Alt+', '+K', 'Alt++K', 'Meta+K', 'K+Alt', 'Alt+K\n', 'Alt+\tK']) {
     assert.equal(isValidShortcut(shortcut), false, String(shortcut));
@@ -164,7 +164,7 @@ test('rejeita tipos, teclas, separadores e modificadores fora do formato', () =>
 });
 
 
-test('notificação e tema preservam padrões em arquivos antigos e valores inválidos', () => {
+test('notification and theme retain defaults for old files and invalid values', () => {
   const { notifyOnReply, theme, ...legacy } = validSettings;
   assert.deepEqual(normalizeSettings(legacy), validSettings);
   for (const value of [undefined, null, 'true', 1, {}, []]) {
@@ -175,11 +175,11 @@ test('notificação e tema preservam padrões em arquivos antigos e valores inv�
   }
 });
 
-test('notificação e todos os temas válidos são persistidos', () => {
+test('notification and every valid theme are persisted', () => {
   for (const theme of ['system', 'dark', 'light']) {
     for (const notifyOnReply of [true, false]) {
       const expected = { ...validSettings, theme, notifyOnReply };
-      const file = path.join(temporaryDirectory, 'opcoes.json');
+      const file = path.join(temporaryDirectory, 'options.json');
       assert.deepEqual(saveSettings(file, expected), expected);
       assert.deepEqual(loadSettings(file), expected);
     }

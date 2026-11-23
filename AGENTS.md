@@ -1,26 +1,26 @@
 # AGENTS.md
 
-## Projeto
-App companheiro do Grok Bot para Windows: um atalho global (padrão Alt+Espaço) abre uma caixa de texto flutuante; ao enviar, o texto vai para o bot configurado do Grok Bot pelo link `grokbot://app/v1/prompt?id=<bot>&text=<texto>` (máximo de 1000 caracteres). Bot de destino, atalho e início com o Windows são configuráveis. O app roda na bandeja do sistema.
-Stack: Electron + JavaScript (CommonJS), sem framework de UI. Testes com o runner nativo do Node (`node --test`), cobrindo a lógica pura (montagem do link, validação do texto, configurações); atalho e janela são testados manualmente.
+## Project
+GrokBot Assistant is an unofficial, community-made Windows companion for the Grok Bot desktop app. A global shortcut (default `Alt+Space`) opens a floating prompt; on send, the text goes to the chosen Grok Bot bot through the deep link `grokbot://app/v1/prompt?id=<bot>&text=<text>` (max 1000 characters). It can show the bot's latest reply by reading Grok Bot's local files (read-only). Target bot, shortcut, after-send behavior, theme and start-with-Windows are configurable. The app lives in the system tray.
+Stack: Electron + JavaScript (CommonJS), no UI framework. Tests use Node's built-in runner (`node --test`) and cover the pure logic in `src/lib/`; windows and the global shortcut are verified manually or with Electron capture scripts.
 
-- Rodar: `npm start`
-- Testar: `npm test`
+- Run: `npm start`
+- Test: `npm test` and `npm run check`
 
-## Papéis
-- **Claude Code (orquestrador):** planeja, divide o trabalho em tarefas pequenas, escreve as tarefas, aciona o Codex, revisa diffs, roda testes e decide se a tarefa foi aceita.
-- **Codex (executor):** implementa exatamente a tarefa recebida, sem ampliar o escopo, e registra o que fez.
+## Roles
+- **Claude Code (orchestrator):** plans, splits the work into small tasks, writes the tasks, runs Codex, reviews diffs, runs tests and decides whether a task is accepted.
+- **Codex (executor):** implements exactly the task it receives, without widening the scope, and records what it did.
 
-## Protocolo de troca (pasta .handoff/)
-- `.handoff/TAREFA.md`: escrito pelo Claude Code. Contém: objetivo, arquivos envolvidos, critérios de aceite e o que NÃO fazer.
-- `.handoff/RESULTADO.md`: escrito pelo Codex ao final de cada tarefa. Contém: arquivos alterados, resumo das mudanças, testes executados e resultado, dúvidas ou bloqueios.
-- `.handoff/HISTORICO.md`: o Claude Code acrescenta uma linha por rodada (data, tarefa, aceita/devolvida, motivo).
+## Handoff protocol (`.handoff/` folder)
+- `.handoff/TASK.md`: written by Claude Code. Contains: goal, files involved, acceptance criteria and what NOT to do.
+- `.handoff/RESULT.md`: written by Codex at the end of each task. Contains: changed files, summary of changes, tests run and their results, questions or blockers.
+- `.handoff/HISTORY.md`: Claude Code appends one row per round (date, task, accepted/returned, reason).
 
-## Regras para todos
-- Não alterar arquivos fora do escopo da tarefa.
-- Não apagar arquivos sem autorização explícita do Pedro.
-- Não fazer commit, push ou deploy sem autorização do Pedro. O Pedro autorizou o Claude Code a commitar e dar push de cada tarefa aceita no repositório privado do GitHub; o Codex nunca faz commit nem push.
-- Não instalar dependências novas sem registrar o motivo em RESULTADO.md.
-- Nunca gravar senhas, tokens ou chaves em arquivos do projeto.
-- Na dúvida, parar e registrar a pergunta em RESULTADO.md em vez de supor.
-- Escrever tarefas, resultados e comentários em português do Brasil.
+## Rules for everyone
+- Do not change files outside the task scope.
+- Do not delete files without the maintainer's explicit permission.
+- No commit, push or release without the maintainer's permission. The maintainer authorized Claude Code to commit and push each accepted task; Codex never commits or pushes.
+- Do not add new dependencies without recording the reason in RESULT.md.
+- Never store passwords, tokens, keys or personal data (names, e-mails, local paths, real bot IDs, real conversations) in project files. Tests and screenshots use fictional data.
+- When in doubt, stop and record the question in RESULT.md instead of guessing.
+- Write code, comments, UI text, docs, tasks and results in English. User-facing strings go through the i18n module.

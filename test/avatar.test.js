@@ -8,22 +8,22 @@ const colors = {
   teal: '#12a594', blue: '#1080f3', indigo: '#5b5bd6', purple: '#8e4ec6', pink: '#d6409f',
 };
 
-test('cores conhecidas do Grok Bot', () => {
+test('known Grok Bot colors', () => {
   for (const [name, color] of Object.entries(colors)) assert.equal(avatarColor(name, 'bot'), color);
   assert.equal(avatarColor(' BLUE ', 'bot'), colors.blue);
 });
 
-test('cor desconhecida ou nula usa hash estável dentro da paleta', () => {
-  for (const id of ['bot-1', 'bot-2', '', null, 'á']) {
+test('unknown or null colors use a stable hash into the palette', () => {
+  for (const id of ['bot-1', 'bot-2', '', null, '\u00e9']) {
     const color = avatarColor(null, id);
     assert.equal(avatarColor(null, id), color);
-    assert.equal(avatarColor('desconhecida', id), color);
+    assert.equal(avatarColor('unknown', id), color);
     assert.ok(Object.values(colors).includes(color));
   }
 });
 
-test('iniciais alfanuméricas, acentuadas e nomes vazios', () => {
-  for (const [name, initial] of [['Follow-up Técnico', 'F'], ['  ébano', 'É'], ['', '?'], [' ! 2 bots', '2'], ['🙂 ação', 'A'], ['---', '?'], [null, '?']]) {
+test('alphanumeric and accented initials and empty names', () => {
+  for (const [name, initial] of [['Technical follow-up', 'T'], ['  \u00e9clair', '\u00c9'], ['', '?'], [' ! 2 bots', '2'], ['🙂 action', 'A'], ['---', '?'], [null, '?']]) {
     assert.equal(avatarInitial(name), initial);
   }
 });

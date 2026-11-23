@@ -1,13 +1,14 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GrokBot Assistant</title>
+  <title data-i18n="app.name">GrokBot Assistant</title>
   <link rel="stylesheet" href="../ui/tokens.css">
   <link rel="stylesheet" href="../ui/bot-picker.css">
   <link rel="stylesheet" href="prompt.css">
+  <script src="../lib/i18n.js" defer></script>
   <script src="../lib/markdown.js" defer></script>
   <script src="../lib/relative-time.js" defer></script>
   <script src="../ui/bot-picker.js" defer></script>
@@ -18,11 +19,11 @@
     <header>
       <span class="drag-handle" aria-hidden="true"></span>
       <div id="destination-picker"></div>
-      <button id="pin" class="icon-button" type="button" aria-label="Fixar" aria-pressed="false" title="Fixar (não fecha ao clicar fora)">
+      <button id="pin" class="icon-button" type="button" data-i18n-aria-label="prompt.pin" aria-label="Pin" aria-pressed="false" data-i18n-title="prompt.pinHelp" title="Pin (keep open when clicking outside)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5-3 1-4 4v4l-3-3-7 7 7-7-4-4h4l4-4Z"/></svg>
       </button>
-      <button id="close" class="icon-button" type="button" aria-label="Fechar" title="Fechar (Esc)">×</button>
-      <button id="settings" type="button" aria-label="Abrir configurações" title="Configurações (Ctrl+,)">
+      <button id="close" class="icon-button" type="button" data-i18n-aria-label="prompt.close" aria-label="Close" data-i18n-title="prompt.closeHelp" title="Close (Esc)">&#215;</button>
+      <button id="settings" type="button" data-i18n-aria-label="prompt.settings" aria-label="Open settings" data-i18n-title="prompt.settingsHelp" title="Settings (Ctrl+,)">
         <svg width="16" height="16" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="m9.5 3-.6 2.5-1.5.9L5 5.7 2.5 10l1.8 1.8v1.7l-1.8 1.8L5 19.6l2.4-.7 1.5.9.6 2.2h5l.6-2.2 1.5-.9 2.4.7 2.5-4.3-1.8-1.8v-1.7l1.8-1.8L19 5.7l-2.4.7-1.5-.9L14.5 3Z"/>
           <circle cx="12" cy="12" r="3"/>
@@ -31,30 +32,30 @@
     </header>
     <div id="content">
     <div id="usage-warning" role="status" hidden></div>
-    <section id="response" aria-label="Resposta do bot" hidden>
+    <section id="response" data-i18n-aria-label="prompt.response" aria-label="Bot reply" hidden>
       <div class="response-heading">
         <span id="response-avatar" class="avatar" aria-hidden="true">G</span>
         <strong id="response-name"></strong><span id="response-time"></span>
-        <button id="copy-response" class="icon-button" type="button" aria-label="Copiar resposta" title="Copiar resposta">
+        <button id="copy-response" class="icon-button" type="button" data-i18n-aria-label="prompt.copy" aria-label="Copy reply" data-i18n-title="prompt.copy" title="Copy reply">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><g id="copy-icon"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></g><path id="copy-check" d="m5 12 4 4L19 6" hidden/></svg>
         </button>
-        <button id="open-bot" class="icon-button" type="button" aria-label="Abrir conversa no Grok Bot" title="Abrir conversa no Grok Bot">
+        <button id="open-bot" class="icon-button" type="button" data-i18n-aria-label="prompt.openConversation" aria-label="Open conversation in Grok Bot" data-i18n-title="prompt.openConversation" title="Open conversation in Grok Bot">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M14 3h7v7m0-7L10 14m0-10H4v16h16v-6"/></svg>
         </button>
-        <button id="conversation-toggle" class="text-button" type="button" aria-pressed="false">Conversa</button>
+        <button id="conversation-toggle" class="text-button" type="button" aria-pressed="false" data-i18n="prompt.conversation">Conversation</button>
       </div>
       <div id="response-body" class="collapsed"></div>
-      <button id="expand-response" class="text-button" type="button" aria-expanded="false">Ver mais</button>
+      <button id="expand-response" class="text-button" type="button" aria-expanded="false" data-i18n="prompt.more">Show more</button>
     </section>
     <section id="waiting-area" aria-live="polite" hidden></section>
     </div>
-    <textarea id="message" rows="1" aria-label="Mensagem para o Grok Bot" placeholder="Pergunte ou peça algo…"></textarea>
+    <textarea id="message" rows="1" data-i18n-aria-label="prompt.message" aria-label="Message to Grok Bot" data-i18n-placeholder="prompt.placeholder" placeholder="Ask or tell Grok anything…"></textarea>
     <div id="error" role="alert" hidden></div>
     <footer>
-      <span class="hints"><kbd>Enter</kbd> enviar · <kbd>Shift+Enter</kbd> nova linha · <kbd>Esc</kbd> fechar</span>
+      <span class="hints"><kbd>Enter</kbd> <span data-i18n="prompt.hints.send">send</span> · <kbd>Shift+Enter</kbd> <span data-i18n="prompt.hints.newLine">new line</span> · <kbd>Esc</kbd> <span data-i18n="prompt.hints.close">close</span></span>
       <span id="counter" aria-live="polite" hidden>0/1000</span>
       <span id="usage-indicator" hidden></span>
-      <button id="send" type="button">Enviar ↵</button>
+      <button id="send" type="button" data-i18n="prompt.send">Send &#8629;</button>
     </footer>
   </main>
 </body>

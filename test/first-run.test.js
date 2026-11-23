@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { FALLBACK_SHORTCUTS, pickShortcut, isFirstRun } = require('../src/lib/first-run');
 
-test('usa o preferido quando ele registra e encerra as tentativas', () => {
+test('uses the preferred shortcut when registration succeeds and stops trying', () => {
   const attempts = [];
   assert.deepEqual(pickShortcut('Ctrl+G', (shortcut) => {
     attempts.push(shortcut);
@@ -11,7 +11,7 @@ test('usa o preferido quando ele registra e encerra as tentativas', () => {
   assert.deepEqual(attempts, ['Ctrl+G']);
 });
 
-test('usa o segundo atalho quando o preferido falha', () => {
+test('uses the second shortcut when the preferred one fails', () => {
   const attempts = [];
   assert.deepEqual(pickShortcut('Alt+Space', (shortcut) => {
     attempts.push(shortcut);
@@ -20,7 +20,7 @@ test('usa o segundo atalho quando o preferido falha', () => {
   assert.deepEqual(attempts, ['Alt+Space', 'Ctrl+Shift+Space']);
 });
 
-test('informa falha e preserva o preferido quando nenhum registra', () => {
+test('reports failure and preserves the preferred shortcut when none register', () => {
   const attempts = [];
   assert.deepEqual(pickShortcut('Ctrl+G', (shortcut) => {
     attempts.push(shortcut);
@@ -29,7 +29,7 @@ test('informa falha e preserva o preferido quando nenhum registra', () => {
   assert.deepEqual(attempts, ['Ctrl+G', ...FALLBACK_SHORTCUTS]);
 });
 
-test('não repete o preferido que já pertence à lista de alternativas', () => {
+test('does not retry the preferred shortcut when it is already an alternative', () => {
   const attempts = [];
   pickShortcut('Alt+Shift+G', (shortcut) => {
     attempts.push(shortcut);
@@ -38,7 +38,7 @@ test('não repete o preferido que já pertence à lista de alternativas', () => 
   assert.deepEqual(attempts, ['Alt+Shift+G', 'Alt+Space', 'Ctrl+Shift+Space', 'Ctrl+Alt+G']);
 });
 
-test('primeira execução depende da ausência do arquivo de configurações', () => {
+test('first run depends on the settings file being absent', () => {
   assert.equal(isFirstRun(false), true);
   assert.equal(isFirstRun(true), false);
 });

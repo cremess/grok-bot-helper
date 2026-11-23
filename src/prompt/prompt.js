@@ -1,3 +1,5 @@
+applyI18n();
+
 const textarea = document.getElementById('message');
 let destinationDetails = {};
 const card = document.getElementById('card');
@@ -19,8 +21,8 @@ window.grokbot.onUserSized((value) => {
 function showPinned(value) {
   pinned = value;
   pin.setAttribute('aria-pressed', String(pinned));
-  pin.setAttribute('aria-label', pinned ? 'Desafixar' : 'Fixar');
-  pin.title = pinned ? 'Desafixar' : 'Fixar (não fecha ao clicar fora)';
+  pin.setAttribute('aria-label', pinned ? t('prompt.unpin') : t('prompt.pin'));
+  pin.title = pinned ? t('prompt.unpin') : t('prompt.pinHelp');
 }
 
 pin.addEventListener('click', async () => {
@@ -28,7 +30,7 @@ pin.addEventListener('click', async () => {
   try {
     await window.grokbot.setPinned(value);
     showPinned(value);
-  } catch { showError('Não foi possível alterar a fixação.'); }
+  } catch { showError(t('errors.pin')); }
 });
 document.getElementById('close').addEventListener('click', () => window.grokbot.hide());
 document.querySelector('header').addEventListener('dblclick', (event) => {
@@ -43,10 +45,10 @@ const usageIndicator = document.getElementById('usage-indicator');
 let usage = {};
 const MAX_TEXT_LENGTH = 1000;
 const errors = {
-  empty: 'Digite uma mensagem.',
-  'too-long': 'A mensagem passa de 1000 caracteres.',
-  'invalid-bot-id': 'O bot configurado é inválido. Ajuste nas configurações.',
-  'open-failed': 'Não foi possível abrir o Grok Bot.',
+  empty: t('errors.empty'),
+  'too-long': t('errors.tooLong'),
+  'invalid-bot-id': t('errors.configuredBot'),
+  'open-failed': t('errors.open'),
 };
 let submitting = false;
 let resizeFrame;
@@ -82,7 +84,7 @@ const picker = BotPicker.create({
     try {
       const selected = await window.grokbot.selectBot({ botId: value.botId, botName: value.botName });
       if (version !== showVersion) return;
-      if (!selected.ok) { setBot(destinationDetails); showError('Não foi possível trocar de bot.'); return; }
+      if (!selected.ok) { setBot(destinationDetails); showError(t('errors.selectBot')); return; }
       setBot(selected.bot);
       conversation = selected.conversation;
       waiting = false;
@@ -92,7 +94,7 @@ const picker = BotPicker.create({
       expanded = false;
       renderConversation();
       textarea.focus();
-    } catch { setBot(destinationDetails); showError('Não foi possível trocar de bot.'); }
+    } catch { setBot(destinationDetails); showError(t('errors.selectBot')); }
   },
 });
 pickerContainer.addEventListener('botpicker:toggle', updateLayout);
@@ -105,9 +107,9 @@ function setBot(details) {
 function setUsage(data) {
   usage = data || {};
   usageWarning.hidden = !usage.blocked;
-  usageWarning.textContent = usage.blocked ? `Seu limite do Grok Bot acabou. Renova ${usage.resetText}.` : '';
+  usageWarning.textContent = usage.blocked ? t('prompt.usageBlocked', { reset: usage.resetText }) : '';
   usageIndicator.hidden = usage.blocked || !(usage.percentUsed >= 80);
-  usageIndicator.textContent = usageIndicator.hidden ? '' : `Uso: ${usage.percentUsed}%`;
+  usageIndicator.textContent = usageIndicator.hidden ? '' : t('prompt.usage', { percent: usage.percentUsed });
 }
 
 function textButton(label, action) {
@@ -139,7 +141,7 @@ document.getElementById('copy-response').addEventListener('click', async () => {
       document.getElementById('copy-icon').removeAttribute('hidden');
       document.getElementById('copy-check').setAttribute('hidden', '');
     }, 1200);
-  } catch { showError('Não foi possível copiar a resposta.'); }
+  } catch { showError(t('errors.copy')); }
 });
 document.getElementById('open-bot').addEventListener('click', async () => {
   try {
@@ -159,7 +161,7 @@ function measureResponse() {
     responseBody.classList.remove('overflowing');
     return;
   }
-  // Mede sempre na altura recolhida, inclusive depois de expandir.
+  // Always measure at the collapsed height, even after expanding.
   responseBody.classList.remove('expanded');
   responseBody.classList.add('collapsed');
   const overflowing = responseBody.scrollHeight > responseBody.clientHeight;
@@ -223,7 +225,7 @@ function bubble(entry) {
 }
 
 function updateTimes() {
-  if (conversation.latest) responseTime.textContent = `· ${relativeTime(conversation.latest.timestampMs, Date.now())}`;
+  if (conversation.latest) responseTime.textContent = t('prompt.responseTime', { time: relativeTime(conversation.latest.timestampMs, Date.now()) });
   for (const time of document.querySelectorAll('[data-timestamp]')) {
     time.textContent = relativeTime(Number(time.dataset.timestamp), Date.now());
   }
@@ -239,20 +241,20 @@ function startRelativeTimer() {
 function renderConversation(animate = false) {
   response.hidden = !conversation.ok || !conversation.latest;
   responseBody.replaceChildren();
-  responseName.textContent = destinationDetails.botName || (destinationDetails.botId ? `bot ${destinationDetails.botId.slice(0, 8)}` : 'bot padrão');
+  responseName.textContent = destinationDetails.botName || (destinationDetails.botId ? t('bot.fallback', { id: destinationDetails.botId.slice(0, 8) }) : t('bot.default'));
   responseAvatar.textContent = destinationDetails.botInitial || 'G';
   responseAvatar.style.backgroundColor = destinationDetails.botColor || '#1080f3';
-  conversationToggle.textContent = conversationView ? 'Última resposta' : 'Conversa';
+  conversationToggle.textContent = conversationView ? t('prompt.latest') : t('prompt.conversation');
   conversationToggle.setAttribute('aria-pressed', String(conversationView));
   responseBody.classList.toggle('collapsed', !userSized && !expanded && !conversationView);
   responseBody.classList.toggle('expanded', !userSized && (expanded || conversationView));
   expandResponse.hidden = userSized || conversationView;
-  expandResponse.textContent = expanded ? 'Ver menos' : 'Ver mais';
+  expandResponse.textContent = expanded ? t('prompt.less') : t('prompt.more');
   expandResponse.setAttribute('aria-expanded', String(expanded));
   if (!response.hidden) {
     if (conversationView) {
       for (const entry of conversation.entries || []) responseBody.append(bubble(entry));
-      // Como num chat, abre já nas mensagens mais recentes.
+      // Open at the latest messages, as in a chat.
       requestAnimationFrame(() => { responseBody.scrollTop = responseBody.scrollHeight; });
     } else renderMarkdown(responseBody, conversation.latest.text);
   }
@@ -268,8 +270,8 @@ function renderConversation(animate = false) {
     const status = document.createElement('p');
     status.className = 'waiting-status';
     status.append(awaitingDelivery
-      ? 'Aguardando o Grok Bot receber a mensagem… Confirme no Grok Bot se ele pedir.'
-      : `${responseName.textContent} está respondendo`);
+      ? t('prompt.awaitingDelivery')
+      : t('prompt.waiting', { bot: responseName.textContent }));
     const dots = document.createElement('span');
     dots.className = 'waiting-dots';
     dots.setAttribute('aria-hidden', 'true');
@@ -279,9 +281,9 @@ function renderConversation(animate = false) {
       dots.append(dot);
     }
     if (!awaitingDelivery) status.append(dots);
-    status.append(textButton('Parar', async () => {
+    status.append(textButton(t('prompt.stop'), async () => {
       try { await window.grokbot.stopWaiting(); }
-      catch { showError('Não foi possível parar a espera.'); }
+      catch { showError(t('errors.stop')); }
     }));
     waitingArea.append(status);
   } else if (notDelivered) {
@@ -289,26 +291,26 @@ function renderConversation(animate = false) {
       const failed = bubble(sent);
       const indicator = document.createElement('small');
       indicator.className = 'delivery-failure';
-      indicator.textContent = '⚠';
-      indicator.setAttribute('aria-label', 'Falha na entrega');
+      indicator.textContent = '\u26a0';
+      indicator.setAttribute('aria-label', t('prompt.deliveryFailed'));
       failed.append(indicator);
       waitingArea.append(failed);
     }
     const status = document.createElement('p');
     status.className = 'waiting-status';
-    status.textContent = `A mensagem não chegou ao Grok Bot. ${usage.blocked
-      ? `Seu limite acabou (renova ${usage.resetText}).`
-      : 'Talvez a confirmação tenha sido cancelada ou o Grok Bot esteja fechado.'}`;
+    status.textContent = t('prompt.deliveryMessage', { detail: usage.blocked
+      ? t('prompt.deliveryLimit', { reset: usage.resetText })
+      : t('prompt.deliveryHelp') });
     const retryText = sent?.text;
     const force = usage.blocked === true;
-    status.append(textButton('Tentar de novo', () => {
+    status.append(textButton(t('prompt.retry'), () => {
       if (typeof retryText === 'string') submit(force, retryText);
     }));
     waitingArea.append(status);
   } else if (timedOut) {
     const status = document.createElement('p');
     status.className = 'waiting-status';
-    status.textContent = 'A resposta está demorando. Confira no Grok Bot.';
+    status.textContent = t('prompt.timeout');
     waitingArea.append(status);
   }
   updateTimes();
@@ -345,7 +347,7 @@ window.grokbot.onConversation((data) => {
 
 function updateLayout() {
   const length = [...textarea.value].length;
-  counter.textContent = `${length}/${MAX_TEXT_LENGTH}`;
+  counter.textContent = t('prompt.counter', { length, max: MAX_TEXT_LENGTH });
   counter.hidden = length < 800;
   counter.classList.toggle('over-limit', length > MAX_TEXT_LENGTH);
   cancelAnimationFrame(resizeFrame);
@@ -356,7 +358,7 @@ function updateLayout() {
     if (userSized) return;
     const popover = pickerContainer.querySelector('.bot-picker-popover');
     const bottom = popover.hidden ? 0 : popover.getBoundingClientRect().bottom + 14;
-    // Mede a altura natural, sem usar a altura já esticada da janela flexível.
+    // Measure natural height without the stretched window height.
     const fixedHeight = [...card.children].filter((element) => element !== content && !element.hidden)
       .reduce((total, element) => {
         const style = getComputedStyle(element);
@@ -390,12 +392,12 @@ async function submit(force = false, retryText) {
       if (text) history = [...history.filter((item) => item !== text), text].slice(-50);
       historyIndex = null;
       textarea.value = '';
-      send.textContent = 'Enviado ✓';
+      send.textContent = t('prompt.sent');
       send.classList.add('sent');
       if (result.afterSend === 'wait') {
         submitting = false;
         send.disabled = false;
-        send.textContent = 'Enviar ↵';
+        send.textContent = t('prompt.send');
         send.classList.remove('sent');
         textarea.focus();
       }
@@ -403,15 +405,15 @@ async function submit(force = false, retryText) {
     } else {
       if (result.error === 'limit') {
         setUsage({ blocked: true, resetText: result.resetText, percentUsed: result.percentUsed });
-        showError(`O Grok Bot está sem limite agora (renova ${result.resetText}).`);
-        errorArea.append(textButton('Enviar mesmo assim', () => submit(true, submittedText)));
-      } else showError(errors[result.error] || 'Erro inesperado.');
+        showError(t('prompt.limit', { reset: result.resetText }));
+        errorArea.append(textButton(t('prompt.sendAnyway'), () => submit(true, submittedText)));
+      } else showError(errors[result.error] || t('errors.unexpected'));
       submitting = false;
       send.disabled = false;
     }
   } catch {
     if (version !== showVersion) return;
-    showError('Erro inesperado.');
+    showError(t('errors.unexpected'));
     submitting = false;
     send.disabled = false;
   }
@@ -457,7 +459,7 @@ window.grokbot.onShow(({ botId, botName, botColor, botInitial, history: savedHis
   showVersion += 1;
   submitting = false;
   send.disabled = false;
-  send.textContent = 'Enviar ↵';
+  send.textContent = t('prompt.send');
   send.classList.remove('sent');
   setBot({ botId, botName, botColor, botInitial });
   conversation = data || { ok: false };

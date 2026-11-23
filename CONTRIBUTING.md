@@ -1,74 +1,82 @@
-# Como contribuir
+# Contributing
 
-## Visão geral
+## Overview
 
-O GrokBot Assistant é um app para Windows que fica na bandeja e abre um prompt por atalho global.
-O envio ao bot escolhido usa o deep link `grokbot://app/v1/prompt`, com mensagens de até 1000 caracteres.
-A lista de bots e as conversas são obtidas por acesso somente de leitura aos arquivos locais do Grok Bot.
-Esse formato é interno e pode mudar em atualizações do Grok Bot.
+GrokBot Assistant is a Windows tray app that opens a prompt through a global shortcut.
+Messages of up to 1000 characters go to the selected bot through the `grokbot://app/v1/prompt` deep link.
+The bot list and conversations are read from Grok Bot's local files without modifying them.
+This internal format may change with Grok Bot updates.
 
-## Preparar o ambiente
+## Set up the environment
 
-Você precisa de Windows 10 ou 11, Node.js 22 ou superior, Git e Grok Bot instalado e aberto pelo menos uma vez.
-Clone o repositório usando a URL fornecida pelo mantenedor:
+You need Windows 10 or 11, Node.js 22 or later, Git, and Grok Bot installed and opened at least once.
+Clone the repository using the URL supplied by the maintainer:
 
 ```powershell
-git clone <URL-do-repositorio>
+git clone <repository-url>
 cd grokbot-assistant
 npm install
 npm start
 ```
 
-Use em `cd` o nome da pasta criada pelo clone. Se o binário `node_modules/electron/dist/electron.exe` não vier na instalação, execute `node node_modules/electron/install.js` antes de iniciar.
+Use the directory created by the clone in the `cd` command. If installation does not download
+`node_modules/electron/dist/electron.exe`, run `node node_modules/electron/install.js` before starting.
 
-## Comandos
+## Commands
 
-- `npm start`: inicia o app pelo Electron.
-- `npm test`: executa os testes com o runner nativo do Node.js.
-- `npm run check`: verifica a sintaxe dos arquivos JavaScript em `src/`, `scripts/` e `test/`.
-- `npm run icons`: gera os ícones PNG e ICO a partir dos SVGs em `assets/`.
-- `npm run dist`: gera o instalador NSIS para Windows de 64 bits em `dist/`.
+- `npm start`: launch the app with Electron.
+- `npm test`: run tests with Node.js's built-in runner.
+- `npm run check`: check JavaScript syntax in `src/`, `scripts/`, and `test/`.
+- `npm run icons`: generate PNG and ICO icons from SVGs in `assets/`.
+- `npm run dist`: build the 64-bit Windows NSIS installer in `dist/`.
 
-## Estrutura de pastas
+## Directory structure
 
-| Caminho | Conteúdo |
+| Path | Contents |
 | --- | --- |
-| `src/main.js` | Processo principal: janelas, bandeja, atalhos e integração com o Grok Bot. |
-| `src/lib/` | Lógica testável, incluindo funções puras e leitura e gravação de arquivos. |
-| `src/prompt/` | Interface do prompt e da conversa. |
-| `src/settings/` | Interface de configurações e boas-vindas. |
-| `src/ui/` | Tokens visuais e componente BotPicker compartilhado. |
-| `assets/` | SVGs e ícones do app. |
-| `scripts/` | Geração de ícones e verificação de sintaxe. |
-| `test/` | Testes automatizados com `node:test`. |
-| `.handoff/` | Registro do fluxo Claude Code + Codex usado pelo mantenedor; contribuidores não precisam usar. |
+| `src/main.js` | Main process: windows, tray, shortcuts, and Grok Bot integration. |
+| `src/lib/` | Testable logic, including pure functions and file access. |
+| `src/prompt/` | Prompt and conversation UI. |
+| `src/settings/` | Settings and welcome UI. |
+| `src/ui/` | Visual tokens and the shared BotPicker component. |
+| `assets/` | App SVGs and icons. |
+| `scripts/` | Icon generation and syntax checks. |
+| `test/` | Automated tests using `node:test`. |
+| `.handoff/` | The maintainer's Claude Code + Codex workflow log; contributors do not need to use it. |
 
-## Regras do código
+## Code guidelines
 
-- Use CommonJS. Coloque lógica nova de preferência em `src/lib/`, com testes em `test/` usando `node:test`.
-- Preserve a segurança das janelas: `contextIsolation: true`, `sandbox: true` e `nodeIntegration: false`. A CSP deve permanecer sem `unsafe-inline`.
-- **Nunca** use `innerHTML` com conteúdo externo. Nomes de bots e mensagens vêm de arquivos do Grok Bot; construa os elementos com APIs do DOM e use `textContent` para texto.
-- Mantenha deep links e chamadas a `shell.openExternal` somente no processo principal. Valide os IDs dos bots antes de montar deep links e restrinja os protocolos dos links externos, como no código atual.
-- Não inclua dados pessoais, tokens ou caminhos do seu computador no código ou nos testes. Use dados fictícios e pastas temporárias nos testes de arquivos.
-- Escreva textos de interface e comentários em português do Brasil.
-- Discuta novas dependências no PR antes de adicioná-las.
+- Use CommonJS. Prefer placing new logic in `src/lib/`, with `node:test` tests in `test/`.
+- Preserve window security: `contextIsolation: true`, `sandbox: true`, and `nodeIntegration: false`. Keep the CSP free of `unsafe-inline`.
+- **Never** use `innerHTML` with external content. Bot names and messages come from Grok Bot files; build elements with DOM APIs and use `textContent` for text.
+- Keep deep links and `shell.openExternal` calls in the main process. Validate bot IDs before building deep links and restrict external link protocols as the current code does.
+- Do not include personal data, tokens, or paths from your computer in code or tests. Use fictional data and temporary directories for file tests.
+- Write UI text, comments, test names, and docs in English. Strings live in `src/lib/i18n.js`; add all new UI text there and use `t()`. Use the `data-i18n` attributes for static HTML, with English fallback text.
+- Discuss new dependencies in the PR before adding them.
 
-## Testar sem gastar tokens do Grok Bot
+## Test without using Grok Bot tokens
 
-Para testar a interface e simular envio e resposta, use um script executado pelo Electron que chame `app.setPath('appData', <pasta temporária>)` **antes** de carregar `src/main.js`. O processo principal deriva desse caminho tanto os dados do Assistant quanto a pasta `Grok Bot/sand-client-persistence`.
+To test the UI and simulate sending and receiving, use an Electron script that calls
+`app.setPath('appData', <temporary directory>)` **before** loading `src/main.js`.
+The main process derives both the Assistant data directory and `Grok Bot/sand-client-persistence` from that path.
 
-Copie para essa pasta temporária somente os arquivos necessários do Grok Bot: a lista de bots, a conversa do bot escolhido e, se usar o bot padrão, a seleção do último bot. Prefira cópias com conteúdo fictício, seguindo os formatos exercitados em `test/roster.test.js` e `test/transcript.test.js`.
+Copy only the required Grok Bot files into the temporary directory: the roster, the selected bot's
+conversation, and the last bot selection if using the default bot. Prefer fictional contents,
+following the formats exercised by `test/roster.test.js` and `test/transcript.test.js`.
 
-Antes de carregar o processo principal, intercepte `shell.openExternal` para registrar o link e simular uma conclusão bem-sucedida, sem abrir o Grok Bot. Para simular uma resposta, atualize apenas a cópia temporária da conversa com uma mensagem do bot e um horário posterior ao envio; o app consulta esse arquivo periodicamente. Assim é possível testar o fluxo sem enviar mensagens reais nem alterar os arquivos do Grok Bot real. Esse script é um recurso de teste local e não está incluído no repositório.
+Before loading the main process, intercept `shell.openExternal` to log the link and simulate success
+without opening Grok Bot. To simulate a reply, update only the temporary conversation copy with a bot
+message timestamped after sending; the app polls that file. This tests the flow without sending real
+messages or changing real Grok Bot files. This local testing script is not included in the repository.
 
-## Fluxo de contribuição
+## Contribution workflow
 
-1. Crie uma branch a partir da `main`, com prefixo `feat/` ou `fix/`.
-2. Faça commits pequenos, com mensagens no imperativo em português, como “Adicione validação do texto”.
-3. Execute `npm run check` e `npm test` e faça o teste manual pertinente no Windows.
-4. Abra um PR para `main`, preencha o modelo e anexe uma captura de tela se alterou a interface.
-5. Aguarde o CI passar e peça revisão do Pedro.
+1. Create a branch from `main` with a `feat/` or `fix/` prefix.
+2. Make small commits with imperative English messages, such as "Add text validation".
+3. Run `npm run check` and `npm test`, then perform the relevant manual test on Windows.
+4. Open a PR against `main`, fill in the template, and attach a screenshot for UI changes.
+5. Wait for CI to pass and ask the maintainer (@pedrofigueiredo25) for a review.
 
-## Reportar problemas
+## Report issues
 
-Abra uma issue com os passos para reproduzir, o resultado esperado, o que aconteceu e as versões do Windows e do Grok Bot.
+Open an issue with reproduction steps, the expected result, what happened, and the Windows and Grok Bot versions.

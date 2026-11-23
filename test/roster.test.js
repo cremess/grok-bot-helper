@@ -35,40 +35,40 @@ const bot = {
 };
 const roster = (rows) => ({ schemaVersion: 4, value: { rows } });
 
-test('base32 corresponde ao vetor conhecido e faz ida e volta em UTF-8', () => {
+test('base32 matches a known vector and round-trips UTF-8', () => {
   assert.equal(encodeBase32('sand'), 'onqw4za');
-  for (const text of ['', 'sand', 'ASCII 123', 'grok%7Cuser_01ABC', 'Ação, café e coração 😀']) {
+  for (const text of ['', 'sand', 'ASCII 123', 'grok%7Cuser_01ABC', 'A caf\u00e9 and a smile 😀']) {
     const encoded = encodeBase32(text);
     assert.match(encoded, /^[a-z2-7]*$/);
     assert.equal(decodeBase32(encoded), text);
     assert.equal(decodeBase32(encoded.toUpperCase()), text);
   }
-  for (const text of ['onqw4za=', 'abc1', 'abc0', 'ab c', 'ab!c', 'á', null]) {
+  for (const text of ['onqw4za=', 'abc1', 'abc0', 'ab c', 'ab!c', '\u00e9', null]) {
     assert.equal(decodeBase32(text), null);
   }
 });
 
-test('findRosterFile retorna null para pasta inexistente ou sem roster', () => {
-  assert.equal(findRosterFile(path.join(temporaryDirectory, 'ausente')), null);
-  const dir = createDirectory('sem-roster');
-  fs.writeFileSync(path.join(dir, 'invalido!.blob'), '{}');
-  fs.writeFileSync(path.join(dir, `${encodeBase32('outra.chave')}.blob`), '{}');
+test('findRosterFile returns null for missing directories or rosters', () => {
+  assert.equal(findRosterFile(path.join(temporaryDirectory, 'missing')), null);
+  const dir = createDirectory('no-roster');
+  fs.writeFileSync(path.join(dir, 'invalid!.blob'), '{}');
+  fs.writeFileSync(path.join(dir, `${encodeBase32('other.key')}.blob`), '{}');
   fs.writeFileSync(path.join(dir, `${encodeBase32('sand.client.slice.account.a.roster.last-roster')}.txt`), '{}');
   assert.equal(findRosterFile(dir), null);
 });
 
-test('findRosterFile encontra o roster entre outros blobs e retorna caminho absoluto', () => {
+test('findRosterFile finds the roster among other blobs and returns an absolute path', () => {
   const dir = createDirectory('roster');
-  fs.writeFileSync(path.join(dir, `${encodeBase32('outra.chave')}.blob`), '{}');
+  fs.writeFileSync(path.join(dir, `${encodeBase32('other.key')}.blob`), '{}');
   const filePath = writeRoster(dir, 'grok%7Cuser_01ABC', '{}');
   assert.equal(findRosterFile(dir), filePath);
   assert.equal(path.isAbsolute(findRosterFile(dir)), true);
 });
 
-test('findRosterFile escolhe o mtime mais recente entre contas', () => {
-  const dir = createDirectory('contas');
-  const first = writeRoster(dir, 'conta-a', '{}');
-  const second = writeRoster(dir, 'conta-b', '{}');
+test('findRosterFile selects the newest mtime across accounts', () => {
+  const dir = createDirectory('accounts');
+  const first = writeRoster(dir, 'account-a', '{}');
+  const second = writeRoster(dir, 'account-b', '{}');
   fs.utimesSync(first, new Date('2020-01-01'), new Date('2020-01-01'));
   fs.utimesSync(second, new Date('2021-01-01'), new Date('2021-01-01'));
   assert.equal(findRosterFile(dir), second);
@@ -76,53 +76,53 @@ test('findRosterFile escolhe o mtime mais recente entre contas', () => {
   assert.equal(findRosterFile(dir), first);
 });
 
-test('parseRoster aceita objeto ou JSON e retorna só id, nome aparado e cor', () => {
-  const data = roster([{ ...bot, name: '  Grok  ', extra: 'ignorado' }]);
+test('parseRoster accepts an object or JSON and returns only id, trimmed name and color', () => {
+  const data = roster([{ ...bot, name: '  Grok  ', extra: 'ignored' }]);
   const expected = [{ id: bot.id, name: 'Grok', color: 'black' }];
   assert.deepEqual(parseRoster(data), expected);
   assert.deepEqual(parseRoster(JSON.stringify(data)), expected);
   assert.equal(data.value.rows[0].name, '  Grok  ');
 });
 
-test('parseRoster retorna lista vazia para JSON inválido ou formato inesperado', () => {
+test('parseRoster returns an empty list for invalid JSON or unexpected formats', () => {
   for (const data of ['{', '', 'null', null, undefined, [], {}, { value: {} },
     { value: { rows: {} } }, { value: { rows: null } }]) {
     assert.deepEqual(parseRoster(data), []);
   }
 });
 
-test('parseRoster filtra removidos, grupos, IDs inválidos e nomes vazios', () => {
+test('parseRoster filters removed bots, groups, invalid IDs and empty names', () => {
   const rows = [null, 42, {}, { ...bot, isRemovedFromSidebar: true },
-    { ...bot, isGroup: true }, { ...bot, id: 'ID inválido' }, { ...bot, id: '' },
+    { ...bot, isGroup: true }, { ...bot, id: 'invalid ID' }, { ...bot, id: '' },
     { ...bot, name: '  ' }, { ...bot, name: 42 },
     { ...bot, isHiddenFromSidebar: true }];
   assert.deepEqual(parseRoster(roster(rows)), [{ id: bot.id, name: 'Grok', color: 'black' }]);
 });
 
-test('parseRoster ordena por atividade e desempata por nome em pt-BR', () => {
+test('parseRoster sorts by activity and breaks ties by name in en-US', () => {
   const rows = [
     { id: 'z', name: 'Zebra' },
     { id: 'b', name: 'Beta', lastActivityAt: 10 },
-    { id: 'a', name: 'Árvore', lastActivityAt: 10 },
-    { id: 'recent', name: 'Recente', lastActivityAt: 20 },
-    { id: 'old', name: 'Antigo', lastActivityAt: -1 },
+    { id: 'a', name: '\u00c1corn', lastActivityAt: 10 },
+    { id: 'recent', name: 'Recent', lastActivityAt: 20 },
+    { id: 'old', name: 'Old', lastActivityAt: -1 },
   ];
   assert.deepEqual(parseRoster(roster(rows)).map(({ id }) => id), ['recent', 'a', 'b', 'z', 'old']);
 });
 
-test('parseRoster remove IDs duplicados mantendo o primeiro após ordenar', () => {
+test('parseRoster removes duplicate IDs keeping the first after sorting', () => {
   const rows = [
-    { ...bot, name: 'Antigo', lastActivityAt: 1 },
-    { ...bot, name: 'Novo', lastActivityAt: 2 },
-    { id: 'outro', name: 'Outro' },
+    { ...bot, name: 'Old', lastActivityAt: 1 },
+    { ...bot, name: 'New', lastActivityAt: 2 },
+    { id: 'other', name: 'Other' },
   ];
   assert.deepEqual(parseRoster(roster(rows)), [
-    { id: bot.id, name: 'Novo', color: 'black' },
-    { id: 'outro', name: 'Outro', color: null },
+    { id: bot.id, name: 'New', color: 'black' },
+    { id: 'other', name: 'Other', color: null },
   ]);
 });
 
-test('parseRoster limita o nome a 80 caracteres e normaliza cores ausentes', () => {
+test('parseRoster limits names to 80 characters and normalizes absent colors', () => {
   for (const avatarColor of [undefined, null, 42, '', '   ']) {
     assert.deepEqual(parseRoster(roster([{ ...bot, name: ` ${'a'.repeat(90)} `, avatarColor }])), [
       { id: bot.id, name: 'a'.repeat(80), color: null },
@@ -130,14 +130,14 @@ test('parseRoster limita o nome a 80 caracteres e normaliza cores ausentes', () 
   }
 });
 
-test('listBots retorna not-found quando pasta ou roster não existem', () => {
-  assert.deepEqual(listBots(path.join(temporaryDirectory, 'inexistente')), { ok: false, error: 'not-found' });
-  assert.deepEqual(listBots(createDirectory('lista-vazia')), { ok: false, error: 'not-found' });
+test('listBots returns not-found for missing directories or rosters', () => {
+  assert.deepEqual(listBots(path.join(temporaryDirectory, 'nonexistent')), { ok: false, error: 'not-found' });
+  assert.deepEqual(listBots(createDirectory('empty-list')), { ok: false, error: 'not-found' });
 });
 
-test('listBots trata JSON quebrado como lista vazia e lê o caso válido', () => {
-  const dir = createDirectory('lista');
-  const filePath = writeRoster(dir, 'conta', '{');
+test('listBots treats broken JSON as an empty list and reads valid data', () => {
+  const dir = createDirectory('list');
+  const filePath = writeRoster(dir, 'account', '{');
   assert.deepEqual(listBots(dir), { ok: true, bots: [] });
   fs.writeFileSync(filePath, JSON.stringify(roster([bot])), 'utf8');
   assert.deepEqual(listBots(dir), {
@@ -145,12 +145,12 @@ test('listBots trata JSON quebrado como lista vazia e lê o caso válido', () =>
   });
 });
 
-test('listBots retorna unreadable em erro de leitura sem lançar', (t) => {
-  const dir = createDirectory('ilegivel');
-  const filePath = writeRoster(dir, 'conta', '{}');
+test('listBots returns unreadable on read errors without throwing', (t) => {
+  const dir = createDirectory('unreadable');
+  const filePath = writeRoster(dir, 'account', '{}');
   const originalRead = fs.readFileSync;
   t.mock.method(fs, 'readFileSync', (target, ...args) => {
-    if (target === filePath) throw Object.assign(new Error('Acesso negado'), { code: 'EACCES' });
+    if (target === filePath) throw Object.assign(new Error('Access denied'), { code: 'EACCES' });
     return originalRead(target, ...args);
   });
   assert.deepEqual(listBots(dir), { ok: false, error: 'unreadable' });

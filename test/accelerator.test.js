@@ -15,14 +15,14 @@ const cases = [
 ];
 
 for (const [event, expected] of cases) {
-  test(`converte ${JSON.stringify(event)} em ${expected}`, () => {
+  test(`converts ${JSON.stringify(event)} to ${expected}`, () => {
     const actual = acceleratorFromKeyEvent(event);
     assert.equal(actual, expected);
     if (actual !== null) assert.equal(isValidShortcut(actual), true);
   });
 }
 
-test('todos os códigos e combinações suportados geram atalhos válidos', () => {
+test('all supported key codes and combinations produce valid shortcuts', () => {
   const codes = [
     ...Array.from({ length: 26 }, (_, i) => `Key${String.fromCharCode(65 + i)}`),
     ...Array.from({ length: 10 }, (_, i) => `Digit${i}`),

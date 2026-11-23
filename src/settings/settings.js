@@ -1,3 +1,5 @@
+applyI18n();
+
 const form = document.getElementById('settings-form');
 const fields = document.getElementById('fields');
 const bot = document.getElementById('bot');
@@ -31,7 +33,7 @@ document.getElementById('clear-yes').addEventListener('click', async (event) => 
   event.target.disabled = true;
   try {
     const result = await window.grokbotSettings.clearHistory();
-    if (result.ok) { closeClearConfirmation(); showToast('Histórico de envios limpo'); }
+    if (result.ok) { closeClearConfirmation(); showToast(t('settings.history.cleared')); }
     else showError();
   } catch { showError(); }
   finally { event.target.disabled = false; }
@@ -41,8 +43,8 @@ const afterSendHelp = document.getElementById('after-send-help');
 function renderAfterSend(value) {
   if (value) for (const option of afterSendOptions) option.checked = option.value === value;
   afterSendHelp.textContent = afterSendOptions.find((option) => option.checked)?.value === 'hide'
-    ? 'Fecha; marca a bandeja ao chegar.'
-    : 'Mostra a resposta no prompt.';
+    ? t('settings.rows.afterSend.hideHelp')
+    : t('settings.rows.afterSend.waitHelp');
 }
 for (const option of afterSendOptions) option.addEventListener('change', () => renderAfterSend());
 const status = document.getElementById('status');
@@ -53,7 +55,7 @@ let preselectFirstBot = false;
 if (welcomeMode) {
   document.body.classList.add('welcome');
   welcomeCard.hidden = false;
-  save.textContent = 'Salvar e começar';
+  save.textContent = t('settings.saveStart');
 }
 let bots = [];
 let selection = { mode: 'default', botId: '', botName: '' };
@@ -64,11 +66,11 @@ let recording = false;
 let toastTimer;
 
 const errors = {
-  'invalid-option': 'Selecione opções válidas para notificação e tema.',
-  'invalid-bot': 'Link ou ID do bot inválido.',
-  'invalid-shortcut': 'Atalho inválido.',
-  'invalid-after-send': 'Selecione uma opção válida para depois de enviar.',
-  'shortcut-taken': 'Esse atalho já está em uso por outro programa.',
+  'invalid-option': t('settings.errors.option'),
+  'invalid-bot': t('settings.errors.bot'),
+  'invalid-shortcut': t('settings.errors.shortcut'),
+  'invalid-after-send': t('settings.errors.afterSend'),
+  'shortcut-taken': t('settings.errors.shortcutTaken'),
 };
 
 function showToast(message, isError = false) {
@@ -80,14 +82,14 @@ function showToast(message, isError = false) {
 }
 
 function showError(error) {
-  showToast(errors[error] || 'Erro inesperado.', true);
+  showToast(errors[error] || t('errors.unexpected'), true);
 }
 
 function renderShortcut() {
   renderWelcome();
   shortcut.replaceChildren();
   if (recording) {
-    shortcut.textContent = 'Pressione a combinação…';
+    shortcut.textContent = t('settings.shortcut.press');
     return;
   }
   for (const key of currentShortcut.split('+')) {
@@ -101,12 +103,13 @@ function renderWelcome() {
   if (!welcomeMode) return;
   welcomeMessage.replaceChildren();
   if (bots.length === 0) {
-    welcomeMessage.textContent = 'Não encontrei o Grok Bot neste computador. Instale e abra o Grok Bot, depois clique em Atualizar lista.';
+    welcomeMessage.textContent = t('settings.welcome.missing');
     return;
   }
   const kbd = document.createElement('kbd');
   kbd.textContent = currentShortcut || '';
-  welcomeMessage.append('Escolha para qual bot do Grok Bot suas mensagens vão. Depois é só apertar ', kbd, ' em qualquer lugar.');
+  const [before, after] = t('settings.welcome.message').split('{shortcut}');
+  welcomeMessage.append(before, kbd, after);
 }
 
 function preselectBot() {
@@ -119,7 +122,7 @@ function stopRecording() {
   if (!recording) return;
   recording = false;
   record.classList.remove('recording');
-  record.textContent = 'Alterar';
+  record.textContent = t('settings.shortcut.change');
   renderShortcut();
   window.grokbotSettings.setRecording(false).catch(() => showError());
 }
@@ -129,7 +132,7 @@ record.addEventListener('click', () => {
   previousShortcut = currentShortcut;
   recording = true;
   record.classList.add('recording');
-  record.textContent = 'Gravando…';
+  record.textContent = t('settings.shortcut.recording');
   renderShortcut();
   window.grokbotSettings.setRecording(true).catch(() => {
     stopRecording();
@@ -237,7 +240,7 @@ form.addEventListener('submit', async (event) => {
     launchAtLogin.checked = result.settings.launchAtLogin;
     renderAfterSend(result.settings.afterSend);
     renderGeneral(result.settings);
-    showToast('Configurações salvas');
+    showToast(t('settings.saved'));
     if (welcomeMode) setTimeout(() => window.close(), 800);
   } catch {
     showError();

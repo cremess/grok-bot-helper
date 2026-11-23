@@ -14,7 +14,7 @@ function createFallbackIcon() {
   const size = 16;
   const bitmap = Buffer.alloc(size * size * 4);
 
-  // Cada pixel usa a ordem BGRA para formar o quadrado azul #1080f3.
+  // Each pixel uses BGRA order to form the blue #1080f3 square.
   for (let offset = 0; offset < bitmap.length; offset += 4) {
     bitmap[offset] = 0xf3;
     bitmap[offset + 1] = 0x80;

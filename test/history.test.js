@@ -8,45 +8,45 @@ const { loadHistory, addToHistory, saveHistory } = require('../src/lib/history')
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'grokbot-history-'));
 after(() => fs.rmSync(directory, { recursive: true, force: true }));
 
-test('carregamento ausente, corrompido ou de formato inválido retorna lista vazia sem lançar', () => {
-  assert.deepEqual(loadHistory(path.join(directory, 'ausente.json')), []);
+test('missing, corrupt or invalid history loads as an empty list without throwing', () => {
+  assert.deepEqual(loadHistory(path.join(directory, 'missing.json')), []);
   assert.deepEqual(loadHistory(null), []);
   assert.deepEqual(loadHistory(directory), []);
-  const file = path.join(directory, 'invalido.json');
-  for (const text of ['', '{', '{}', 'null', '123', '"texto"']) {
+  const file = path.join(directory, 'invalid.json');
+  for (const text of ['', '{', '{}', 'null', '123', '"text"']) {
     fs.writeFileSync(file, text);
     assert.deepEqual(loadHistory(file), []);
   }
 });
 
-test('adicionar aplica trim, move duplicata para o fim e preserva a lista original', () => {
-  const list = ['primeiro', 'segundo'];
-  assert.deepEqual(addToHistory(list, ' primeiro '), ['segundo', 'primeiro']);
-  assert.deepEqual(list, ['primeiro', 'segundo']);
+test('adding trims text, moves duplicates to the end and preserves the original list', () => {
+  const list = ['first', 'second'];
+  assert.deepEqual(addToHistory(list, ' first '), ['second', 'first']);
+  assert.deepEqual(list, ['first', 'second']);
   const unchanged = addToHistory(list, '  \n ');
   assert.deepEqual(unchanged, list);
   assert.notStrictEqual(unchanged, list);
   assert.deepEqual(addToHistory(list, null), list);
-  assert.deepEqual(addToHistory(['Olá'], 'olá'), ['Olá', 'olá']);
+  assert.deepEqual(addToHistory(['Hello'], 'hello'), ['Hello', 'hello']);
 });
 
-test('adicionar limita aos 50 envios mais recentes e aceita limite personalizado', () => {
+test('adding keeps the latest 50 messages and accepts a custom limit', () => {
   const list = Array.from({ length: 55 }, (_, index) => String(index));
-  assert.deepEqual(addToHistory(list, 'último'), [...list.slice(-49), 'último']);
-  assert.deepEqual(addToHistory(list, 'último', 2), ['54', 'último']);
+  assert.deepEqual(addToHistory(list, 'last'), [...list.slice(-49), 'last']);
+  assert.deepEqual(addToHistory(list, 'last', 2), ['54', 'last']);
 });
 
-test('salvar cria pasta e substitui atomicamente, carregar filtra dados e limita o histórico', () => {
-  const file = path.join(directory, 'subpasta', 'history.json');
-  const list = ['primeiro', 'ação com acentuação'];
+test('saving creates directories and replaces atomically; loading filters data and limits history', () => {
+  const file = path.join(directory, 'subdirectory', 'history.json');
+  const list = ['first', 'a caf\u00e9 with accents'];
   saveHistory(file, list);
   assert.deepEqual(loadHistory(file), list);
   assert.equal(fs.existsSync(`${file}.tmp`), false);
-  saveHistory(file, ['outro']);
-  assert.deepEqual(loadHistory(file), ['outro']);
+  saveHistory(file, ['other']);
+  assert.deepEqual(loadHistory(file), ['other']);
   assert.equal(fs.existsSync(`${file}.tmp`), false);
-  const many = Array.from({ length: 60 }, (_, index) => `texto ${index}`);
-  fs.writeFileSync(file, JSON.stringify([null, 1, {}, ...many, '', '  ', 'texto 59']));
+  const many = Array.from({ length: 60 }, (_, index) => `text ${index}`);
+  fs.writeFileSync(file, JSON.stringify([null, 1, {}, ...many, '', '  ', 'text 59']));
   assert.deepEqual(loadHistory(file), many.slice(-50));
   saveHistory(file, []);
   assert.deepEqual(loadHistory(file), []);

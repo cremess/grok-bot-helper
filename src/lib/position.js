@@ -1,5 +1,5 @@
 function promptPosition(workArea, size) {
-  // Se a janela for maior que a área, ancora na origem disponível.
+  // Anchor at the work area origin if the window is larger.
   const maxX = workArea.x + Math.max(0, workArea.width - size.width);
   const maxY = workArea.y + Math.max(0, workArea.height - size.height);
   const x = workArea.x + Math.round((workArea.width - size.width) / 2);

@@ -14,7 +14,7 @@ function avatarColor(colorName, id) {
 }
 
 function avatarInitial(name) {
-  return (typeof name === 'string' ? name.match(/[\p{L}\p{N}]/u)?.[0] : null)?.toLocaleUpperCase('pt-BR') || '?';
+  return (typeof name === 'string' ? name.match(/[\p{L}\p{N}]/u)?.[0] : null)?.toLocaleUpperCase('en-US') || '?';
 }
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { avatarColor, avatarInitial };

@@ -1,3 +1,4 @@
+const { t } = require('./lib/i18n');
 const path = require('node:path');
 const fs = require('node:fs');
 const { app, BrowserWindow, globalShortcut, ipcMain, Menu, nativeTheme, screen, shell, Tray, clipboard, Notification } = require('electron');
@@ -13,7 +14,7 @@ const { loadSettings, saveSettings, isValidShortcut, DEFAULT_SETTINGS } = requir
 const { promptPosition, isBoundsVisible } = require('./lib/position');
 const { pickShortcut, isFirstRun } = require('./lib/first-run');
 
-// Mantém o ícone vivo durante a execução do app.
+// Keep the tray icon alive while the app runs.
 let tray;
 let promptWindow;
 let settingsWindow;
@@ -67,7 +68,7 @@ function rememberPromptBounds() {
   clearTimeout(boundsSaveTimer);
   boundsSaveTimer = setTimeout(() => {
     try { settings = saveSettings(settingsLocation.path, settings); }
-    catch { /* Mantém os limites em memória se não for possível salvar. */ }
+    catch { /* Keep bounds in memory if saving fails. */ }
     promptWindow.webContents.send('prompt:user-sized', Boolean(settings.promptBounds));
   }, 400);
 }
@@ -114,7 +115,7 @@ function usageDetails() {
 
 function clearUnread() {
   tray.setImage(createTrayIcon());
-  tray.setToolTip('GrokBot Assistant');
+  tray.setToolTip(t('app.name'));
 }
 
 function stopWaiting() {
@@ -159,14 +160,14 @@ function startWaiting(request) {
     });
     if (notDelivered && request.mode === 'hide' && !promptWindow.isVisible()) {
       tray.setImage(createTrayIcon({ unread: true }));
-      tray.setToolTip('GrokBot Assistant — A mensagem não chegou ao Grok Bot');
+      tray.setToolTip(t('tray.deliveryFailed'));
     }
     if (reply && !promptWindow.isVisible()) {
       const roster = listBots(GROK_BOT_DIRECTORY);
       const name = settings.botName || (roster.ok && roster.bots.find((bot) => bot.id === result.agentId)?.name)
-        || (settings.botId ? `bot ${settings.botId.slice(0, 8)}` : 'bot padrão');
+        || (settings.botId ? t('bot.fallback', { id: settings.botId.slice(0, 8) }) : t('bot.default'));
       tray.setImage(createTrayIcon({ unread: true }));
-      tray.setToolTip(`GrokBot Assistant — Nova resposta de ${name}`);
+      tray.setToolTip(t('tray.newReply', { name }));
       if (settings.notifyOnReply && Notification.isSupported()) {
         const notification = new Notification({ title: name,
           body: [...reply.text.replace(/[*`#]/g, '')].slice(0, 140).join(''),
@@ -197,7 +198,7 @@ function openSettings({ welcome = false } = {}) {
     maximizable: false,
     fullscreenable: false,
     autoHideMenuBar: true,
-    title: 'GrokBot Assistant — Configurações',
+    title: t('settings.windowTitle'),
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#1b1b1f' : '#f6f6f8',
     webPreferences: {
       preload: path.join(__dirname, 'settings-preload.js'),
@@ -261,12 +262,12 @@ function applyShortcut(accelerator) {
       return true;
     }
   } catch {
-    // Avisa também quando o Electron rejeita o acelerador.
+    // Also warn when Electron rejects the accelerator.
   }
 
   tray.displayBalloon({
-    title: 'GrokBot Assistant',
-    content: `Não foi possível registrar o atalho ${accelerator}. Ele pode estar em uso por outro programa.`,
+    title: t('app.name'),
+    content: t('balloon.shortcutUnavailable', { shortcut: accelerator }),
   });
   return false;
 }
@@ -284,15 +285,15 @@ if (!app.requestSingleInstanceLock()) {
     nativeTheme.themeSource = settings.theme;
     nativeTheme.on('updated', updateSettingsBackground);
     tray = new Tray(createTrayIcon());
-    tray.setToolTip('GrokBot Assistant');
+    tray.setToolTip(t('app.name'));
     tray.setContextMenu(Menu.buildFromTemplate([
-      { label: 'Abrir prompt', click: () => {
+      { label: t('tray.openPrompt'), click: () => {
         if (promptWindow && !promptWindow.isVisible()) togglePrompt();
       } },
-      { label: 'Configurações…', click: () => openSettings() },
-      { label: 'Restaurar posição do prompt', click: resetPromptBounds },
+      { label: t('tray.settings'), click: () => openSettings() },
+      { label: t('tray.resetPosition'), click: resetPromptBounds },
       { type: 'separator' },
-      { label: 'Sair', click: () => app.quit() },
+      { label: t('tray.quit'), click: () => app.quit() },
     ]));
     tray.on('click', () => {
       if (promptWindow && !promptWindow.isVisible()) togglePrompt();
@@ -427,7 +428,7 @@ if (!app.requestSingleInstanceLock()) {
     promptWindow.on('blur', () => {
       if (!pinned && !sendingPrompt && pending?.mode !== 'wait') promptWindow.hide();
     });
-    // will-move/will-resize são emitidos somente para alterações manuais no Windows.
+    // Windows emits will-move/will-resize only for manual changes.
     for (const event of ['will-move', 'will-resize']) {
       promptWindow.on(event, () => {
         if (!settingPromptBounds) userChangingBounds = true;
@@ -435,7 +436,7 @@ if (!app.requestSingleInstanceLock()) {
     }
     promptWindow.on('moved', rememberPromptBounds);
     promptWindow.on('resized', rememberPromptBounds);
-    // A região de arrasto recebe duplo clique nativo, sem evento DOM.
+    // The drag region receives a native double-click without a DOM event.
     if (process.platform === 'win32') {
       promptWindow.hookWindowMessage(0x00A3, (hitTest) => {
         if (hitTest.readUInt32LE(0) === 2) resetPromptBounds();
@@ -460,7 +461,7 @@ if (!app.requestSingleInstanceLock()) {
       try {
         const protocol = new URL(url).protocol;
         if (protocol === 'http:' || protocol === 'https:') return shell.openExternal(url).catch(() => {});
-      } catch { /* Ignora endereços inválidos. */ }
+      } catch { /* Ignore invalid URLs. */ }
     });
 
     ipcMain.handle('prompt:stop-waiting', () => {
@@ -487,7 +488,7 @@ if (!app.requestSingleInstanceLock()) {
         sendingPrompt = true;
         await shell.openExternal(result.url);
         history = addToHistory(history, text);
-        try { saveHistory(historyFile, history); } catch { /* O envio já ocorreu; mantém o histórico em memória. */ }
+        try { saveHistory(historyFile, history); } catch { /* Sending already succeeded; keep history in memory. */ }
         clearTimeout(hideTimer);
         sendingPrompt = false;
         if (request.botId !== settings.botId) return { ok: true, afterSend: request.mode };
@@ -519,7 +520,7 @@ if (!app.requestSingleInstanceLock()) {
         } catch {
           return false;
         } finally {
-          // As tentativas são temporárias; applyShortcut mantém apenas o escolhido.
+          // Registrations are temporary; applyShortcut keeps only the chosen shortcut.
           globalShortcut.unregister(accelerator);
         }
       });
@@ -532,12 +533,12 @@ if (!app.requestSingleInstanceLock()) {
       settings = saveSettings(settingsLocation.path, settings);
       openSettings({ welcome: true });
       tray.displayBalloon({
-        title: 'GrokBot Assistant está pronto',
-        content: `Use ${settings.shortcut} para abrir o prompt. O ícone fica aqui na bandeja.`,
+        title: t('balloon.ready.title'),
+        content: t('balloon.ready.body', { shortcut: settings.shortcut }),
       });
       return;
     }
-    // Mantém a inicialização com o Windows apontando para o executável instalado.
+    // Keep startup registration pointing to the installed executable.
     if (app.isPackaged && settings.launchAtLogin) app.setLoginItemSettings({ openAtLogin: true });
     applyShortcut(settings.shortcut);
   });
@@ -549,7 +550,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on('will-quit', () => {
     if (boundsSaveTimer) {
       clearTimeout(boundsSaveTimer);
-      try { saveSettings(settingsLocation.path, settings); } catch { /* O app está encerrando. */ }
+      try { saveSettings(settingsLocation.path, settings); } catch { /* The app is shutting down. */ }
     }
     clearTimeout(hideTimer);
     stopWaiting();
@@ -557,6 +558,6 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.on('window-all-closed', () => {
-    // O app continua ativo na bandeja sem janelas abertas.
+    // Keep running in the tray with no open windows.
   });
 }

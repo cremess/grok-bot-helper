@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { buildIco } = require('../scripts/ico');
 
-test('monta ICO com cabeçalho, dimensões, offsets e imagens PNG', () => {
+test('builds ICO headers, dimensions, offsets and PNG images', () => {
   const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   const entries = [
     { size: 16, png: Buffer.concat([signature, Buffer.from([1, 2, 3])]) },

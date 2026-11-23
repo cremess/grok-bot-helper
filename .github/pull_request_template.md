@@ -1,17 +1,19 @@
-## O que muda
+## What changes
 
-- [ ] Descrevi a mudança e seu motivo abaixo.
+- [ ] Describe the change and its reason below.
 
-## Como testei
+## How I tested
 
-- [ ] Executei os testes automáticos.
-- [ ] Fiz teste manual no Windows com o Grok Bot.
-- [ ] Anexei capturas de tela, se houve mudança de interface.
+- [ ] Ran automated tests.
+- [ ] Tested manually on Windows with Grok Bot.
+- [ ] Attached screenshots for UI changes.
 
 ## Checklist
 
-- [ ] `npm test` passa.
-- [ ] `npm run check` passa.
-- [ ] Textos e comentários estão em português do Brasil.
-- [ ] Não usei `innerHTML`.
-- [ ] Não incluí dados pessoais ou tokens.
+- [ ] `npm test` passes.
+- [ ] `npm run check` passes.
+- [ ] Text and comments are in English.
+- [ ] New UI text is added to `src/lib/i18n.js` and uses `t()` or `data-i18n` attributes.
+- [ ] No `innerHTML` was used.
+- [ ] No personal data or tokens were included.
+- [ ] Requested a review from the maintainer (@pedrofigueiredo25).
