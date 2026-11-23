@@ -1,15 +1,51 @@
 const path = require('node:path');
 const { app, BrowserWindow, globalShortcut, ipcMain, Menu, screen, shell, Tray } = require('electron');
 const { createTrayIcon } = require('./icon');
-const { buildPromptLink } = require('./lib/link');
-const { loadSettings } = require('./lib/settings');
+const { buildPromptLink, parseBotId } = require('./lib/link');
+const { loadSettings, saveSettings, isValidShortcut, DEFAULT_SETTINGS } = require('./lib/settings');
 const { promptPosition } = require('./lib/position');
 
 // Mantém o ícone vivo durante a execução do app.
 let tray;
 let promptWindow;
+let settingsWindow;
 let settings;
 let registeredShortcut;
+const settingsLocation = {};
+
+function openSettings() {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.show();
+    settingsWindow.focus();
+    return;
+  }
+
+  settingsWindow = new BrowserWindow({
+    width: 480,
+    height: 440,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    autoHideMenuBar: true,
+    title: 'GrokBot Assistant — Configurações',
+    backgroundColor: '#1b1b1f',
+    webPreferences: {
+      preload: path.join(__dirname, 'settings-preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  settingsWindow.setMenu(null);
+  settingsWindow.webContents.on('will-navigate', (event) => event.preventDefault());
+  settingsWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  settingsWindow.on('closed', () => {
+    settingsWindow = undefined;
+    applyShortcut(settings.shortcut);
+  });
+  settingsWindow.loadFile(path.join(__dirname, 'settings', 'settings.html'));
+}
 
 function togglePrompt() {
   if (!promptWindow) return;
@@ -53,12 +89,63 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.whenReady().then(async () => {
-    settings = loadSettings(path.join(app.getPath('userData'), 'settings.json'));
+    Object.assign(settingsLocation, { path: path.join(app.getPath('userData'), 'settings.json') });
+    Object.freeze(settingsLocation);
+    settings = loadSettings(settingsLocation.path);
     tray = new Tray(createTrayIcon());
     tray.setToolTip('GrokBot Assistant');
     tray.setContextMenu(Menu.buildFromTemplate([
+      { label: 'Abrir prompt', click: () => {
+        if (promptWindow && !promptWindow.isVisible()) togglePrompt();
+      } },
+      { label: 'Configurações…', click: openSettings },
+      { type: 'separator' },
       { label: 'Sair', click: () => app.quit() },
     ]));
+    tray.on('click', () => {
+      if (promptWindow && !promptWindow.isVisible()) togglePrompt();
+    });
+
+    ipcMain.handle('settings:get', () => ({
+      ...settings,
+      defaultShortcut: DEFAULT_SETTINGS.shortcut,
+    }));
+    ipcMain.handle('settings:recording', (_event, isRecording) => {
+      if (isRecording === true) {
+        if (registeredShortcut) globalShortcut.unregister(registeredShortcut);
+        registeredShortcut = undefined;
+      } else if (isRecording === false) {
+        applyShortcut(settings.shortcut);
+      }
+    });
+    ipcMain.handle('settings:save', (_event, payload) => {
+      if (!payload || typeof payload.botInput !== 'string') {
+        return { ok: false, error: 'invalid-bot' };
+      }
+      const botInput = payload.botInput.trim();
+      const botId = botInput === '' ? '' : parseBotId(botInput);
+      if (botId === null) return { ok: false, error: 'invalid-bot' };
+      const { shortcut, launchAtLogin } = payload;
+      if (!isValidShortcut(shortcut)) return { ok: false, error: 'invalid-shortcut' };
+      const previousSettings = settings;
+      if (shortcut !== settings.shortcut && !applyShortcut(shortcut)) {
+        applyShortcut(settings.shortcut);
+        return { ok: false, error: 'shortcut-taken' };
+      }
+      try {
+        app.setLoginItemSettings({
+          openAtLogin: Boolean(launchAtLogin),
+          ...(!app.isPackaged ? { path: process.execPath, args: [app.getAppPath()] } : {}),
+        });
+        settings = saveSettings(settingsLocation.path, {
+          botId, shortcut, launchAtLogin: Boolean(launchAtLogin),
+        });
+        return { ok: true, settings };
+      } catch {
+        if (shortcut !== previousSettings.shortcut) applyShortcut(previousSettings.shortcut);
+        return { ok: false, error: 'unexpected' };
+      }
+    });
 
     promptWindow = new BrowserWindow({
       width: 640,

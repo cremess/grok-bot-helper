@@ -1,0 +1,40 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #1b1b1f;
+  color: #e8e8ed;
+  font: 13px "Segoe UI", sans-serif;
+}
+
+main { padding: 24px; }
+fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+label { display: block; margin-bottom: 8px; font-weight: 600; }
+input, button { font: inherit; color: inherit; }
+input[type="text"] {
+  width: 100%;
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid #46464f;
+  border-radius: 5px;
+  background: #25252b;
+}
+input::placeholder { color: #b4b4bf; font-size: 12px; }
+input:focus-visible, button:focus-visible { outline: 2px solid #9999bf; outline-offset: 2px; }
+#bot-help { margin: 7px 0 22px; color: #b4b4bf; overflow-wrap: anywhere; }
+.shortcut-row { display: flex; gap: 8px; }
+button {
+  padding: 8px 12px;
+  border: 1px solid #565663;
+  border-radius: 5px;
+  background: #35353f;
+  cursor: pointer;
+  white-space: nowrap;
+}
+button:hover { background: #454552; }
+button:disabled { opacity: 0.6; cursor: default; }
+.checkbox-row { display: flex; align-items: center; gap: 7px; margin: 22px 0; }
+.actions { display: flex; justify-content: flex-end; gap: 8px; }
+#save { background: #4b4b75; }
+#status { min-height: 18px; margin: 12px 0 0; color: #bde3bd; }
+#status.error { color: #ff9595; }

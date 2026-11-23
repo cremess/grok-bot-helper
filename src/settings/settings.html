@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GrokBot Assistant — Configurações</title>
+  <link rel="stylesheet" href="settings.css">
+  <script src="../lib/accelerator.js" defer></script>
+  <script src="settings.js" defer></script>
+</head>
+<body>
+  <main>
+    <form id="settings-form">
+      <fieldset id="fields" disabled>
+        <label for="bot">Bot de destino</label>
+        <input id="bot" type="text" placeholder="Cole o link do bot ou o ID (vazio = bot padrão)" aria-describedby="bot-help">
+        <p id="bot-help">Usará o bot padrão do Grok Bot</p>
+        <label for="shortcut">Atalho</label>
+        <div class="shortcut-row">
+          <input id="shortcut" type="text" readonly aria-label="Atalho global">
+          <button id="restore" type="button">Restaurar padrão</button>
+        </div>
+        <label class="checkbox-row" for="launch-at-login">
+          <input id="launch-at-login" type="checkbox"> Iniciar com o Windows
+        </label>
+        <div class="actions">
+          <button id="save" type="submit">Salvar</button>
+          <button id="close" type="button">Fechar</button>
+        </div>
+      </fieldset>
+      <p id="status" role="status" aria-live="polite"></p>
+    </form>
+  </main>
+</body>
+</html>

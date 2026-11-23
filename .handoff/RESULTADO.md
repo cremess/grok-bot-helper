@@ -1,35 +1,33 @@
-﻿# Resultado — Tarefa 4: Janela do prompt + atalho global
+﻿# Resultado — Tarefa 5: Tela de configurações + menu da bandeja
 
 ## Arquivos alterados
 - `src/main.js`
-- `src/preload.js` (criado)
-- `src/prompt/prompt.html` (criado)
-- `src/prompt/prompt.css` (criado)
-- `src/prompt/prompt.js` (criado)
-- `src/lib/position.js` (criado)
-- `test/position.test.js` (criado)
-- `.handoff/RESULTADO.md` (substituído conforme o protocolo)
+- `src/lib/accelerator.js` (criado)
+- `test/accelerator.test.js` (criado)
+- `src/settings-preload.js` (criado)
+- `src/settings/settings.html` (criado)
+- `src/settings/settings.css` (criado)
+- `src/settings/settings.js` (criado)
+- `.handoff/RESULTADO.md` (substituído por este resultado)
 
 ## Resumo das mudanças
-- Configurações carregadas em `whenReady` e uma única janela de prompt inicialmente escondida, com as opções solicitadas.
-- Atalho configurável por `applyShortcut`, desregistro do anterior e aviso pela bandeja em caso de retorno falso ou exceção. Desregistro de todos os atalhos ao encerrar.
-- Alternância da janela no monitor do cursor, foco, envio do bot ao renderer, ocultação ao perder foco e abertura na segunda instância se escondida.
-- IPC de envio usando `buildPromptLink`, conferência do prefixo permitido, abertura externa com tratamento de erro e ocultação após sucesso; IPC separado para esconder.
-- Preload restrito a `submit`, `hide` e `onShow`; isolamento de contexto e sandbox ativos, integração Node desativada, navegação e novas janelas bloqueadas e CSP sem código inline.
-- Interface escura com textarea, destino, contador por pontos de código Unicode, alerta acima de 1000 caracteres e erros em português. Enter envia fora da composição, Shift+Enter mantém a quebra e Esc esconde. Ao mostrar, seleciona o texto existente; após envio bem-sucedido, limpa o texto.
-- Posicionamento puro com limites da área disponível e quatro testes: monitor principal, monitor com coordenadas negativas, área menor que a janela e limite vertical com arredondamento horizontal. Quando a janela excede a área, a posição é ancorada na origem dessa área.
-- Mantidos a trava de instância única, o menu da bandeja com “Sair” e o funcionamento sem janelas abertas.
+- Menu da bandeja com Abrir prompt, Configurações…, separador e Sair; clique esquerdo abre o prompt quando estiver escondido.
+- Janela única de configurações com isolamento de contexto, sandbox, Node desativado, menu removido, navegação bloqueada e CSP sem scripts ou estilos inline.
+- Bot de destino com ajuda durante a digitação e validação definitiva pelo módulo existente ao salvar; o link é substituído pelo ID após salvar.
+- Captura de atalho pelo código físico da tecla, cancelamento com Esc e botão para restaurar o padrão. Durante a captura, o atalho global é desregistrado; ao sair do campo ou fechar a janela, o atalho salvo é registrado novamente.
+- Conversor de teclas compatível com CommonJS e navegador, com ordem Ctrl, Alt, Shift, Super e todas as teclas especificadas.
+- IPC para consulta, gravação e salvamento; validação do bot e do atalho, restauração do atalho anterior em caso de conflito, configuração de inicialização com Windows (incluindo caminho e argumentos de desenvolvimento), persistência e atualização em memória sem reiniciar.
+- Caminho das configurações definido em whenReady e mantido em objeto constante de módulo, congelado após a definição.
+- Mensagens de sucesso e erro em português. Exceções de salvamento retornam erro e restauram o atalho anterior quando necessário.
 
 ## Testes executados e resultado
-- `npm test`: aprovado; 22 testes passaram, nenhuma falha (antigos e novos).
-- `node --check src/main.js`: aprovado.
-- `node --check src/preload.js`: aprovado.
-- `node --check src/prompt/prompt.js`: aprovado.
-- `node --check src/lib/position.js`: aprovado.
-- `git diff --check`: aprovado; somente aviso de conversão futura de LF para CRLF em `src/main.js`.
-- O app não foi aberto e `npm start` não foi executado, conforme solicitado. Validação gráfica e do atalho real pendente para o Claude Code.
+- `npm test`: aprovado, 31 testes, 0 falhas (22 existentes e 9 novos).
+- Testes novos: casos pedidos e compatibilidade de todos os códigos suportados com as 15 combinações possíveis de modificadores, usando `isValidShortcut`.
+- `node --check`: aprovado em `src/main.js`, `src/lib/accelerator.js`, `test/accelerator.test.js`, `src/settings-preload.js` e `src/settings/settings.js`.
+- `git diff --check`: aprovado; somente aviso de normalização LF/CRLF do Git.
+- Verificação adicional em memória com Electron simulado, sem abrir o app: aprovada para consulta, suspensão e restauração do atalho, rejeição de bot e atalho inválidos, conflito e restauração, salvamento com extração do ID, opções de inicialização em desenvolvimento, reutilização da janela e restauração do atalho ao fechá-la.
 
 ## Dúvidas ou bloqueios
 - Nenhum bloqueio de implementação.
-- Nenhuma dependência instalada. Nenhum commit ou push realizado.
-- A alteração preexistente em `.handoff/TAREFA.md` foi preservada. Os módulos indicados como imutáveis e os demais arquivos fora do escopo não foram alterados.
+- Verificação gráfica e integração real com atalho global, Grok Bot e inicialização do Windows pendentes para o Claude Code, conforme a tarefa. Não executei `npm start` nem abri o aplicativo.
+- Os arquivos do prompt e os módulos protegidos não foram alterados. Não instalei dependências, não apaguei arquivos e não fiz commit ou push.

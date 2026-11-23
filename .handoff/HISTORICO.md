@@ -7,3 +7,4 @@
 | 2026-11-23 | T2: montagem do link | aceita (1ª tentativa) | validateText/parseBotId/buildPromptLink revisados; 9 testes passando, incluindo limites, emojis, caracteres especiais e host falso. |
 | 2026-11-23 | T3: configurações salvas | aceita (1ª tentativa) + ajuste do Claude | 18 testes passando. Ajuste de 1 linha: loadSettings remove BOM do UTF-8 (arquivo editado no Bloco de Notas). |
 | 2026-11-23 | T4+T5: janela do prompt + atalho global | aceita (1ª tentativa) | 22 testes ok; revisão de segurança ok (contextIsolation, sandbox, CSP); Alt+Espaço abre a janela e Enter leva o texto à confirmação do Grok Bot (testado pelo Pedro). |
+| 2026-11-23 | T6+T7: configurações + menu da bandeja | aceita (1ª tentativa) | 31 testes ok; diff revisado (gravação de atalho desliga/religa o global, restaura atalho antigo em caso de falha); Pedro testou troca de bot e de atalho. |
