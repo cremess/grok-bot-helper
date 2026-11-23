@@ -1,46 +1,37 @@
-# Tarefa 8 — Ícone de verdade (app, bandeja e instalador)
+# Tarefa 9 (2ª tentativa) — Ajustes visuais do prompt e das configurações
 
-## Objetivo
-Trocar o quadrado azul gerado em código por um ícone desenhado, nítido na bandeja (16/32 px) e no instalador (até 256 px), sem dependências novas.
+A 1ª tentativa foi revisada visualmente pelo Claude Code (capturas das janelas). A lógica está aceita; faltam ajustes de acabamento. **Mexa só em CSS/HTML/JS de interface e na altura da janela de configurações.** Mantenha todo o resto da Tarefa 9 como está.
 
-## Arquivos envolvidos
-- Criar: `assets/icon.svg`, `assets/tray.svg`, `scripts/build-icons.js`, `scripts/ico.js`, `test/ico.test.js`
-- Alterar: `src/icon.js`, `package.json` (só o script novo `icons`), `src/main.js` (só a opção `icon` das janelas)
-- Arquivos GERADOS pelo script (o Claude Code roda o script; você NÃO gera): `assets/icons/tray.png`, `assets/icons/tray@2x.png`, `assets/icons/icon-256.png`, `build/icon.ico`
+## Problemas encontrados e correções pedidas
 
-## Desenho
-- `assets/icon.svg` (viewBox `0 0 256 256`): quadrado com cantos bem arredondados (raio ~56) preenchido com gradiente diagonal de `#1080f3` (topo-esquerda) para `#5b3df5` (baixo-direita). No centro, um balão de conversa branco (forma arredondada com "rabinho" embaixo à esquerda) e, dentro dele, um sinal de prompt `›` em azul `#1080f3`, traço grosso e cantos arredondados. Leve brilho/realce sutil no topo é opcional. Estilo flat, moderno, legível em 16 px.
-- `assets/tray.svg` (viewBox `0 0 32 32`): versão simplificada para 16/32 px — o mesmo quadrado arredondado com gradiente e só o balão branco com o `›` (traços mais grossos, sem detalhes finos).
-- SVG puro, sem fontes, sem imagens embutidas, sem scripts.
+### Prompt (`src/prompt/*`)
+1. O `textarea` mostra um retângulo azul de foco (`:focus-visible` global), com cara de formulário. No prompt, o campo deve ficar **sem contorno nem borda** quando focado (`#message:focus, #message:focus-visible { outline: none; }`). O foco já é óbvio pelo cursor. Mantenha o anel de foco nos botões.
+2. Dar um pouco mais de respiro: `padding` do cartão `14px 18px`, `margin-bottom` do cabeçalho `10px`.
 
-## `scripts/ico.js` (puro, sem Electron)
-- `buildIco(entries)`: recebe `[{ size, png: Buffer }]` (tamanhos 16–256) e retorna um `Buffer` no formato ICO com entradas PNG (cabeçalho ICONDIR de 6 bytes + ICONDIRENTRY de 16 bytes por imagem; largura/altura `0` significa 256; planes `1`; bitCount `32`; offsets corretos).
-- Teste em `test/ico.test.js`: gerar um ICO com 2 PNGs falsos (buffers com a assinatura PNG de 8 bytes + bytes quaisquer) e conferir cabeçalho, quantidade, tamanhos (256 → 0), offsets e que os bytes de cada PNG aparecem no offset indicado.
-
-## `scripts/build-icons.js` (roda com `electron scripts/build-icons.js`)
-- Em `app.whenReady()`: para cada saída, renderiza o SVG numa `BrowserWindow` invisível (`show: false`, `width`/`height` = tamanho, `transparent: true`, `frame: false`, `webPreferences: { offscreen: true }`) carregando um `data:text/html` com o SVG ocupando 100% e fundo transparente; espera `did-finish-load` + um pequeno atraso (~150 ms); usa `webContents.capturePage()` e `toPNG()`.
-  - Considerar o fator de escala: se o `NativeImage` capturado vier maior que o pedido, redimensionar com `.resize({ width, height, quality: 'best' })`.
-- Saídas: `assets/icons/tray.png` (16, de `tray.svg`), `assets/icons/tray@2x.png` (32, de `tray.svg`), `assets/icons/icon-256.png` (256, de `icon.svg`) e `build/icon.ico` com as camadas 16 e 32 (de `tray.svg`) e 48, 64, 128, 256 (de `icon.svg`), montado com `buildIco`.
-- Criar as pastas que faltarem; imprimir o que foi gerado; `app.quit()` no fim (e `app.exit(1)` em caso de erro).
-- `package.json`: adicionar o script `"icons": "electron scripts/build-icons.js"`.
-
-## `src/icon.js`
-- `createTrayIcon()` passa a carregar `assets/icons/tray.png` com `nativeImage.createFromPath` (o Electron pega o `tray@2x.png` sozinho em telas de alta densidade). Se a imagem vier vazia (`isEmpty()`), cair no quadrado azul atual como reserva (manter esse código numa função interna).
-- Exportar também `appIconPath()` → caminho de `assets/icons/icon-256.png`.
-
-## `src/main.js`
-- Só adicionar `icon: appIconPath()` nas opções das janelas de prompt e de configurações. Nada mais.
+### Configurações (`src/settings/*` e a altura em `src/main.js`)
+3. **Rolagem dupla**: hoje a página inteira rola E a lista de bots rola dentro, as duas com barra de rolagem padrão do Windows, larga e clara. Corrigir:
+   - Aumentar a janela para `height: 720` (em `src/main.js`, só esse número) e organizar o layout para que **a página não role** na altura padrão. Use `body` em grid/flex com altura `100vh`, cabeçalho e rodapé fixos e a área do meio com `overflow: auto` só como reserva.
+   - A **única** área que rola normalmente é a lista de bots (`max-height` ~ 236 px).
+   - Estilizar as barras de rolagem para o tema: `::-webkit-scrollbar { width: 10px }`, trilho transparente, polegar `var(--border)` mais forte (por exemplo `rgba(255,255,255,.18)` no escuro e `rgba(0,0,0,.2)` no claro), arredondado, com `border: 3px solid transparent; background-clip: padding-box`.
+4. **Itens da lista mais compactos**: altura ~44 px, avatar 28 px, `gap` 6 px, raio 10 px.
+5. **A opção selecionada tem que ficar visível e evidente**:
+   - Ordem da lista: **"Bot padrão do Grok Bot" primeiro**, depois os bots do Grok Bot, e **"Outro bot (colar link ou ID)" por último**.
+   - Item selecionado: borda de 1,5 px na cor do acento, fundo levemente tingido (`color-mix(in srgb, var(--accent) 12%, var(--surface))`) e um ícone de "check" (✓ ou círculo preenchido) alinhado à direita, no lugar onde hoje fica o selo. Se o item selecionado também for o "mais usado", mostrar os dois: o selo antes do check.
+   - Ao abrir e após "Atualizar lista", rolar a lista até o item selecionado (`scrollIntoView({ block: 'nearest' })`).
+   - Hover sutil nos itens (`var(--hover)`).
+6. **Atalho**: colocar `Alterar` e `Restaurar padrão` **na mesma linha, à direita das teclas** (teclas à esquerda, botões à direita). "Restaurar padrão" deve ser um botão de texto discreto (sem borda); "Alterar" é um botão secundário.
+7. **Geral**: tem que aparecer sem rolar (vem com o item 3). O interruptor fica à direita do texto "Iniciar com o Windows", com uma linha de ajuda menor embaixo: "Abre o GrokBot Assistant ao entrar no Windows".
+8. Cabeçalho e cartões: espaçamento consistente (16 px entre cartões, `padding` 16 px). Títulos de seção em 13 px, peso 600, cor secundária, MAIÚSCULAS com `letter-spacing: .04em`.
 
 ## Critérios de aceite
-- `npm test` passa (antigos + novo).
-- `node --check` em todos os `.js` novos/alterados.
-- SVGs válidos (abrir como XML sem erro).
+- `npm test` passa e `node --check` passa nos `.js` alterados.
+- Nenhuma mudança de lógica de IPC, de salvamento ou de segurança (CSP, isolamento, `textContent`).
+- Na altura padrão (720), a janela de configurações mostra os 3 cartões e o rodapé **sem barra de rolagem na página**.
 
 ## O que NÃO fazer
-- NÃO rodar o script de ícones nem abrir o app (o Claude Code faz isso e revisa o resultado visual).
-- NÃO instalar dependências (nada de sharp, png-to-ico etc.).
-- NÃO mexer no visual das janelas (é a próxima tarefa).
-- NÃO fazer commit nem push. NÃO alterar `AGENTS.md`, `.gitignore` nem `.handoff/HISTORICO.md`.
+- NÃO alterar `src/lib/*`, `src/icon.js`, `assets/`, `scripts/`, `package.json`, preloads.
+- Em `src/main.js`, alterar SOMENTE a altura da janela de configurações.
+- NÃO rodar o app. NÃO instalar dependências. NÃO fazer commit nem push. NÃO alterar `AGENTS.md`, `.gitignore` nem `.handoff/HISTORICO.md`.
 
 ## Ao terminar
-Substitua todo o conteúdo de `.handoff/RESULTADO.md` pelo resultado desta tarefa.
+Substitua todo o conteúdo de `.handoff/RESULTADO.md` pelo resultado desta tentativa.

@@ -1,26 +1,31 @@
-﻿# Resultado — Tarefa 8
+﻿# Resultado — Tarefa 9 (2ª tentativa)
 
-## Arquivos alterados
-- Criados: `assets/icon.svg`, `assets/tray.svg`, `scripts/build-icons.js`, `scripts/ico.js` e `test/ico.test.js`.
-- Alterados: `src/icon.js`, `src/main.js` e `package.json`.
-- `.handoff/RESULTADO.md` substituído por este registro.
+## Arquivos alterados nesta tentativa
+- `src/prompt/prompt.css`
+- `src/settings/settings.css`
+- `src/settings/settings.html`
+- `src/settings/settings.js`
+- `src/main.js` (somente a altura da janela de configurações: 640 → 720)
+- `.handoff/RESULTADO.md`
 
 ## Resumo das mudanças
-- Desenhados SVGs sem fontes ou imagens embutidas, com quadrado arredondado, gradiente azul/violeta, balão branco e sinal de prompt azul em traços arredondados. Versão da bandeja simplificada para 16/32 px.
-- Implementado `buildIco(entries)` sem Electron: cabeçalho ICONDIR, entradas PNG, dimensões 256 codificadas como zero, planes 1, bitCount 32 e offsets calculados pelos tamanhos dos buffers.
-- Criado gerador Electron com janelas invisíveis e transparentes, renderização offscreen, espera por `did-finish-load` e 150 ms, captura PNG e ajuste ao tamanho solicitado quando necessário. Prepara as quatro saídas especificadas, incluindo ICO com camadas 16, 32, 48, 64, 128 e 256; cria pastas, imprime arquivos gerados e encerra com erro em caso de falha.
-- Adicionado somente o script `icons` em `package.json`.
-- Bandeja passa a carregar `tray.png`, preservando o quadrado azul anterior como reserva interna se a imagem estiver vazia. Exportado `appIconPath()`.
-- Em `src/main.js`, importado `appIconPath` e adicionada somente a opção `icon` nas duas janelas.
+- Prompt: removidos contorno e borda do campo focado, preservando o foco dos botões; padding do cartão em 14px 18px e margem inferior do cabeçalho em 10px.
+- Configurações: corpo limitado a 100vh, cabeçalho e rodapé fora da área rolável e meio com rolagem de reserva. Os três cartões usam grid com intervalo de 16px e padding de 16px; a lista de bots pode encolher conforme o espaço disponível, com altura máxima de 236px.
+- Barras de rolagem com largura de 10px, trilho transparente e polegar arredondado com cores para os temas claro e escuro.
+- Itens de bots compactados para altura mínima de 44px, avatar de 28px, gap de 6px e raio de 10px.
+- Ordem da lista: bot padrão, bots do Grok Bot, outro bot. Seleção com borda de 1,5px no acento, fundo tingido e check à direita, mantendo o selo “mais usado” antes do check quando aplicável. A renderização rola até o selecionado ao abrir e atualizar a lista.
+- Botões Alterar e Restaurar padrão na mesma linha, à direita das teclas; restauração como botão de texto sem borda.
+- Geral: interruptor à direita e ajuda abaixo do texto. Títulos em 13px, peso 600, cor secundária, maiúsculas e letter-spacing de .04em.
+- Preservadas as alterações já existentes da primeira tentativa. Nenhuma alteração em IPC, salvamento, CSP, isolamento ou uso de textContent.
 
 ## Testes executados e resultado
-- `npm test`: 47 testes aprovados, 0 falhas, incluindo o novo teste com dois PNGs falsos que verifica cabeçalho, dimensões, campos das entradas, offsets, conteúdo e comprimento final do ICO.
-- `node --check`: aprovado em `scripts/ico.js`, `scripts/build-icons.js`, `test/ico.test.js`, `src/icon.js` e `src/main.js`.
-- SVGs carregados pelo parser XML `System.Xml.XmlDocument`: ambos válidos.
-- `git diff --check`: sem erros de whitespace; somente avisos de conversão futura de LF para CRLF.
-- Diff revisado: alterações restritas ao escopo; alteração preexistente em `.handoff/TAREFA.md` preservada.
+- `npm test`: aprovado, 50 testes passaram, nenhuma falha.
+- `node --check src/main.js`: aprovado.
+- `node --check src/settings/settings.js`: aprovado.
+- `git diff --check`: aprovado, sem erros de espaços em branco.
+- Diff revisado em relação ao estado inicial desta tentativa: mudanças restritas aos arquivos listados; em main.js, apenas a altura.
 
-## Dúvidas ou bloqueios
-- Nenhuma dúvida ou bloqueio de implementação.
-- Conforme solicitado, o gerador não foi executado e o aplicativo não foi aberto. PNGs/ICO não foram gerados; execução do gerador e revisão visual ficam a cargo do Claude Code.
-- Nenhuma dependência instalada. Sem commit ou push.
+## Dúvidas, bloqueios e limites da validação
+- Sem dúvidas ou bloqueios de implementação.
+- O app não foi executado, conforme proibição expressa da tarefa. A confirmação visual dos três cartões e do rodapé sem rolagem na altura padrão de 720 permanece para revisão pelo Claude Code; não foi validada em janela real nesta tentativa.
+- Nenhuma dependência instalada; nenhum commit, push ou alteração do histórico.

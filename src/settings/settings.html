@@ -2,35 +2,40 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GrokBot Assistant — Configurações</title>
+  <link rel="stylesheet" href="../ui/tokens.css">
   <link rel="stylesheet" href="settings.css">
   <script src="../lib/accelerator.js" defer></script>
   <script src="settings.js" defer></script>
 </head>
 <body>
-  <main>
-    <form id="settings-form">
+  <header class="app-header">
+    <img src="../../assets/icons/icon-256.png" width="40" height="40" alt="">
+    <div><h1>GrokBot Assistant</h1><p>Envie prompts para o Grok Bot de qualquer lugar</p></div>
+  </header>
+  <form id="settings-form">
+    <main>
       <fieldset id="fields" disabled>
-        <label for="bot">Bot de destino</label>
-        <input id="bot" type="text" placeholder="Cole o link do bot ou o ID (vazio = bot padrão)" aria-describedby="bot-help">
-        <p id="bot-help">Usará o bot padrão do Grok Bot</p>
-        <label for="shortcut">Atalho</label>
-        <div class="shortcut-row">
-          <input id="shortcut" type="text" readonly aria-label="Atalho global">
-          <button id="restore" type="button">Restaurar padrão</button>
-        </div>
-        <label class="checkbox-row" for="launch-at-login">
-          <input id="launch-at-login" type="checkbox"> Iniciar com o Windows
-        </label>
-        <div class="actions">
-          <button id="save" type="submit">Salvar</button>
-          <button id="close" type="button">Fechar</button>
-        </div>
+        <section class="section-card" aria-labelledby="destination-title">
+          <div class="section-heading"><h2 id="destination-title">Destino</h2><button id="refresh" type="button" class="small">Atualizar lista</button></div>
+          <p id="bots-warning" role="status" hidden>Não encontrei seus bots no Grok Bot. Abra o Grok Bot uma vez e clique em Atualizar lista, ou use Outro bot.</p>
+          <div id="bots" role="radiogroup" aria-labelledby="destination-title"></div>
+          <div id="manual-field" hidden><label for="bot">Link ou ID do bot</label><input id="bot" type="text" placeholder="Cole o link ou ID do bot"></div>
+        </section>
+        <section class="section-card" aria-labelledby="shortcut-title">
+          <h2 id="shortcut-title">Atalho</h2>
+          <div class="shortcut-row"><div id="shortcut" aria-label="Atalho global" aria-live="polite"></div><div class="shortcut-actions"><button id="record" type="button">Alterar</button><button id="restore" class="small quiet" type="button">Restaurar padrão</button></div></div>
+        </section>
+        <section class="section-card" aria-labelledby="general-title">
+          <h2 id="general-title">Geral</h2>
+          <label class="switch-row" for="launch-at-login"><span>Iniciar com o Windows<small>Abre o GrokBot Assistant ao entrar no Windows</small></span><input id="launch-at-login" type="checkbox" role="switch"></label>
+        </section>
       </fieldset>
-      <p id="status" role="status" aria-live="polite"></p>
-    </form>
-  </main>
+    </main>
+    <footer><button id="close" type="button">Fechar</button><button id="save" type="submit" disabled>Salvar</button></footer>
+  </form>
+  <p id="status" role="status" aria-live="polite" hidden></p>
 </body>
 </html>

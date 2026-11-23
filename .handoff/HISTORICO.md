@@ -11,3 +11,5 @@
 | 2026-11-23 | T8: README | aceita (1ª tentativa) + ajuste do Claude | Conteúdo conferido com o código; ajuste: título com # e descrição do AGENTS.md atualizada com o bot de destino. |
 | 2026-11-23 | T9: leitura da lista de bots + botName | aceita (1ª tentativa) | 46 testes ok; listBots validado nos dados reais do Grok Bot (7 bots, ordenados por uso). |
 | 2026-11-23 | T10: ícone de verdade | aceita (1ª tentativa) | 47 testes ok; ícones gerados pelo Claude com npm run icons (PNG 16/32/256 + ICO multicamada) e conferidos visualmente. |
+| 2026-11-23 | T11: visual novo + seletor de bots (1ª tentativa) | devolvida | Lógica e segurança ok (50 testes), mas captura visual mostrou: contorno azul no campo do prompt, rolagem dupla com barras padrão, seleção fora de vista, layout do atalho solto. |
+| 2026-11-23 | T11: visual novo + seletor de bots (2ª tentativa) | aceita | Capturas conferidas: prompt sem contorno, configurações sem rolagem dupla, seleção visível com check, atalho e interruptor alinhados. 50 testes ok. |

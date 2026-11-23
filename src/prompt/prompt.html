@@ -2,20 +2,23 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GrokBot Assistant</title>
+  <link rel="stylesheet" href="../ui/tokens.css">
   <link rel="stylesheet" href="prompt.css">
   <script src="prompt.js" defer></script>
 </head>
 <body>
-  <main>
-    <textarea id="message" aria-label="Mensagem para o Grok Bot" placeholder="Mensagem para o Grok Bot…"></textarea>
+  <main id="card">
+    <header><span class="destination"><span id="avatar" class="avatar" aria-hidden="true">G</span><span>Para <strong id="destination">bot padrão</strong></span></span></header>
+    <textarea id="message" rows="1" aria-label="Mensagem para o Grok Bot" placeholder="Pergunte ou peça algo…"></textarea>
+    <div id="error" role="alert" hidden></div>
     <footer>
-      <span id="destination">Destino: bot padrão do Grok Bot</span>
-      <span id="counter" aria-live="polite">0/1000</span>
+      <span class="hints"><kbd>Enter</kbd> enviar · <kbd>Shift+Enter</kbd> nova linha · <kbd>Esc</kbd> fechar</span>
+      <span id="counter" aria-live="polite" hidden>0/1000</span>
+      <button id="send" type="button">Enviar ↵</button>
     </footer>
-    <div id="error" role="alert"></div>
   </main>
 </body>
 </html>

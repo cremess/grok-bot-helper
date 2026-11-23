@@ -1,7 +1,9 @@
 const path = require('node:path');
-const { app, BrowserWindow, globalShortcut, ipcMain, Menu, screen, shell, Tray } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain, Menu, nativeTheme, screen, shell, Tray } = require('electron');
 const { createTrayIcon, appIconPath } = require('./icon');
-const { buildPromptLink, parseBotId } = require('./lib/link');
+const { buildPromptLink, parseBotId, isValidBotId } = require('./lib/link');
+const { listBots } = require('./lib/roster');
+const { avatarColor, avatarInitial } = require('./lib/avatar');
 const { loadSettings, saveSettings, isValidShortcut, DEFAULT_SETTINGS } = require('./lib/settings');
 const { promptPosition } = require('./lib/position');
 
@@ -12,6 +14,9 @@ let settingsWindow;
 let settings;
 let registeredShortcut;
 const settingsLocation = {};
+const GROK_BOT_DIRECTORY = path.join(app.getPath('appData'), 'Grok Bot', 'sand-client-persistence');
+let hideTimer;
+let sendingPrompt = false;
 
 function openSettings() {
   if (settingsWindow && !settingsWindow.isDestroyed()) {
@@ -22,15 +27,15 @@ function openSettings() {
 
   settingsWindow = new BrowserWindow({
     icon: appIconPath(),
-    width: 480,
-    height: 440,
+    width: 520,
+    height: 720,
     resizable: false,
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
     autoHideMenuBar: true,
     title: 'GrokBot Assistant — Configurações',
-    backgroundColor: '#1b1b1f',
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#1b1b1f' : '#f6f6f8',
     webPreferences: {
       preload: path.join(__dirname, 'settings-preload.js'),
       contextIsolation: true,
@@ -50,6 +55,8 @@ function openSettings() {
 
 function togglePrompt() {
   if (!promptWindow) return;
+  clearTimeout(hideTimer);
+  sendingPrompt = false;
   if (promptWindow.isVisible()) {
     promptWindow.hide();
     return;
@@ -61,7 +68,14 @@ function togglePrompt() {
   promptWindow.setPosition(x, y);
   promptWindow.show();
   promptWindow.focus();
-  promptWindow.webContents.send('prompt:show', { botId: settings.botId });
+  const roster = listBots(GROK_BOT_DIRECTORY);
+  const bot = roster.ok ? roster.bots.find((item) => item.id === settings.botId) : undefined;
+  const botName = settings.botName || bot?.name || '';
+  promptWindow.webContents.send('prompt:show', {
+    botId: settings.botId, botName,
+    botColor: settings.botId ? avatarColor(bot?.color, settings.botId) : '#1080f3',
+    botInitial: settings.botId ? avatarInitial(botName) : 'G',
+  });
 }
 
 function applyShortcut(accelerator) {
@@ -111,6 +125,13 @@ if (!app.requestSingleInstanceLock()) {
       ...settings,
       defaultShortcut: DEFAULT_SETTINGS.shortcut,
     }));
+    ipcMain.handle('settings:bots', () => {
+      const result = listBots(GROK_BOT_DIRECTORY);
+      if (!result.ok) return result;
+      return { ok: true, bots: result.bots.map((bot) => ({
+        ...bot, avatar: { color: avatarColor(bot.color, bot.id), initial: avatarInitial(bot.name) },
+      })) };
+    });
     ipcMain.handle('settings:recording', (_event, isRecording) => {
       if (isRecording === true) {
         if (registeredShortcut) globalShortcut.unregister(registeredShortcut);
@@ -120,12 +141,17 @@ if (!app.requestSingleInstanceLock()) {
       }
     });
     ipcMain.handle('settings:save', (_event, payload) => {
-      if (!payload || typeof payload.botInput !== 'string') {
+      let botId = '';
+      let botName = '';
+      if (payload?.mode === 'list' && isValidBotId(payload.botId)) {
+        botId = payload.botId;
+        botName = typeof payload.botName === 'string' ? payload.botName.trim().slice(0, 80) : '';
+      } else if (payload?.mode === 'manual') {
+        botId = parseBotId(payload.botInput);
+        if (botId === null) return { ok: false, error: 'invalid-bot' };
+      } else if (payload?.mode !== 'default') {
         return { ok: false, error: 'invalid-bot' };
       }
-      const botInput = payload.botInput.trim();
-      const botId = botInput === '' ? '' : parseBotId(botInput);
-      if (botId === null) return { ok: false, error: 'invalid-bot' };
       const { shortcut, launchAtLogin } = payload;
       if (!isValidShortcut(shortcut)) return { ok: false, error: 'invalid-shortcut' };
       const previousSettings = settings;
@@ -139,7 +165,7 @@ if (!app.requestSingleInstanceLock()) {
           ...(!app.isPackaged ? { path: process.execPath, args: [app.getAppPath()] } : {}),
         });
         settings = saveSettings(settingsLocation.path, {
-          botId, shortcut, launchAtLogin: Boolean(launchAtLogin),
+          botId, botName, shortcut, launchAtLogin: Boolean(launchAtLogin),
         });
         return { ok: true, settings };
       } catch {
@@ -150,9 +176,11 @@ if (!app.requestSingleInstanceLock()) {
 
     promptWindow = new BrowserWindow({
       icon: appIconPath(),
-      width: 640,
-      height: 150,
+      width: 680,
+      height: 128,
       frame: false,
+      transparent: true,
+      hasShadow: false,
       resizable: false,
       movable: false,
       minimizable: false,
@@ -161,7 +189,7 @@ if (!app.requestSingleInstanceLock()) {
       skipTaskbar: true,
       alwaysOnTop: true,
       show: false,
-      backgroundColor: '#1b1b1f',
+      backgroundColor: '#00000000',
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
         contextIsolation: true,
@@ -171,7 +199,14 @@ if (!app.requestSingleInstanceLock()) {
     });
     promptWindow.webContents.on('will-navigate', (event) => event.preventDefault());
     promptWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-    promptWindow.on('blur', () => promptWindow.hide());
+    promptWindow.on('blur', () => {
+      if (!sendingPrompt) promptWindow.hide();
+    });
+    ipcMain.handle('prompt:resize', (_event, height) => {
+      if (typeof height !== 'number' || !Number.isFinite(height)) return;
+      const bounds = promptWindow.getBounds();
+      promptWindow.setBounds({ ...bounds, height: Math.max(128, Math.min(360, Math.ceil(height))) });
+    });
 
     ipcMain.handle('prompt:submit', async (_event, text) => {
       const result = buildPromptLink({ text, botId: settings.botId });
@@ -181,10 +216,16 @@ if (!app.requestSingleInstanceLock()) {
       }
 
       try {
+        sendingPrompt = true;
         await shell.openExternal(result.url);
-        promptWindow.hide();
+        clearTimeout(hideTimer);
+        hideTimer = setTimeout(() => {
+          sendingPrompt = false;
+          promptWindow.hide();
+        }, 280);
         return { ok: true };
       } catch {
+        sendingPrompt = false;
         return { ok: false, error: 'open-failed' };
       }
     });
