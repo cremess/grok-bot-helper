@@ -8,3 +8,4 @@
 | 2026-11-23 | T3: configurações salvas | aceita (1ª tentativa) + ajuste do Claude | 18 testes passando. Ajuste de 1 linha: loadSettings remove BOM do UTF-8 (arquivo editado no Bloco de Notas). |
 | 2026-11-23 | T4+T5: janela do prompt + atalho global | aceita (1ª tentativa) | 22 testes ok; revisão de segurança ok (contextIsolation, sandbox, CSP); Alt+Espaço abre a janela e Enter leva o texto à confirmação do Grok Bot (testado pelo Pedro). |
 | 2026-11-23 | T6+T7: configurações + menu da bandeja | aceita (1ª tentativa) | 31 testes ok; diff revisado (gravação de atalho desliga/religa o global, restaura atalho antigo em caso de falha); Pedro testou troca de bot e de atalho. |
+| 2026-11-23 | T8: README | aceita (1ª tentativa) + ajuste do Claude | Conteúdo conferido com o código; ajuste: título com # e descrição do AGENTS.md atualizada com o bot de destino. |

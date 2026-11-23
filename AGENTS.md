@@ -1,7 +1,7 @@
 # AGENTS.md
 
 ## Projeto
-App companheiro do Grok Bot para Windows: um atalho global (padrão Alt+Espaço) abre uma caixa de texto flutuante; ao enviar, o texto vai para o Grok Bot pelo link `grokbot://app/v1/prompt?text=<texto>` (máximo de 1000 caracteres). O app roda na bandeja do sistema.
+App companheiro do Grok Bot para Windows: um atalho global (padrão Alt+Espaço) abre uma caixa de texto flutuante; ao enviar, o texto vai para o bot configurado do Grok Bot pelo link `grokbot://app/v1/prompt?id=<bot>&text=<texto>` (máximo de 1000 caracteres). Bot de destino, atalho e início com o Windows são configuráveis. O app roda na bandeja do sistema.
 Stack: Electron + JavaScript (CommonJS), sem framework de UI. Testes com o runner nativo do Node (`node --test`), cobrindo a lógica pura (montagem do link, validação do texto, configurações); atalho e janela são testados manualmente.
 
 - Rodar: `npm start`
