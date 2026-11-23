@@ -1,108 +1,130 @@
-# GrokBot Assistant
+<p align="center">
+  <img src="assets/icons/icon-256.png" width="96" alt="Grok Bot Helper icon">
+</p>
 
-App companheiro do Grok Bot para Windows.
-Um atalho global abre uma caixa de texto flutuante para enviar uma mensagem ao bot escolhido do Grok Bot.
+<h1 align="center">Grok Bot Helper</h1>
 
-> **Projeto não oficial, feito pela comunidade.** Não tem vínculo com a xAI nem com os criadores do Grok Bot. O app usa links e arquivos locais do Grok Bot que não são documentados e podem mudar em atualizações; ele apenas **lê** esses arquivos no seu computador e não envia dados para nenhum servidor.
+<p align="center"><b>Your Grok Bot, one shortcut away — on Windows.</b></p>
 
-## Como funciona
+<p align="center">
+  <a href="https://github.com/pedrofigueiredo25/grok-bot-helper/actions/workflows/ci.yml"><img src="https://github.com/pedrofigueiredo25/grok-bot-helper/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4" alt="Windows 10 | 11">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license"></a>
+  <img src="https://img.shields.io/badge/status-community%20%C2%B7%20unofficial-8e4ec6" alt="Community, unofficial">
+</p>
 
-O app gera o link `grokbot://app/v1/prompt?id=<bot>&text=<texto>`, com o texto codificado para uso na URL. O Windows entrega esse link ao Grok Bot. Quando nenhum bot está configurado, o parâmetro `id` é omitido e a mensagem vai para o bot padrão.
+<p align="center">
+  <img src="docs/screenshots/prompt.png" width="680" alt="The floating prompt showing the latest reply from a bot">
+</p>
 
-Antes de adicionar a mensagem, o Grok Bot pede confirmação: "Adicionar mensagem para Grok?". A opção "Não mostrar novamente" fica no próprio Grok Bot. Ao ativá-la, qualquer link `grokbot://` passa a adicionar texto sem perguntar; considere esse risco antes de desativar a confirmação.
+On macOS, Grok Bot ships with a built-in quick prompt you can summon from anywhere with a shortcut. **On Windows that feature doesn't exist yet** — so we built it. Grok Bot Helper is a small tray app that brings that "press a shortcut, talk to your bot" experience to Windows, and is meant to grow into a general-purpose helper around the Grok Bot desktop app.
 
-## Instalar (para quem só quer usar)
+> **Unofficial, community project.** Not affiliated with xAI or the makers of Grok Bot. It relies on Grok Bot links and local files that are not documented and may change with Grok Bot updates. It only **reads** those files on your computer and never sends your data anywhere.
 
-1. Rode `GrokBot-Assistant-Setup-<versão>.exe`. A instalação é de um clique, só para o seu usuário, sem pedir administrador.
-2. Como o instalador não é assinado digitalmente, o Windows pode mostrar "O Windows protegeu o computador". Clique em **Mais informações** e depois em **Executar assim mesmo**.
-3. Na primeira abertura aparece a tela de boas-vindas com a lista dos seus bots do Grok Bot (o mais usado já vem marcado). Clique em **Salvar e começar**.
-4. Pronto: use o atalho indicado (padrão `Alt+Space`; se estiver ocupado, o app escolhe outro e avisa) em qualquer lugar. O app inicia junto com o Windows e fica na bandeja.
+## Features
 
-Requisitos: Windows 10 ou 11 (64 bits) e o Grok Bot instalado e aberto pelo menos uma vez. Para desinstalar, use **Configurações do Windows > Aplicativos**.
+- **Quick prompt from anywhere** — press `Alt+Space` (configurable) in any app, type, hit `Enter`. Your message goes straight to the bot you picked.
+- **See the reply right there** — the latest reply shows up in the prompt with proper formatting (lists, bold, code). Switch to **Conversation** to see the recent back-and-forth.
+- **Pick any of your bots** — the bot picker lists the bots from your Grok Bot app, with search. Switch with `Ctrl+K` without leaving the prompt.
+- **Wait or get notified** — keep the prompt open until the reply arrives, or let it close and get a dot on the tray icon (and an optional Windows notification).
+- **A real window when you want it** — drag it, resize it, pin it so it stays open; it remembers where you left it.
+- **Knows when Grok Bot can't take messages** — warns you when you're out of Grok Bot usage instead of waiting forever.
+- **Small touches** — copy a reply, open the conversation in Grok Bot, browse your previous prompts with `↑`/`↓`, light and dark themes, launch at startup.
 
-## Gerar o instalador
+<table>
+  <tr>
+    <td><img src="docs/screenshots/conversation.png" alt="Conversation view"></td>
+    <td><img src="docs/screenshots/bot-picker.png" alt="Bot picker with search"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Conversation view</sub></td>
+    <td align="center"><sub>Pick any of your bots (<code>Ctrl+K</code>)</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/waiting.png" alt="Waiting for a reply"></td>
+    <td><img src="docs/screenshots/prompt-light.png" alt="Light theme"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Waiting for the reply</sub></td>
+    <td align="center"><sub>Light theme</sub></td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="docs/screenshots/settings.png" width="420" alt="Settings window">
+</p>
+
+<sub>Screenshots use fictional bots and messages.</sub>
+
+## How it works
+
+1. A global shortcut opens a floating prompt (Electron, lives in the tray).
+2. When you send, the app opens a Grok Bot deep link — `grokbot://app/v1/prompt?id=<bot>&text=<text>` (up to 1000 characters). Grok Bot may ask you to confirm *"Add message for Grok?"*; it has a *"Don't show again"* option. If you enable it, any `grokbot://` link can add text without asking, so decide with that in mind.
+3. To show replies and your bot list, the app **reads** Grok Bot's local cache in `%APPDATA%\Grok Bot` — nothing is written there and nothing leaves your PC.
+
+## Install
+
+**Requirements:** Windows 10 or 11 (64-bit) and the [Grok Bot](https://cursor.com/download/bot) desktop app, opened at least once.
+
+A prebuilt installer will be published on the [Releases](https://github.com/pedrofigueiredo25/grok-bot-helper/releases) page. Until then, build it yourself (see below) or run from source.
+
+When you run the installer:
+
+1. It installs for your user only, in one click, no admin rights needed.
+2. The installer isn't code-signed yet, so Windows SmartScreen may say *"Windows protected your PC"*. Click **More info → Run anyway**.
+3. On first launch a welcome screen lists your Grok Bot bots (the most used one is preselected). Click **Save and get started**.
+4. Press the shortcut it shows (default `Alt+Space`; if that's taken, the app picks a free one and tells you).
+
+To uninstall: **Windows Settings → Apps**.
+
+## Usage
+
+| Action | What it does |
+| --- | --- |
+| Shortcut (default `Alt+Space`) | Opens / closes the prompt |
+| `Enter` | Sends the message |
+| `Shift+Enter` | New line |
+| `Esc` or click outside | Closes the prompt (unless it's pinned) |
+| `Ctrl+K` | Pick another bot |
+| `↑` / `↓` in an empty prompt | Browse your previous prompts |
+| `Ctrl+,` | Open settings |
+| Double-click the header | Reset the prompt's size and position |
+
+Tray icon: left-click opens the prompt; right-click shows **Open prompt**, **Settings…**, **Reset prompt position** and **Quit**.
+
+Settings are stored in `%APPDATA%\grok-bot-helper\settings.json`.
+
+## Troubleshooting
+
+- **The shortcut does nothing** — check the tray icon is there. Another app may own the shortcut (PowerToys Run uses `Alt+Space` by default); the app shows a tray notice when it can't register it. Pick another one in Settings.
+- **"Your message didn't reach Grok Bot"** — you may be out of Grok Bot usage (the prompt tells you when it resets), you cancelled Grok Bot's confirmation, or Grok Bot isn't running.
+- **No bots in the list** — open Grok Bot once, then click the refresh button next to the bot picker in Settings.
+
+## Build from source
 
 ```powershell
-npm run dist
-```
-
-O arquivo sai em `dist/GrokBot-Assistant-Setup-<versão>.exe`. Para refazer os ícones a partir dos SVGs, rode `npm run icons` antes.
-
-## Requisitos para desenvolvimento
-
-- Windows 10 ou 11.
-- Grok Bot instalado.
-- Node.js e npm. A versão do Node.js usada no projeto foi a 26.
-
-## Instalação para desenvolvimento
-
-Na pasta do projeto, execute:
-
-```powershell
+git clone https://github.com/pedrofigueiredo25/grok-bot-helper.git
+cd grok-bot-helper
 npm install
-```
-
-Se `node_modules/electron/dist/electron.exe` não existir depois da instalação, execute:
-
-```powershell
-node node_modules/electron/install.js
-```
-
-## Uso
-
-Na pasta do projeto, execute:
-
-```powershell
 npm start
 ```
 
-O app fica na bandeja do sistema, com um ícone azul. Abra o prompt, digite uma mensagem de até 1000 caracteres e envie.
+If `node_modules/electron/dist/electron.exe` is missing after `npm install`, run `node node_modules/electron/install.js`.
 
-| Tecla ou ação | Resultado |
+| Command | |
 | --- | --- |
-| Atalho global (padrão: `Alt+Space`) | Abre ou fecha o prompt. |
-| `Enter` | Envia a mensagem ao Grok Bot. |
-| `Shift+Enter` | Insere uma nova linha. |
-| `Esc` ou clique fora da caixa | Fecha o prompt. |
+| `npm start` | Run the app |
+| `npm test` | Unit tests (Node's built-in runner) |
+| `npm run check` | Syntax check of every JS file |
+| `npm run icons` | Regenerate icons from the SVGs |
+| `npm run dist` | Build the Windows installer into `dist/` |
 
-O clique esquerdo no ícone da bandeja abre o prompt. O menu da bandeja oferece **Abrir prompt**, **Configurações…** e **Sair**. Use **Sair** para encerrar o app.
+## Contributing
 
-## Configurações
+Contributions are very welcome — bug reports, ideas and pull requests. Start with the [contributing guide](CONTRIBUTING.md): it covers setup, the code rules (security of the Electron windows, i18n), how to test without spending Grok Bot usage, and the PR flow.
 
-Abra **Configurações…** pelo menu da bandeja e ajuste:
+Fun fact: this project is built with an AI pair — Claude Code plans and reviews, Codex implements. The `.handoff/` folder and [`AGENTS.md`](AGENTS.md) show how that works. You don't need to use any of it to contribute.
 
-- **Bot de destino:** cole o link do bot (`grokbot://app/v1/agent?id=…` ou `https://cursor.com/grok-bot/link/v1/agent?id=…`) ou apenas o ID. Deixe vazio para usar o bot padrão.
-- **Atalho:** clique no campo e pressione a combinação desejada, incluindo um modificador como `Alt` ou `Ctrl`. `Esc` cancela a captura. **Restaurar padrão** seleciona `Alt+Space` novamente.
-- **Iniciar com o Windows:** marque para abrir o app automaticamente ao entrar no Windows.
+## License
 
-Clique em **Salvar** para aplicar as alterações. As configurações ficam em `%APPDATA%\grokbot-assistant\settings.json`.
-
-## Solução de problemas
-
-- **O atalho não abre o prompt:** confira se o app está rodando e se o ícone azul aparece na bandeja. Outro programa pode estar usando a combinação; quando o registro do atalho falha, o app exibe um aviso na bandeja. O PowerToys Run usa `Alt+Espaço` por padrão. Escolha outra combinação nas configurações se houver conflito.
-- **A mensagem não chega:** confira se o Grok Bot está instalado e se o ID do bot está correto nas configurações. Verifique também a confirmação exibida pelo próprio Grok Bot.
-- **Iniciar com o Windows:** enquanto não houver instalador, a inicialização aponta para o executável do Electron e a pasta do projeto. Mantenha essa pasta e suas dependências no local configurado.
-
-## Desenvolvimento
-
-Execute os testes com o runner nativo do Node.js:
-
-```powershell
-npm test
-```
-
-Os testes cobrem a montagem do link, a validação do texto e do bot, a leitura e gravação das configurações, a conversão e validação de atalhos e o cálculo da posição do prompt. A abertura das janelas e o registro do atalho global são verificados manualmente.
-
-| Caminho | Conteúdo |
-| --- | --- |
-| `src/main.js` | Processo principal do Electron: bandeja, janelas, atalho global e integração com o Grok Bot. |
-| `src/lib/` | Lógica de links, configurações, atalhos e posição da janela. |
-| `src/prompt/` | Interface da caixa de texto flutuante. |
-| `src/settings/` | Interface de configurações. |
-| `test/` | Testes automatizados. |
-
-O fluxo de trabalho entre Claude Code e Codex está descrito em `AGENTS.md`. Na pasta `.handoff/`, o Claude Code escreve `TAREFA.md`, o Codex registra a execução em `RESULTADO.md` e o Claude Code mantém `HISTORICO.md` com o resultado das revisões.
-
-## Contribuindo
-
-Veja o [guia de contribuição](CONTRIBUTING.md) para preparar o ambiente, testar e abrir um PR.
+[MIT](LICENSE)

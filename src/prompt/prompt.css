@@ -4,34 +4,31 @@ body { margin: 0; overflow: hidden; background: #1c1c20; }
 main { height: 100%; padding: 14px 18px; }
 body.opening { animation: appear 120ms both; }
 @keyframes appear { from { opacity: 0; } to { opacity: 1; } }
-header { position: relative; -webkit-app-region: drag; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
-#settings { display: inline-grid; place-items: center; flex-shrink: 0; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--secondary); }
-#settings:hover { background: var(--hover); color: var(--text); }
+header { position: relative; -webkit-app-region: drag; display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 44px; flex-shrink: 0; margin-bottom: 10px; }
 #settings svg { transition: transform var(--transition); }
 @media (prefers-reduced-motion: no-preference) {
   #settings:hover svg { transform: rotate(30deg); }
 }
-header button, header input, #destination-picker { -webkit-app-region: no-drag; }
-.drag-handle { position: absolute; width: 32px; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--border) 75%, var(--secondary)); top: -9px; left: calc(50% - 16px); pointer-events: none; }
+.header-actions, header button, header input, #destination-picker { -webkit-app-region: no-drag; }
+.drag-handle { position: absolute; width: 32px; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--border) 75%, var(--secondary)); top: -6px; left: calc(50% - 16px); pointer-events: none; }
 #destination-picker { min-width: 0; margin-right: auto; max-width: calc(100% - 108px); }
 #pin[aria-pressed="true"] { color: var(--accent); background: var(--hover); }
-#close { font-size: 22px; }
-textarea { display: block; width: 100%; min-height: 24px; max-height: 192px; padding: 0 2px; resize: none; border: 0; border-radius: 3px; background: transparent; font-size: 15px; line-height: 24px; overflow-y: auto; }
+textarea { display: block; width: 100%; min-height: 32px; max-height: 192px; padding: 4px 2px; resize: none; border: 0; border-radius: 3px; background: transparent; font-size: 15px; line-height: 24px; overflow-y: auto; }
 #message:focus, #message:focus-visible { outline: none; border: 0; }
 textarea::placeholder { color: var(--secondary); }
 footer { display: flex; align-items: center; gap: 10px; margin-top: 10px; color: var(--secondary); }
-.hints { flex: 1; font-size: 13px; white-space: nowrap; }
+.hints { flex: 1; font-size: 12px; white-space: nowrap; }
 #counter { flex-shrink: 0; font-variant-numeric: tabular-nums; }
-#send { border: 0; border-radius: var(--radius-sm); padding: 5px 8px; background: var(--surface); white-space: nowrap; }
-#send:hover { background: var(--hover); }
-#send.sent { color: var(--success); opacity: 1; }
+#send { display: inline-grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; color: white; background: linear-gradient(135deg, #1080f3, #5b3df5); box-shadow: var(--shadow-sm); }
+#send:hover:not(:disabled) { filter: brightness(1.12); }
+#send:disabled { opacity: .4; background: var(--secondary); box-shadow: none; }
+#send.sent { opacity: 1; }
 #error { margin-top: 8px; }
 #error, #counter.over-limit { color: var(--error); }
 
 #card { display: flex; flex-direction: column; }
-#content { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+#content { flex: 1; min-height: 0; overflow: auto; }
 #card > header, #card > footer, #card > #error { flex-shrink: 0; }
-#card > textarea { flex: 0 1 auto; }
 #response { margin-bottom: 10px; }
 #response:not([hidden]) { display: flex; flex-direction: column; }
 .response-heading, #expand-response { flex-shrink: 0; }
@@ -43,7 +40,7 @@ footer { display: flex; align-items: center; gap: 10px; margin-top: 10px; color:
 .text-button { padding: 3px 0; border: 0; background: transparent; color: var(--secondary); font-size: 12px; cursor: pointer; }
 .text-button:hover { color: var(--text); }
 #conversation-toggle { flex-shrink: 0; }
-#response-body { line-height: 1.5; font-size: 14px; overflow-wrap: anywhere; }
+#response-body { line-height: 1.55; font-size: 14px; overflow-wrap: anywhere; }
 #response-body.collapsed { max-height: 105px; overflow: hidden; }
 #response-body.collapsed.overflowing { mask-image: linear-gradient(to bottom, black 65%, transparent); }
 #response-body.expanded { max-height: 320px; overflow-y: auto; }
@@ -51,13 +48,13 @@ footer { display: flex; align-items: center; gap: 10px; margin-top: 10px; color:
 #card.user-sized #response:not([hidden]) { flex: 1; min-height: 0; }
 #card.user-sized #response-body { flex: 1; min-height: 0; max-height: none; overflow-y: auto; mask-image: none; }
 #card.user-sized #expand-response { display: none; }
-#card.user-sized #waiting-area, #card.user-sized > textarea { flex-shrink: 0; }
+#card.user-sized #waiting-area, #card.user-sized > .composer { flex-shrink: 0; }
 #response-body p, .bubble p { margin: 0 0 8px; }
 #response-body h1, #response-body h2, #response-body h3, .bubble h1, .bubble h2, .bubble h3 { margin: 10px 0 6px; font-size: 15px; }
 #response-body ul, #response-body ol, .bubble ul, .bubble ol { padding-left: 22px; margin: 6px 0; }
 #response-body blockquote, .bubble blockquote { border-left: 2px solid var(--border); margin: 8px 0; padding-left: 10px; color: var(--secondary); }
 #response-body code, .bubble code { font-family: 'Cascadia Mono', Consolas, monospace; background: var(--surface); border-radius: 4px; padding: 1px 3px; }
-#response-body pre, .bubble pre { background: var(--surface); padding: 10px; border-radius: 6px; overflow-x: auto; }
+#response-body pre, .bubble pre { background: var(--surface); padding: 10px; border-radius: 8px; overflow-x: auto; }
 #response-body pre code, .bubble pre code { padding: 0; }
 #response-body a, .bubble a { color: var(--accent); }
 .bubble { max-width: 88%; width: fit-content; padding: 8px 10px; margin: 6px 0; border-radius: 10px; line-height: 1.5; overflow-wrap: anywhere; font-size: 14px; }
@@ -79,11 +76,23 @@ footer { display: flex; align-items: center; gap: 10px; margin-top: 10px; color:
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 10px; border: 3px solid transparent; background-clip: padding-box; }
 
-.icon-button { display: inline-grid; place-items: center; flex-shrink: 0; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--secondary); }
-.icon-button:hover { background: var(--hover); color: var(--text); }
 #copy-response { margin-left: auto; }
 #usage-warning { flex-shrink: 0; padding: 8px 10px; margin-bottom: 10px; border-radius: 6px; background: color-mix(in srgb, var(--error) 14%, var(--surface)); color: var(--text); font-size: 13px; }
 #usage-indicator { color: var(--secondary); font-size: 12px; white-space: nowrap; }
 .waiting-status .text-button, #error .text-button { margin-left: 8px; }
 .delivery-failure { color: var(--error); }
-@media (max-width: 600px) { .hints { font-size: 11px; white-space: normal; } }
+
+#card { background: var(--card); box-shadow: inset 0 1px 0 rgba(255,255,255,.04); }
+.header-actions { display: flex; align-items: center; gap: 2px; }
+.composer { display: flex; align-items: flex-end; gap: 12px; flex-shrink: 0; padding-top: 12px; border-top: 1px solid var(--border); }
+.composer textarea { flex: 1; min-width: 0; }
+.hints kbd { display: inline-flex; align-items: center; height: 18px; padding: 0 4px; font-size: 11px; }
+.response-heading strong { font-weight: 600; }
+#empty-state { padding: 18px 12px; text-align: center; color: var(--secondary); }
+#empty-state svg { width: 20px; height: 20px; stroke-width: 1.25; }
+#empty-state p { margin: 8px 0 0; }
+.waiting-dots { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; }
+.waiting-dots span { width: 3px; height: 3px; border-radius: 50%; background: currentColor; font-size: 0; }
+
+/* The caret already shows focus; a heavy ring around the composer looked like a form field. */
+.composer:focus-within { border-top-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }

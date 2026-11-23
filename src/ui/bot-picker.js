@@ -8,6 +8,18 @@
     return node;
   };
 
+  function icon(paths) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 16 16');
+    svg.setAttribute('aria-hidden', 'true');
+    for (const data of paths) {
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', data);
+      svg.append(path);
+    }
+    return svg;
+  }
+
   globalThis.BotPicker = {
     create({ container, onSelect, includeDefault = true, includeManual = false, compact = false }) {
       const id = `bot-picker-${++sequence}`;
@@ -33,6 +45,8 @@
       trigger.append(image, label, chevron);
       const popover = element('div', 'bot-picker-popover');
       popover.hidden = true;
+      const searchBox = element('div', 'bot-picker-search-box');
+      searchBox.append(icon(['M10.5 10.5 14 14', 'M11.5 6.5a5 5 0 1 1-10 0 5 5 0 0 1 10 0']));
       const search = element('input', 'bot-picker-search');
       search.type = 'search';
       search.placeholder = t('picker.search');
@@ -46,7 +60,8 @@
       list.tabIndex = -1;
       list.setAttribute('role', 'listbox');
       list.setAttribute('aria-label', t('picker.destination'));
-      popover.append(search, list);
+      searchBox.append(search);
+      popover.append(searchBox, list);
       root.append(trigger, popover);
       container.append(root);
       let bots = [];
@@ -95,6 +110,7 @@
         list.replaceChildren();
         options = [];
         search.hidden = bots.length <= 5;
+        searchBox.hidden = search.hidden;
         const query = normalize(search.value);
         const filtered = bots.filter((bot) => normalize(bot.name).includes(query));
         const heading = element('div', 'bot-picker-heading', t('picker.heading'));
@@ -105,12 +121,13 @@
           node.id = `${id}-option-${options.length}`;
           node.setAttribute('role', 'option');
           node.setAttribute('aria-selected', String(matches(option)));
-          const icon = element('span', 'avatar', avatar?.initial || 'G');
-          icon.setAttribute('aria-hidden', 'true');
-          icon.style.backgroundColor = avatar?.color || '#1080f3';
-          node.append(icon, element('span', 'bot-picker-name', option.botName));
+          const avatarNode = element('span', 'avatar', avatar?.initial || 'G');
+          avatarNode.setAttribute('aria-hidden', 'true');
+          avatarNode.style.backgroundColor = avatar?.color || '#1080f3';
+          node.append(avatarNode, element('span', 'bot-picker-name', option.botName));
           if (badge) node.append(element('span', 'bot-picker-badge', t('picker.mostUsed')));
-          const check = element('span', 'bot-picker-check', matches(option) ? '✓' : '');
+          const check = element('span', 'bot-picker-check');
+          if (matches(option)) check.append(icon(['m3 8 3 3 7-7']));
           check.setAttribute('aria-hidden', 'true');
           node.append(check);
           const index = options.length;

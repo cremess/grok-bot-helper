@@ -2,7 +2,11 @@ const { t } = require('./lib/i18n');
 const path = require('node:path');
 const fs = require('node:fs');
 const { app, BrowserWindow, globalShortcut, ipcMain, Menu, nativeTheme, screen, shell, Tray, clipboard, Notification } = require('electron');
-app.setPath('userData', path.join(app.getPath('appData'), 'grokbot-assistant'));
+const { migrateUserData } = require('./lib/migrate');
+const appData = app.getPath('appData');
+const userData = path.join(appData, 'grok-bot-helper');
+migrateUserData(path.join(appData, 'grokbot-assistant'), userData);
+app.setPath('userData', userData);
 const { createTrayIcon, appIconPath } = require('./icon');
 const { buildPromptLink, parseBotId, isValidBotId } = require('./lib/link');
 const { listBots } = require('./lib/roster');
@@ -276,7 +280,7 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.whenReady().then(async () => {
-    app.setAppUserModelId('app.grokbot.assistant');
+    app.setAppUserModelId('app.grokbothelper.desktop');
     Object.assign(settingsLocation, { path: path.join(app.getPath('userData'), 'settings.json') });
     Object.freeze(settingsLocation);
     const firstRun = isFirstRun(fs.existsSync(settingsLocation.path));

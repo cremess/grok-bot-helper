@@ -54,7 +54,7 @@ test('static HTML localization sets text and attributes using DOM APIs', () => {
     });
   }
   applyI18n({ querySelectorAll(selector) { return [nodes.get(selector)]; } });
-  assert.equal(nodes.get('[data-i18n]').textContent, 'Send \u21b5');
+  assert.equal(nodes.get('[data-i18n]').textContent, 'Send');
   assert.equal(nodes.get('[data-i18n-placeholder]').placeholder, 'Ask or tell Grok anything\u2026');
   assert.equal(nodes.get('[data-i18n-title]').title, 'Pin (keep open when clicking outside)');
   assert.equal(nodes.get('[data-i18n-aria-label]')['aria-label'], 'Close');

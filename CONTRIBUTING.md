@@ -2,7 +2,7 @@
 
 ## Overview
 
-GrokBot Assistant is a Windows tray app that opens a prompt through a global shortcut.
+Grok Bot Helper is a Windows tray app that opens a prompt through a global shortcut.
 Messages of up to 1000 characters go to the selected bot through the `grokbot://app/v1/prompt` deep link.
 The bot list and conversations are read from Grok Bot's local files without modifying them.
 This internal format may change with Grok Bot updates.
@@ -14,7 +14,7 @@ Clone the repository using the URL supplied by the maintainer:
 
 ```powershell
 git clone <repository-url>
-cd grokbot-assistant
+cd grok-bot-helper
 npm install
 npm start
 ```
@@ -58,7 +58,7 @@ Use the directory created by the clone in the `cd` command. If installation does
 
 To test the UI and simulate sending and receiving, use an Electron script that calls
 `app.setPath('appData', <temporary directory>)` **before** loading `src/main.js`.
-The main process derives both the Assistant data directory and `Grok Bot/sand-client-persistence` from that path.
+The main process derives both the Helper data directory and `Grok Bot/sand-client-persistence` from that path.
 
 Copy only the required Grok Bot files into the temporary directory: the roster, the selected bot's
 conversation, and the last bot selection if using the default bot. Prefer fictional contents,

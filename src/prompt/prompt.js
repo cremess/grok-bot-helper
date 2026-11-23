@@ -60,6 +60,9 @@ const responseName = document.getElementById('response-name');
 const responseAvatar = document.getElementById('response-avatar');
 const conversationToggle = document.getElementById('conversation-toggle');
 const expandResponse = document.getElementById('expand-response');
+const emptyState = document.getElementById('empty-state');
+const emptyMessage = document.getElementById('empty-message');
+let grokBotFound = true;
 const waitingArea = document.getElementById('waiting-area');
 let conversation = { ok: false };
 let waiting = false;
@@ -125,8 +128,12 @@ async function loadPickerBots() {
   const version = ++rosterVersion;
   try {
     const result = await window.grokbot.bots();
-    if (version === rosterVersion) picker.setBots(result.ok ? result.bots : []);
-  } catch { if (version === rosterVersion) picker.setBots([]); }
+    if (version === rosterVersion) {
+      grokBotFound = result.ok;
+      picker.setBots(result.ok ? result.bots : []);
+      renderConversation();
+    }
+  } catch { if (version === rosterVersion) { grokBotFound = false; picker.setBots([]); renderConversation(); } }
 }
 
 document.getElementById('copy-response').addEventListener('click', async () => {
@@ -242,6 +249,8 @@ function renderConversation(animate = false) {
   response.hidden = !conversation.ok || !conversation.latest;
   responseBody.replaceChildren();
   responseName.textContent = destinationDetails.botName || (destinationDetails.botId ? t('bot.fallback', { id: destinationDetails.botId.slice(0, 8) }) : t('bot.default'));
+  emptyState.hidden = !response.hidden || waiting || timedOut || notDelivered;
+  emptyMessage.textContent = grokBotFound ? t('prompt.empty', { bot: responseName.textContent }) : t('prompt.notFound');
   responseAvatar.textContent = destinationDetails.botInitial || 'G';
   responseAvatar.style.backgroundColor = destinationDetails.botColor || '#1080f3';
   conversationToggle.textContent = conversationView ? t('prompt.latest') : t('prompt.conversation');
@@ -346,6 +355,7 @@ window.grokbot.onConversation((data) => {
 });
 
 function updateLayout() {
+  send.disabled = submitting || !textarea.value.trim();
   const length = [...textarea.value].length;
   counter.textContent = t('prompt.counter', { length, max: MAX_TEXT_LENGTH });
   counter.hidden = length < 800;
@@ -392,12 +402,14 @@ async function submit(force = false, retryText) {
       if (text) history = [...history.filter((item) => item !== text), text].slice(-50);
       historyIndex = null;
       textarea.value = '';
-      send.textContent = t('prompt.sent');
+      send.setAttribute('aria-label', t('prompt.sent'));
+      send.title = t('prompt.sent');
       send.classList.add('sent');
       if (result.afterSend === 'wait') {
         submitting = false;
-        send.disabled = false;
-        send.textContent = t('prompt.send');
+        send.disabled = !textarea.value.trim();
+        send.setAttribute('aria-label', t('prompt.send'));
+        send.title = t('prompt.send');
         send.classList.remove('sent');
         textarea.focus();
       }
@@ -409,13 +421,13 @@ async function submit(force = false, retryText) {
         errorArea.append(textButton(t('prompt.sendAnyway'), () => submit(true, submittedText)));
       } else showError(errors[result.error] || t('errors.unexpected'));
       submitting = false;
-      send.disabled = false;
+      send.disabled = !textarea.value.trim();
     }
   } catch {
     if (version !== showVersion) return;
     showError(t('errors.unexpected'));
     submitting = false;
-    send.disabled = false;
+    send.disabled = !textarea.value.trim();
   }
 }
 
@@ -458,8 +470,9 @@ window.grokbot.onShow(({ botId, botName, botColor, botInitial, history: savedHis
   historyIndex = navigatingHistory && previousIndex !== -1 ? previousIndex : null;
   showVersion += 1;
   submitting = false;
-  send.disabled = false;
-  send.textContent = t('prompt.send');
+  send.disabled = !textarea.value.trim();
+  send.setAttribute('aria-label', t('prompt.send'));
+  send.title = t('prompt.send');
   send.classList.remove('sent');
   setBot({ botId, botName, botColor, botInitial });
   conversation = data || { ok: false };

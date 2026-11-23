@@ -1,7 +1,9 @@
 {
-  "name": "grokbot-assistant",
-  "productName": "GrokBot Assistant",
-  "author": "GrokBot Assistant",
+  "name": "grok-bot-helper",
+  "productName": "Grok Bot Helper",
+  "author": "Grok Bot Helper contributors",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/pedrofigueiredo25/grok-bot-helper.git" },
   "version": "0.1.0",
   "private": true,
   "description": "Unofficial Windows companion for Grok Bot: a global shortcut opens a floating prompt that talks to your bots.",
@@ -19,8 +21,8 @@
     "electron-builder": "26.18.1"
   },
   "build": {
-    "appId": "app.grokbot.assistant",
-    "productName": "GrokBot Assistant",
+    "appId": "app.grokbothelper.desktop",
+    "productName": "Grok Bot Helper",
     "directories": { "output": "dist", "buildResources": "build" },
     "files": ["src/**/*", "assets/icons/**/*", "package.json"],
     "asar": true,
@@ -31,9 +33,9 @@
       "runAfterFinish": true,
       "createStartMenuShortcut": true,
       "createDesktopShortcut": false,
-      "shortcutName": "GrokBot Assistant",
+      "shortcutName": "Grok Bot Helper",
       "deleteAppDataOnUninstall": false,
-      "artifactName": "GrokBot-Assistant-Setup-${version}.exe"
+      "artifactName": "Grok-Bot-Helper-Setup-${version}.exe"
     }
   }
 }

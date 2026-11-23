@@ -1,5 +1,26 @@
 applyI18n();
 
+// Measure the selected label so the pill follows both keyboard and pointer changes.
+const segmentedControls = [...document.querySelectorAll('.segmented')];
+for (const control of segmentedControls) {
+  const indicator = document.createElement('div');
+  indicator.className = 'segmented-indicator';
+  indicator.setAttribute('aria-hidden', 'true');
+  control.prepend(indicator);
+  control.addEventListener('change', updateSegments);
+}
+function updateSegments() {
+  for (const control of segmentedControls) {
+    const label = control.querySelector('input:checked')?.closest('label');
+    if (!label) continue;
+    const indicator = control.querySelector('.segmented-indicator');
+    indicator.style.width = label.offsetWidth + 'px';
+    indicator.style.transform = 'translateX(' + label.offsetLeft + 'px)';
+  }
+}
+const segmentObserver = new ResizeObserver(updateSegments);
+for (const control of segmentedControls) segmentObserver.observe(control);
+
 const form = document.getElementById('settings-form');
 const fields = document.getElementById('fields');
 const bot = document.getElementById('bot');
@@ -15,6 +36,7 @@ const themeOptions = [...document.querySelectorAll('input[name="theme"]')];
 function renderGeneral(settings) {
   notifyOnReply.checked = settings.notifyOnReply;
   for (const option of themeOptions) option.checked = option.value === settings.theme;
+  updateSegments();
 }
 const clearHistory = document.getElementById('clear-history');
 const clearConfirmation = document.getElementById('clear-confirmation');
@@ -42,6 +64,7 @@ const afterSendOptions = [...document.querySelectorAll('input[name="after-send"]
 const afterSendHelp = document.getElementById('after-send-help');
 function renderAfterSend(value) {
   if (value) for (const option of afterSendOptions) option.checked = option.value === value;
+  updateSegments();
   afterSendHelp.textContent = afterSendOptions.find((option) => option.checked)?.value === 'hide'
     ? t('settings.rows.afterSend.hideHelp')
     : t('settings.rows.afterSend.waitHelp');

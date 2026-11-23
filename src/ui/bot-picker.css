@@ -1,19 +1,19 @@
 .bot-picker { position: relative; min-width: 0; width: 100%; }
-.bot-picker-trigger { display: flex; align-items: center; gap: 8px; width: 100%; height: 40px; padding: 0 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); text-align: left; }
+.bot-picker-trigger { display: flex; align-items: center; gap: 8px; width: 100%; height: 34px; padding: 0 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); text-align: left; }
 .bot-picker-trigger:hover { background: var(--hover); }
 .bot-picker-trigger .avatar { width: 22px; height: 22px; font-size: 12px; }
 .bot-picker-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bot-picker-label strong { font-weight: 600; }
-.bot-picker-trigger svg { width: 16px; height: 16px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.5; transition: transform 120ms; color: var(--secondary); }
+.bot-picker-trigger svg { width: 14px; height: 14px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; transition: transform 120ms; color: var(--secondary); }
 .bot-picker-trigger[aria-expanded="true"] svg { transform: rotate(180deg); }
 .bot-picker-popover { position: absolute; z-index: 20; top: calc(100% + 6px); left: 0; width: 100%; padding: 5px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); box-shadow: var(--shadow-popover); animation: bot-picker-in 120ms ease-out; }
 @keyframes bot-picker-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
-.bot-picker-search { width: 100%; height: 32px; padding: 0 9px; margin-bottom: 4px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
-.bot-picker-list { max-height: 248px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--secondary) transparent; border-radius: 7px; }
-.bot-picker-search[hidden] + .bot-picker-list { max-height: 288px; }
-.bot-picker-heading { padding: 5px 8px; font-size: 11px; color: var(--secondary); }
-.bot-picker-option { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 7px; border-radius: 7px; cursor: pointer; }
-.bot-picker-option.active { background: var(--hover); outline: 1px solid var(--border); outline-offset: -1px; }
+.bot-picker-search { width: 100%; height: 32px; padding: 0 9px 0 30px; margin-bottom: 4px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
+.bot-picker-list { max-height: 248px; overflow-y: auto; border-radius: 7px; }
+.bot-picker-search-box[hidden] + .bot-picker-list { max-height: 288px; }
+.bot-picker-heading { text-transform: uppercase; letter-spacing: .06em; padding: 5px 8px; font-size: 11px; color: var(--secondary); }
+.bot-picker-option { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 7px; border-radius: 8px; cursor: pointer; }
+.bot-picker-option.active { background: color-mix(in srgb, var(--accent) 18%, var(--surface)); outline: 1px solid var(--border); outline-offset: -1px; }
 .bot-picker-option .avatar { width: 24px; height: 24px; font-size: 12px; }
 .bot-picker-name { min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .bot-picker-badge { padding: 2px 5px; border-radius: 4px; font-size: 10px; color: var(--secondary); background: var(--surface); white-space: nowrap; }
@@ -25,3 +25,11 @@
 .bot-picker-compact strong { color: var(--text); }
 .bot-picker-compact .bot-picker-trigger .avatar { width: 20px; height: 20px; }
 .bot-picker-compact .bot-picker-popover { min-width: 280px; width: max(280px, 100%); }
+
+.bot-picker-trigger[aria-expanded="true"] { box-shadow: 0 0 0 2px var(--accent); }
+.bot-picker-option:hover { background: var(--hover); }
+.bot-picker-option.active:hover { background: color-mix(in srgb, var(--accent) 18%, var(--surface)); }
+.bot-picker-search-box { position: relative; }
+.bot-picker-search-box > svg { position: absolute; left: 9px; top: 8px; width: 16px; height: 16px; pointer-events: none; fill: none; stroke: var(--secondary); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.bot-picker-check { width: 16px; height: 16px; }
+.bot-picker-check svg { width: 16px; height: 16px; display: block; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
