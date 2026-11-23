@@ -47,6 +47,7 @@ let usage = {};
 const MAX_TEXT_LENGTH = 1000;
 const errors = {
   empty: t('errors.empty'),
+  busy: t('errors.busy'),
   'too-long': t('errors.tooLong'),
   'invalid-bot-id': t('errors.configuredBot'),
   'open-failed': t('errors.open'),
@@ -387,7 +388,9 @@ function updateLayout() {
 }
 
 // A quiet status line, for things that aren't errors (like a selection that was cut to fit).
+let partsNoticeShown = false;
 function showNotice(message) {
+  partsNoticeShown = false;
   noticeArea.textContent = message;
   noticeArea.hidden = !message;
   updateLayout();
@@ -396,6 +399,95 @@ function showNotice(message) {
 function showError(message) {
   errorArea.textContent = message;
   errorArea.hidden = !message;
+  updateLayout();
+}
+
+function showPartsProgress({ part, total }) {
+  noticeArea.replaceChildren(t('prompt.parts.progress', { part, total }), textButton(t('prompt.parts.cancel'), () => {
+    window.grokbot.cancelParts().catch(() => {});
+  }));
+  noticeArea.hidden = false;
+  partsNoticeShown = true;
+  updateLayout();
+}
+// The draft being sent in parts, to clear it (and add it to history) once every part arrived.
+let partsDraft;
+window.grokbot.onPartsProgress((data) => {
+  if (data?.done) {
+    // Handled here rather than where submitParts awaits, so the outcome isn't lost if the prompt was
+    // hidden, reopened or reloaded while the parts were going out.
+    if (partsNoticeShown) showNotice('');
+    const result = data.result && typeof data.result === 'object' ? data.result : { ok: false, error: 'unexpected' };
+    const draft = partsDraft;
+    partsDraft = undefined;
+    submitting = true;
+    if (result.ok) succeedSubmit(result, draft ?? '', textarea.value === draft ? undefined : '');
+    else failSubmit(result, (forced) => submitParts(forced, draft ?? textarea.value), draft ?? textarea.value);
+  } else if (Number.isInteger(data?.part) && Number.isInteger(data?.total)) showPartsProgress(data);
+});
+
+function failSubmit(result, retry, draft) {
+  if (result.error === 'limit') {
+    setUsage({ blocked: true, resetText: result.resetText, percentUsed: result.percentUsed });
+    showError(t('prompt.limit', { reset: result.resetText }));
+    errorArea.append(textButton(t('prompt.sendAnyway'), () => retry(true)));
+  } else if (result.error === 'too-long' && Number.isInteger(result.parts) && result.parts > 1
+      && result.parts <= result.maxParts) {
+    showError(errors['too-long']);
+    errorArea.append(textButton(t('prompt.parts.send', { count: result.parts }), () => submitParts(false, draft)));
+  } else if (result.error === 'too-many-parts' || (result.error === 'too-long' && result.parts > result.maxParts)) {
+    showError(t('prompt.parts.tooMany', { max: result.maxParts }));
+  } else if (result.error === 'part-failed') {
+    showError(t('prompt.parts.failed', { part: result.part, total: result.total }));
+  } else if (result.error === 'cancelled') {
+    showNotice(Number.isInteger(result.pendingPart)
+      ? t('prompt.parts.cancelledPending', { sent: result.sentParts, total: result.total, part: result.pendingPart })
+      : t('prompt.parts.cancelled', { sent: result.sentParts, total: result.total }));
+  } else showError(errors[result.error] || t('errors.unexpected'));
+  submitting = false;
+  send.disabled = !textarea.value.trim();
+}
+
+// Sends the draft split into numbered parts, after the user clicked "Send in N parts".
+async function submitParts(force, draft = textarea.value) {
+  if (submitting || typeof draft !== 'string') return;
+  const version = showVersion;
+  const submittedText = draft;
+  submitting = true;
+  send.disabled = true;
+  showError('');
+  showNotice('');
+  partsDraft = submittedText;
+  try {
+    const result = await window.grokbot.submitParts(submittedText, { force: force === true });
+    // Once sending started, the outcome arrives as a progress event (see onPartsProgress).
+    if (result.finished || version !== showVersion) return;
+    partsDraft = undefined;
+    failSubmit(result, (forced) => submitParts(forced, submittedText), submittedText);
+  } catch {
+    if (version !== showVersion) return;
+    partsDraft = undefined;
+    failSubmit({ error: 'unexpected' });
+  }
+}
+
+function succeedSubmit(result, submittedText, retryText) {
+  const text = submittedText.trim();
+  if (text) history = [...history.filter((item) => item !== text), text].slice(-50);
+  historyIndex = null;
+  // A retry resends an earlier message; keep whatever the user is typing now.
+  if (retryText === undefined) textarea.value = '';
+  send.setAttribute('aria-label', t('prompt.sent'));
+  send.title = t('prompt.sent');
+  send.classList.add('sent');
+  if (result.afterSend === 'wait') {
+    submitting = false;
+    send.disabled = !textarea.value.trim();
+    send.setAttribute('aria-label', t('prompt.send'));
+    send.title = t('prompt.send');
+    send.classList.remove('sent');
+    textarea.focus();
+  }
   updateLayout();
 }
 
@@ -410,33 +502,10 @@ async function submit(force = false, retryText) {
   try {
     const result = await window.grokbot.submit(submittedText, { force: force === true });
     if (version !== showVersion) return;
-    if (result.ok) {
-      const text = submittedText.trim();
-      if (text) history = [...history.filter((item) => item !== text), text].slice(-50);
-      historyIndex = null;
-      // A retry resends an earlier message; keep whatever the user is typing now.
-      if (retryText === undefined) textarea.value = '';
-      send.setAttribute('aria-label', t('prompt.sent'));
-      send.title = t('prompt.sent');
-      send.classList.add('sent');
-      if (result.afterSend === 'wait') {
-        submitting = false;
-        send.disabled = !textarea.value.trim();
-        send.setAttribute('aria-label', t('prompt.send'));
-        send.title = t('prompt.send');
-        send.classList.remove('sent');
-        textarea.focus();
-      }
-      updateLayout();
-    } else {
-      if (result.error === 'limit') {
-        setUsage({ blocked: true, resetText: result.resetText, percentUsed: result.percentUsed });
-        showError(t('prompt.limit', { reset: result.resetText }));
-        errorArea.append(textButton(t('prompt.sendAnyway'), () => submit(true, submittedText)));
-      } else showError(errors[result.error] || t('errors.unexpected'));
-      submitting = false;
-      send.disabled = !textarea.value.trim();
-    }
+    if (result.ok) succeedSubmit(result, submittedText, retryText);
+    // Splitting is offered only for the draft, never for a retry of an earlier message.
+    else failSubmit(retryText === undefined ? result : { ...result, parts: undefined },
+      (forced) => submit(forced, submittedText), submittedText);
   } catch {
     if (version !== showVersion) return;
     showError(t('errors.unexpected'));
@@ -474,7 +543,7 @@ document.addEventListener('keydown', (event) => {
 
 window.grokbot.onShow(({ botId, botName, botColor, botInitial, history: savedHistory, conversation: data, waiting: isWaiting, sent: sentMessage,
   partial: isPartial, usage: usageData, notDelivered: failedDelivery, awaitingDelivery: awaitingReceipt, pinned: isPinned, userSized: isUserSized,
-  prefill }) => {
+  prefill, parts: partsProgress }) => {
   showPinned(Boolean(isPinned));
   setUserSized(isUserSized);
   picker.close();
@@ -492,8 +561,9 @@ window.grokbot.onShow(({ botId, botName, botColor, botInitial, history: savedHis
     historyIndex = null;
   }
   showVersion += 1;
-  submitting = false;
-  send.disabled = !textarea.value.trim();
+  // While parts are still going out, keep sending blocked until their outcome arrives.
+  submitting = Boolean(partsProgress);
+  send.disabled = submitting || !textarea.value.trim();
   send.setAttribute('aria-label', t('prompt.send'));
   send.title = t('prompt.send');
   send.classList.remove('sent');
@@ -513,6 +583,7 @@ window.grokbot.onShow(({ botId, botName, botColor, botInitial, history: savedHis
   showError('');
   showNotice(!selected ? '' : selected.empty ? t('prompt.selection.empty')
     : selected.clipped ? t('prompt.selection.clipped', { max: MAX_TEXT_LENGTH }) : '');
+  if (partsProgress) showPartsProgress(partsProgress);
   document.body.classList.remove('opening');
   void document.body.offsetWidth;
   document.body.classList.add('opening');

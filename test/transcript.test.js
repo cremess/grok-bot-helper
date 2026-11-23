@@ -261,3 +261,13 @@ test('a bot answering with several messages is followed until it stops writing',
   assert.equal(seen.id, 'b3');
   assert.equal(tick, 4 + REPLY_SETTLE_MS / 1000);
 });
+
+test('replyState with expectPrefix only counts the expected part as delivered', () => {
+  const knownIds = new Set(['u1']);
+  const typed = parseTranscript(transcript([user('u1', 1, 100), user('u2', 2, 200, 'something typed meanwhile')]));
+  assert.equal(replyState(typed, { knownIds, knownUntilMs: 100, expectPrefix: '(2/3)' }).delivered, false);
+  const part = parseTranscript(transcript([user('u1', 1, 100), user('u2', 2, 200, '(2/3) second part')]));
+  assert.equal(replyState(part, { knownIds, knownUntilMs: 100, expectPrefix: '(2/3)' }).delivered, true);
+  assert.equal(replyState(part, { afterMs: 150, expectPrefix: '(3/3)' }).delivered, false);
+  assert.equal(replyState(part, { afterMs: 150, expectPrefix: '(2/3)' }).delivered, true);
+});

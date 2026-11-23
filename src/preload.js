@@ -10,6 +10,11 @@ contextBridge.exposeInMainWorld('grokbot', {
     ipcRenderer.on('prompt:conversation', (_event, data) => callback(data));
   },
   submit: (text, options) => ipcRenderer.invoke('prompt:submit', options ? { text, force: options.force === true } : text),
+  submitParts: (text, options) => ipcRenderer.invoke('prompt:submit-parts', { text, force: options?.force === true }),
+  cancelParts: () => ipcRenderer.invoke('prompt:cancel-parts'),
+  onPartsProgress: (callback) => {
+    ipcRenderer.on('prompt:parts-progress', (_event, data) => callback(data));
+  },
   stopWaiting: () => ipcRenderer.invoke('prompt:stop-waiting'),
   hide: () => ipcRenderer.invoke('prompt:hide'),
   setPinned: (pinned) => ipcRenderer.invoke('prompt:set-pinned', pinned),

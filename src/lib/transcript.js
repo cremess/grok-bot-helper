@@ -87,15 +87,19 @@ function userMessageSince(entries, afterMs) {
 // only if its id is new and it isn't older than the newest entry already there. Both checks use Grok
 // Bot's own data, so a clock difference with this PC doesn't matter, and an old entry rewritten with
 // a new id is still ignored. Entries without a timestamp are judged by id alone.
-// Without a baseline it falls back to the send time.
-function replyState(entries, { knownIds, knownUntilMs = 0, afterMs } = {}) {
+// Without a baseline it falls back to the send time. With `expectPrefix` (a part like "(2/3)"), only a
+// user message starting with it counts as delivered, so a message typed in Grok Bot meanwhile doesn't.
+function replyState(entries, { knownIds, knownUntilMs = 0, afterMs, expectPrefix } = {}) {
+  const ours = (entry) => entry.role === 'user'
+    && (typeof expectPrefix !== 'string' || entry.text.startsWith(expectPrefix));
   const isNew = (entry) => !knownIds.has(entry.id) && (entry.timestampMs === 0 || entry.timestampMs > knownUntilMs);
   const fresh = knownIds instanceof Set ? entries.filter(isNew) : null;
   if (fresh) {
-    return { delivered: fresh.some((entry) => entry.role === 'user'),
-      reply: latestReply(fresh) };
+    return { delivered: fresh.some(ours), reply: latestReply(fresh) };
   }
-  return { delivered: userMessageSince(entries, afterMs ?? 0), reply: latestReply(entries, { afterMs }) };
+  const since = afterMs ?? 0;
+  return { delivered: entries.some((entry) => ours(entry) && entry.timestampMs >= since),
+    reply: latestReply(entries, { afterMs }) };
 }
 
 const REPLY_SETTLE_MS = 4000;

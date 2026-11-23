@@ -9,12 +9,12 @@ const userData = path.join(appData, 'grok-bot-helper');
 migrateUserData(path.join(appData, 'grokbot-assistant'), userData);
 app.setPath('userData', userData);
 const { createTrayIcon, appIconPath } = require('./icon');
-const { buildPromptLink, parseBotId, isValidBotId, MAX_TEXT_LENGTH } = require('./lib/link');
+const { buildPromptLink, parseBotId, isValidBotId, MAX_TEXT_LENGTH, MAX_PARTS, splitMessage } = require('./lib/link');
 const { clipSelection, selectionPollDecision, restorePlan } = require('./lib/selection');
 const { listBots } = require('./lib/roster');
 const { loadHistory, addToHistory, saveHistory } = require('./lib/history');
 const { readConversation, recentExchanges, latestReply, replyState, resolveAgentId, trackTranscriptChange,
-  waitDecision } = require('./lib/transcript');
+  waitDecision, NOT_DELIVERED_MS } = require('./lib/transcript');
 const { readUsage, isBlocked, formatReset } = require('./lib/usage');
 const { avatarColor, avatarInitial } = require('./lib/avatar');
 const { loadSettings, saveSettings, isValidShortcut, selectionShortcutError, DEFAULT_SETTINGS } = require('./lib/settings');
@@ -29,6 +29,8 @@ let settings;
 let registeredShortcut;
 let registeredSelectionShortcut;
 let capturingSelection = false;
+// A long message being sent in parts: { cancelled, part, total }.
+let partsJob;
 const settingsLocation = {};
 const GROK_BOT_DIRECTORY = path.join(app.getPath('appData'), 'Grok Bot', 'sand-client-persistence');
 let hideTimer;
@@ -136,7 +138,80 @@ function conversationBaseline(botId) {
 
 function sentState(request, entries) {
   return replyState(entries, { knownIds: request.knownIds, knownUntilMs: request.knownUntilMs,
-    afterMs: request.sentAt - 2000 });
+    afterMs: request.sentAt - 2000, expectPrefix: request.expectPrefix });
+}
+
+// Reads the baseline for the next part. Right after Grok Bot wrote the previous part the file may be
+// caught mid-write; without a baseline, delivery would fall back to timestamps and the previous part's
+// entry could pass for this one, so retry a few times.
+async function partBaseline(botId) {
+  let baseline = conversationBaseline(botId);
+  for (let attempt = 0; attempt < 5 && !(baseline.knownIds instanceof Set); attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    baseline = conversationBaseline(botId);
+  }
+  return baseline;
+}
+
+// Sends every part in order and returns the outcome. Each part must show up in the transcript before the
+// next one goes out, so the parts arrive in order and a failure stops the rest.
+async function runParts({ text, parts, links, job }) {
+  const botId = settings.botId;
+  const mode = settings.afterSend;
+  const { total } = job;
+  let request;
+  try {
+    for (let index = 0; index < total; index += 1) {
+      if (job.cancelled || settings.botId !== botId) return { ok: false, error: 'cancelled', sentParts: index, total };
+      job.part = index + 1;
+      promptWindow.webContents.send('prompt:parts-progress', { part: job.part, total });
+      const baseline = await partBaseline(botId);
+      request = { sentAt: Date.now(), botId, mode, ...baseline, expectPrefix: `(${index + 1}/${total})`,
+        sent: { role: 'user', text: parts[index], timestampMs: Date.now() } };
+      try {
+        await shell.openExternal(links[index].url);
+      } catch {
+        return { ok: false, error: 'part-failed', part: job.part, total };
+      }
+      if (index === 0) {
+        history = addToHistory(history, text);
+        try { saveHistory(historyFile, history); } catch { /* Keep history in memory. */ }
+      }
+      const delivered = await waitForDelivery(request, job);
+      // The part was already handed to Grok Bot; if its confirmation is still open it can still arrive.
+      if (job.cancelled) return { ok: false, error: 'cancelled', sentParts: index, total, pendingPart: job.part };
+      if (!delivered) return { ok: false, error: 'part-failed', part: job.part, total };
+    }
+  } finally {
+    partsJob = undefined;
+  }
+  if (request.botId !== settings.botId) return { ok: true, afterSend: mode, total };
+  // Every part arrived; wait for the reply to the last one as for a single message.
+  request.delivered = true;
+  startWaiting(request);
+  if (mode === 'hide') {
+    clearTimeout(hideTimer);
+    sendingPrompt = true;
+    hideTimer = setTimeout(() => {
+      sendingPrompt = false;
+      promptWindow.hide();
+    }, 280);
+  }
+  return { ok: true, afterSend: mode, total };
+}
+
+// Polls the transcript until the message of `request` shows up, the job is cancelled or delivery times out.
+function waitForDelivery(request, job) {
+  return new Promise((resolve) => {
+    const check = () => {
+      if (job.cancelled) return resolve(false);
+      const result = readConversation(GROK_BOT_DIRECTORY, request.agentId);
+      if (result.ok && sentState(request, result.entries).delivered) return resolve(true);
+      if (Date.now() - request.sentAt >= NOT_DELIVERED_MS) return resolve(false);
+      setTimeout(check, 500);
+    };
+    setTimeout(check, 500);
+  });
 }
 
 function usageDetails() {
@@ -314,6 +389,7 @@ function showPrompt(extra = {}) {
     conversation: loadConversation(), waiting: Boolean(pending), partial: Boolean(pending?.reply), sent: pending?.sent,
     ...deliveryFailure,
     awaitingDelivery: Boolean(pending && !pending.delivered && Date.now() - pending.sentAt >= 15000),
+    parts: partsJob ? { part: partsJob.part, total: partsJob.total } : undefined,
     usage: usageDetails(),
     botColor: settings.botId ? avatarColor(bot?.color, settings.botId) : '#1080f3',
     botInitial: settings.botId ? avatarInitial(botName) : 'G',
@@ -617,7 +693,7 @@ if (!app.requestSingleInstanceLock()) {
     promptWindow.webContents.on('will-navigate', (event) => event.preventDefault());
     promptWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     promptWindow.on('blur', () => {
-      if (!pinned && !sendingPrompt && pending?.mode !== 'wait') promptWindow.hide();
+      if (!pinned && !sendingPrompt && !partsJob && pending?.mode !== 'wait') promptWindow.hide();
     });
     // Windows emits will-move/will-resize only for manual changes.
     for (const event of ['will-move', 'will-resize']) {
@@ -663,7 +739,13 @@ if (!app.requestSingleInstanceLock()) {
     });
     ipcMain.handle('prompt:submit', async (_event, payload) => {
       const text = typeof payload === 'string' ? payload : payload?.text;
+      if (partsJob) return { ok: false, error: 'busy' };
       const result = buildPromptLink({ text, botId: settings.botId });
+      if (result.error === 'too-long') {
+        // Tell the prompt how many parts it would take so it can offer to split it.
+        return { ...result, parts: [...text].length <= MAX_PARTS * MAX_TEXT_LENGTH * 2 ? splitMessage(text).length : Infinity,
+          maxParts: MAX_PARTS };
+      }
       if (!result.ok) return result;
       const usage = usageDetails();
       if (usage.blocked && payload?.force !== true) {
@@ -697,6 +779,48 @@ if (!app.requestSingleInstanceLock()) {
         sendingPrompt = false;
         return { ok: false, error: 'open-failed' };
       }
+    });
+    // Sends a long message as numbered parts, one at a time (see runParts). The user confirms this in the
+    // prompt first; nothing is split without that click. Checks that fail before anything is sent are
+    // returned directly; once sending starts, the outcome also goes out as a 'prompt:parts-progress' event,
+    // so a prompt that was hidden, reopened or reloaded meanwhile still learns how it ended.
+    ipcMain.handle('prompt:submit-parts', async (_event, payload) => {
+      if (partsJob || sendingPrompt) return { ok: false, error: 'busy' };
+      const text = payload?.text;
+      if (typeof text !== 'string' || (payload.force !== undefined && typeof payload.force !== 'boolean')) {
+        return { ok: false, error: 'empty' };
+      }
+      if ([...text].length > MAX_PARTS * MAX_TEXT_LENGTH * 2) return { ok: false, error: 'too-many-parts', maxParts: MAX_PARTS };
+      const parts = splitMessage(text);
+      if (!parts.length) return { ok: false, error: 'empty' };
+      if (parts.length > MAX_PARTS) return { ok: false, error: 'too-many-parts', maxParts: MAX_PARTS };
+      const links = parts.map((part) => buildPromptLink({ text: part, botId: settings.botId }));
+      const invalid = links.find((link) => !link.ok);
+      if (invalid) return invalid;
+      if (links.some((link) => !link.url.startsWith('grokbot://app/v1/prompt?'))) return { ok: false, error: 'open-failed' };
+      const usage = usageDetails();
+      if (usage.blocked && payload.force !== true) {
+        return { ok: false, error: 'limit', resetText: usage.resetText, percentUsed: usage.percentUsed };
+      }
+
+      const job = { cancelled: false, part: 0, total: parts.length };
+      partsJob = job;
+      // A reply wait from an earlier message would read the same transcript; this send takes over.
+      stopWaiting();
+      deliveryFailure = undefined;
+      let result;
+      try {
+        result = await runParts({ text, parts, links, job });
+      } catch {
+        partsJob = undefined;
+        result = { ok: false, error: 'unexpected' };
+      }
+      promptWindow.webContents.send('prompt:parts-progress', { done: true, result });
+      return { ...result, finished: true };
+    });
+    ipcMain.handle('prompt:cancel-parts', () => {
+      if (partsJob) partsJob.cancelled = true;
+      return { ok: true };
     });
     ipcMain.handle('prompt:hide', () => promptWindow.hide());
     ipcMain.handle('prompt:open-settings', () => {

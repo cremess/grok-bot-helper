@@ -30,6 +30,7 @@ On macOS, Grok Bot ships with a built-in quick prompt you can summon from anywhe
 - **Quick prompt from anywhere** — press `Alt+Space` (configurable) in any app, type, hit `Enter`. Your message goes straight to the bot you picked.
 - **See the reply right there** — the latest reply shows up in the prompt with proper formatting (lists, bold, code). Switch to **Conversation** to see the recent back-and-forth. If the bot answers in several messages, the prompt keeps reading until it stops writing, and notifies you once.
 - **Send the text you selected** (optional) — pick a shortcut in Settings, select text in any app and press it: the prompt opens with that text, ready to send. Off by default.
+- **Long messages, in parts** — Grok Bot links take up to 1000 characters. For longer messages the prompt offers **Send in N parts**: it splits at paragraphs or sentences, numbers each part `(1/N)`, and sends them one at a time, waiting for each to arrive. You can cancel midway.
 - **Pick any of your bots** — the bot picker lists the bots from your Grok Bot app, with search. Switch with `Ctrl+K` without leaving the prompt.
 - **Wait or get notified** — keep the prompt open until the reply arrives, or let it close and get a dot on the tray icon (and an optional Windows notification).
 - **A real window when you want it** — drag it, resize it, pin it so it stays open; it remembers where you left it.
@@ -64,7 +65,7 @@ On macOS, Grok Bot ships with a built-in quick prompt you can summon from anywhe
 ## How it works
 
 1. A global shortcut opens a floating prompt (Electron, lives in the tray).
-2. When you send, the app opens a Grok Bot deep link — `grokbot://app/v1/prompt?id=<bot>&text=<text>` (up to 1000 characters). Grok Bot may ask you to confirm *"Add message for Grok?"*; it has a *"Don't show again"* option. If you enable it, any `grokbot://` link can add text without asking, so decide with that in mind.
+2. When you send, the app opens a Grok Bot deep link — `grokbot://app/v1/prompt?id=<bot>&text=<text>` (up to 1000 characters; a longer message goes out as numbered parts, one link each, only after you confirm). Grok Bot may ask you to confirm *"Add message for Grok?"*; it has a *"Don't show again"* option. If you enable it, any `grokbot://` link can add text without asking, so decide with that in mind.
 3. To show replies and your bot list, the app **reads** Grok Bot's local cache in `%APPDATA%\Grok Bot` — nothing is written there and nothing leaves your PC.
 
 ## Install
@@ -88,7 +89,7 @@ To uninstall: **Windows Settings → Apps**.
 | --- | --- |
 | Shortcut (default `Alt+Space`) | Opens / closes the prompt |
 | Selected-text shortcut (off by default, set it in Settings) | Copies the text selected in the app in front and opens the prompt with it (up to 1000 characters, added after any draft) |
-| `Enter` | Sends the message |
+| `Enter` | Sends the message (over 1000 characters, click **Send in N parts** to split it, up to 10 parts) |
 | `Shift+Enter` | New line |
 | `Esc` or click outside | Closes the prompt (unless it's pinned) |
 | `Ctrl+K` | Pick another bot |
