@@ -3,8 +3,11 @@
   "productName": "Grok Bot Helper",
   "author": "Grok Bot Helper contributors",
   "license": "MIT",
-  "repository": { "type": "git", "url": "https://github.com/pedrofigueiredo25/grok-bot-helper.git" },
-  "version": "0.1.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pedrofigueiredo25/grok-bot-helper.git"
+  },
+  "version": "0.2.0",
   "private": true,
   "description": "Unofficial Windows companion for Grok Bot: a global shortcut opens a floating prompt that talks to your bots.",
   "main": "src/main.js",
@@ -15,7 +18,9 @@
     "icons": "electron scripts/build-icons.js",
     "dist": "electron-builder --win nsis --x64"
   },
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "devDependencies": {
     "electron": "45.2.3",
     "electron-builder": "26.18.1"
@@ -23,10 +28,27 @@
   "build": {
     "appId": "app.grokbothelper.desktop",
     "productName": "Grok Bot Helper",
-    "directories": { "output": "dist", "buildResources": "build" },
-    "files": ["src/**/*", "assets/icons/**/*", "package.json"],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "assets/icons/**/*",
+      "package.json"
+    ],
     "asar": true,
-    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }], "icon": "build/icon.ico" },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
     "nsis": {
       "oneClick": true,
       "perMachine": false,
