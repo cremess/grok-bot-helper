@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="../ui/bot-picker.css">
   <script src="../lib/i18n.js" defer></script>
   <script src="../lib/accelerator.js" defer></script>
+  <script src="../lib/templates.js" defer></script>
   <script src="../ui/bot-picker.js" defer></script>
   <script src="settings.js" defer></script>
 </head>
@@ -18,14 +19,52 @@
     <img src="../../assets/icons/icon-256.png" width="36" height="36" alt="">
     <div><h1 data-i18n="settings.title">Settings</h1><p data-i18n="app.tagline">Your Grok Bot, one shortcut away.</p></div>
   </header>
-  <form id="settings-form">
+  <form id="settings-form" novalidate>
     <main>
       <section id="welcome" aria-labelledby="welcome-title" hidden>
         <h2 id="welcome-title" data-i18n="settings.welcome.title">Welcome to Grok Bot Helper</h2>
         <p id="welcome-message"></p>
       </section>
       <fieldset id="fields" disabled>
-        <section class="settings-group" aria-labelledby="destination-title">
+        <section class="settings-group" aria-labelledby="assistant-title">
+          <h2 id="assistant-title" data-i18n="settings.assistant">Assistant</h2>
+          <div class="section-card">
+            <div class="setting-row" role="group" aria-labelledby="assistant-row-title">
+              <span class="row-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="8" cy="6" r="3"/><path d="M2.5 14a5.5 5.5 0 0 1 11 0"/></svg></span>
+              <div class="row-copy"><h3 id="assistant-row-title" data-i18n="settings.assistant.title">Talk to</h3><p id="assistant-help"></p></div>
+              <div class="segmented row-control"><label><input type="radio" name="assistant" value="grokbot" checked aria-describedby="assistant-help"><span>Grok Bot</span></label><label><input type="radio" name="assistant" value="openbot" aria-describedby="assistant-help"><span>OpenBot</span></label><label><input type="radio" name="assistant" value="hermes" aria-describedby="assistant-help"><span>Hermes</span></label></div>
+            </div>
+            <div id="openbot-fields" hidden>
+              <div class="setting-row">
+                <span class="row-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="5" width="10" height="8" rx="2"/><path d="M8 2v3M6 9h0m4 0h0"/></svg></span>
+                <div class="row-copy"><h3 data-i18n="settings.openbot.agent">OpenBot agent</h3><p id="openbot-status" role="status" aria-live="polite"></p></div>
+                <div class="row-control"><select id="openbot-agent" data-i18n-aria-label="settings.openbot.agentLabel" aria-label="OpenBot agent to talk to"></select><button id="openbot-refresh" type="button" class="icon-button" data-i18n-aria-label="settings.openbot.refresh" aria-label="Refresh agents" data-i18n-title="settings.openbot.refresh" title="Refresh agents"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="M13 6A5 5 0 1 0 13 10M13 2v4H9"/></svg></button></div>
+              </div>
+              <div id="openbot-help" class="assistant-help" hidden><p data-i18n="openbot.steps">In OpenBot, open the agent's chat, open the side panel (agent settings), go to Permissions and turn on Local scripts. Do this for each agent you want to use here.</p><button id="open-openbot" type="button" class="small" data-i18n="openbot.open">Open OpenBot</button></div>
+            </div>
+            <div id="hermes-fields" class="assistant-fields" hidden>
+              <label for="hermes-path" data-i18n="settings.hermes.path">Hermes executable</label>
+              <input id="hermes-path" type="text" maxlength="1024" spellcheck="false" autocomplete="off" aria-describedby="hermes-path-help">
+              <p id="hermes-path-help" data-i18n="settings.hermes.pathHelp">Leave empty to use the default location.</p>
+              <p id="hermes-not-found" class="assistant-warning" role="status" hidden data-i18n="settings.hermes.notFound">Hermes wasn't found at the default location. Install Hermes Agent or enter the path to hermes.exe.</p>
+              <div class="assistant-pair">
+                <div><label for="hermes-model" data-i18n="settings.hermes.model">Model</label><input id="hermes-model" type="text" maxlength="100" spellcheck="false" autocomplete="off" data-i18n-placeholder="settings.hermes.namePlaceholder" placeholder="Hermes default" aria-describedby="hermes-name-help"></div>
+                <div><label for="hermes-provider" data-i18n="settings.hermes.provider">Provider</label><input id="hermes-provider" type="text" maxlength="100" spellcheck="false" autocomplete="off" data-i18n-placeholder="settings.hermes.namePlaceholder" placeholder="Hermes default" aria-describedby="hermes-name-help"></div>
+              </div>
+              <p id="hermes-name-help" data-i18n="settings.hermes.nameHelp">Optional. Letters, numbers and . _ : / - only.</p>
+            </div>
+            <label id="hermes-continue-row" class="setting-row switch-row" for="hermes-continue" hidden>
+              <span class="row-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="M2 3h12v8H6l-4 3ZM5 7h6"/></svg></span>
+              <span class="row-copy"><span class="row-title" data-i18n="settings.hermes.continue">Continue the conversation</span><span class="description" data-i18n="settings.hermes.continueHelp">Hermes remembers earlier messages from this app in a session of its own.</span></span><input id="hermes-continue" type="checkbox" role="switch">
+            </label>
+            <div id="timeout-row" class="setting-row" hidden>
+              <span class="row-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/></svg></span>
+              <div class="row-copy"><h3 data-i18n="settings.timeout.title">Wait for a reply</h3><p id="timeout-help" data-i18n="settings.timeout.help">Minutes before the prompt stops waiting for OpenBot or Hermes (1 to 120).</p></div>
+              <div class="row-control"><input id="reply-timeout" type="number" min="1" max="120" step="1" data-i18n-aria-label="settings.timeout.label" aria-label="Minutes to wait for a reply" aria-describedby="timeout-help"></div>
+            </div>
+          </div>
+        </section>
+        <section id="destination-group" class="settings-group" aria-labelledby="destination-title">
           <h2 id="destination-title" data-i18n="settings.destination">Destination</h2>
           <div class="section-card">
             <div class="setting-row destination-row">
@@ -42,6 +81,11 @@
             <span class="row-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><rect x="1.5" y="3" width="13" height="10" rx="2"/><path d="M4 6h1m2 0h1m2 0h1M4 8h1m2 0h1m2 0h1M5 10h6"/></svg></span>
             <div class="row-copy"><h3 data-i18n="settings.shortcut.title">Open the prompt</h3><p data-i18n="settings.shortcut.help">Works in any app.</p></div>
             <div class="row-control shortcut-actions"><div id="shortcut" data-i18n-aria-label="settings.shortcut.label" aria-label="Global shortcut" aria-live="polite"></div><button id="record" type="button" class="small" data-i18n="settings.shortcut.change">Change</button><button id="restore" type="button" class="icon-button" data-i18n-title="settings.shortcut.restore" title="Restore default" data-i18n-aria-label="settings.shortcut.restore" aria-label="Restore default"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 6a5 5 0 1 1 0 4M3 2v4h4"/></svg></button></div>
+          </div>
+          <div class="setting-row">
+            <span class="row-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="M2 4h7M2 7h5M2 10h4M10 7l4 3-4 3Z"/></svg></span>
+            <div class="row-copy"><h3 data-i18n="settings.selection.title">Send selected text</h3><p data-i18n="settings.selection.help">Copies the text you selected in any app into the prompt. Off until you pick keys.</p></div>
+            <div class="row-control shortcut-actions"><div id="selection-shortcut" class="shortcut-keys" data-i18n-aria-label="settings.selection.label" aria-label="Shortcut to send selected text" aria-live="polite"></div><button id="selection-record" type="button" class="small" data-i18n="settings.shortcut.change">Change</button><button id="selection-clear" type="button" class="icon-button" data-i18n-title="settings.selection.clear" title="Turn off" data-i18n-aria-label="settings.selection.clear" aria-label="Turn off"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"/></svg></button></div>
           </div></div>
         </section>
         <section class="settings-group" aria-labelledby="behavior-title">
@@ -68,7 +112,31 @@
             <span class="row-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 1v1m0 12v1M1 8h1m12 0h1M3 3l1 1m8 8 1 1M3 13l1-1m8-8 1-1"/></svg></span>
             <div class="row-copy"><h3 id="theme-title" data-i18n="settings.theme.title">Theme</h3><p data-i18n="settings.theme.help">App appearance.</p></div>
             <div class="segmented row-control"><label><input type="radio" name="theme" value="system" checked><span data-i18n="settings.theme.system">System</span></label><label><input type="radio" name="theme" value="dark"><span data-i18n="settings.theme.dark">Dark</span></label><label><input type="radio" name="theme" value="light"><span data-i18n="settings.theme.light">Light</span></label></div>
+          </div>
+          <div class="setting-row" role="group" aria-labelledby="language-title">
+            <span class="row-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M1.5 8h13M8 1.5c2 2 2.5 4 2.5 6.5S10 12.5 8 14.5M8 1.5C6 3.5 5.5 5.5 5.5 8S6 12.5 8 14.5"/></svg></span>
+            <div class="row-copy"><h3 id="language-title" data-i18n="settings.language.title">Language</h3><p data-i18n="settings.language.help">App language. System follows your Windows language.</p></div>
+            <div class="segmented row-control"><label><input type="radio" name="language" value="system" checked><span data-i18n="settings.language.system">System</span></label><label><input type="radio" name="language" value="en"><span data-language-name="en">English</span></label><label><input type="radio" name="language" value="pt-BR"><span data-language-name="pt-BR" lang="pt-BR">Português (Brasil)</span></label></div>
           </div></div>
+        </section>
+        <section class="settings-group" aria-labelledby="templates-title">
+          <h2 id="templates-title" data-i18n="settings.templates">Templates</h2>
+          <div class="section-card">
+            <div class="setting-row">
+              <span class="row-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 2h7l3 3v9H3ZM6 7h4M6 10h4"/></svg></span>
+              <div class="row-copy"><h3 data-i18n="settings.templates.title">Prompt templates</h3><p data-i18n="settings.templates.help">Text you can put at the start of a message with Ctrl+T in the prompt.</p></div>
+              <button id="add-template" class="small" type="button" data-i18n="settings.templates.add">Add</button>
+            </div>
+            <ul id="template-list" class="template-list" data-i18n-aria-label="settings.templates.list" aria-label="Saved templates"></ul>
+            <p id="templates-empty" class="templates-empty" data-i18n="settings.templates.empty">No templates yet.</p>
+            <div id="template-editor" class="template-editor" role="group" data-i18n-aria-label="settings.templates.editor" aria-label="Edit template" hidden>
+              <label for="template-name" data-i18n="settings.templates.name">Name</label>
+              <input id="template-name" type="text" maxlength="40" data-i18n-placeholder="settings.templates.namePlaceholder" placeholder="Summarize">
+              <label for="template-text" data-i18n="settings.templates.text">Text</label>
+              <textarea id="template-text" rows="3" maxlength="500" data-i18n-placeholder="settings.templates.textPlaceholder" placeholder="Summarize this in three bullet points:"></textarea>
+              <div class="template-editor-actions"><button id="template-cancel" class="small" type="button" data-i18n="settings.templates.cancel">Cancel</button><button id="template-done" class="small" type="button" data-i18n="settings.templates.done">Done</button></div>
+            </div>
+          </div>
         </section>
         <section class="settings-group" aria-labelledby="data-title">
           <h2 id="data-title" data-i18n="settings.data">Data</h2>
@@ -77,7 +145,11 @@
             <div class="row-copy"><h3 data-i18n="settings.history.title">Sent messages</h3><p data-i18n="settings.history.help">Keeps up to 50 messages on this computer.</p></div>
             <button id="clear-history" class="small" type="button" data-i18n="settings.history.clear">Clear</button>
             <span id="clear-confirmation" role="group" data-i18n-aria-label="settings.history.confirmLabel" aria-label="Confirm clearing sent messages" hidden><span data-i18n="settings.history.confirm">Clear?</span> <button id="clear-yes" class="small" type="button" data-i18n="settings.history.yes">Yes</button> <button id="clear-no" class="small" type="button" data-i18n="settings.history.no">No</button></span>
-          </div></div>
+          </div>
+          <label class="setting-row switch-row" for="check-for-updates">
+            <span class="row-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="M8 2v8m-3-3 3 3 3-3M3 13h10"/></svg></span>
+            <span class="row-copy"><span class="row-title" data-i18n="settings.rows.updates.title">Check for updates</span><span class="description" data-i18n="settings.rows.updates.help">Once a day, asks GitHub whether a newer version is out. This is the only time the app uses the network, and nothing about you is sent.</span></span><input id="check-for-updates" type="checkbox" role="switch">
+          </label></div>
         </section>
       </fieldset>
     </main>

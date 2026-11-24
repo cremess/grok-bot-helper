@@ -1,4 +1,4 @@
-const { t } = require('./i18n');
+const { t, intlLocale } = require('./i18n');
 const fs = require('node:fs');
 const { findPersistenceFile } = require('./roster');
 
@@ -35,9 +35,10 @@ function formatReset(nextResetMs, nowMs) {
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
   const sameDay = (date) => reset.toDateString() === date.toDateString();
-  const time = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(reset);
+  const locale = intlLocale();
+  const time = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit' }).format(reset);
   const day = sameDay(now) ? t('usage.today') : sameDay(tomorrow) ? t('usage.tomorrow')
-    : new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).format(reset);
+    : new Intl.DateTimeFormat(locale, { weekday: 'short', month: 'short', day: 'numeric' }).format(reset);
   return t('usage.reset', { day, time });
 }
 

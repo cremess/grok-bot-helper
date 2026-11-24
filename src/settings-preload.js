@@ -6,4 +6,8 @@ contextBridge.exposeInMainWorld('grokbotSettings', {
   bots: () => ipcRenderer.invoke('settings:bots'),
   save: (payload) => ipcRenderer.invoke('settings:save', payload),
   setRecording: (isRecording) => ipcRenderer.invoke('settings:recording', isRecording),
+  reload: () => ipcRenderer.invoke('settings:reload'),
+  openbotAgents: () => ipcRenderer.invoke('settings:openbot-agents'),
+  openOpenBot: () => ipcRenderer.invoke('settings:open-openbot'),
+  hermesInfo: () => ipcRenderer.invoke('settings:hermes-info'),
 });

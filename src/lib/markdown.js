@@ -24,8 +24,13 @@ function parseInline(text, depth = 0) {
       continue;
     }
     const marker = rest.startsWith('**') ? '**' : ['*', '_', '`'].includes(rest[0]) ? rest[0] : null;
-    if (marker && depth < 32) {
-      const end = text.indexOf(marker, index + marker.length);
+    // Underscores inside words (my_file_name.py) are not emphasis.
+    const intraword = marker === '_' && /[\p{L}\p{N}]/u.test(text[index - 1] ?? '');
+    if (marker && depth < 32 && !intraword) {
+      let end = text.indexOf(marker, index + marker.length);
+      while (marker === '_' && end !== -1 && /[\p{L}\p{N}]/u.test(text[end + 1] ?? '')) {
+        end = text.indexOf(marker, end + 1);
+      }
       if (end > index + marker.length) {
         const content = text.slice(index + marker.length, end);
         nodes.push(marker === '`' ? { type: 'code', text: content }

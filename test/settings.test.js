@@ -5,6 +5,7 @@ const path = require('node:path');
 const os = require('node:os');
 const {
   DEFAULT_SETTINGS, isValidShortcut, normalizeSettings, loadSettings, saveSettings,
+  canonicalShortcut, sameShortcut, selectionShortcutError,
 } = require('../src/lib/settings');
 
 const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'grokbot-'));
@@ -31,7 +32,7 @@ test('promptBounds validates integer bounds, copies and persists position and si
 });
 after(() => fs.rmSync(temporaryDirectory, { recursive: true, force: true }));
 
-const validSettings = { botId: 'bot_123-ABC', botName: '', shortcut: 'Ctrl+Shift+G', launchAtLogin: true, afterSend: 'wait', notifyOnReply: false, theme: 'system', promptBounds: null };
+const validSettings = { botId: 'bot_123-ABC', botName: '', shortcut: 'Ctrl+Shift+G', selectionShortcut: '', launchAtLogin: true, afterSend: 'wait', notifyOnReply: false, theme: 'system', language: 'system', promptBounds: null, templates: [], checkForUpdates: false, lastUpdateCheckMs: 0, assistant: 'grokbot', openbotAgentId: '', openbotAgentName: '', hermesPath: '', hermesModel: '', hermesProvider: '', hermesContinue: true, replyTimeoutMinutes: 10 };
 
 test('loading missing, empty or invalid files returns defaults', () => {
   assert.deepEqual(loadSettings(path.join(temporaryDirectory, 'missing.json')), DEFAULT_SETTINGS);
@@ -81,7 +82,7 @@ test('normalization requires a plain object and preserves defaults and input', (
     assert.deepEqual(normalizeSettings(raw), DEFAULT_SETTINGS);
   }
   assert.deepEqual(normalizeSettings(Object.assign(Object.create(null), validSettings)), validSettings);
-  const snapshot = { botId: '', botName: '', shortcut: 'Alt+Space', launchAtLogin: false, afterSend: 'wait', notifyOnReply: false, theme: 'system', promptBounds: null };
+  const snapshot = { botId: '', botName: '', shortcut: 'Alt+Space', selectionShortcut: '', launchAtLogin: false, afterSend: 'wait', notifyOnReply: false, theme: 'system', language: 'system', promptBounds: null, templates: [], checkForUpdates: false, lastUpdateCheckMs: 0, assistant: 'grokbot', openbotAgentId: '', openbotAgentName: '', hermesPath: '', hermesModel: '', hermesProvider: '', hermesContinue: true, replyTimeoutMinutes: 10 };
   const input = { ...validSettings };
   const result = normalizeSettings(input);
   result.botId = 'other';
@@ -183,5 +184,145 @@ test('notification and every valid theme are persisted', () => {
       assert.deepEqual(saveSettings(file, expected), expected);
       assert.deepEqual(loadSettings(file), expected);
     }
+  }
+});
+
+test('canonicalShortcut treats Windows spellings of Ctrl and modifier order as the same shortcut', () => {
+  assert.equal(canonicalShortcut('Shift+Control+K'), 'Ctrl+Shift+K');
+  assert.equal(canonicalShortcut('CommandOrControl+Alt+K'), 'Ctrl+Alt+K');
+  assert.equal(canonicalShortcut('Super+Alt+F1'), 'Alt+Super+F1');
+  assert.equal(canonicalShortcut('Alt+k'), null);
+  assert.equal(canonicalShortcut(''), null);
+  assert.equal(sameShortcut('Ctrl+Shift+G', 'Shift+CmdOrCtrl+G'), true);
+  assert.equal(sameShortcut('Ctrl+Shift+G', 'Ctrl+Alt+G'), false);
+  assert.equal(sameShortcut('', ''), false);
+  assert.equal(sameShortcut('bad', 'bad'), false);
+});
+
+test('the selection shortcut is off by default and accepts Ctrl or Alt combinations', () => {
+  assert.equal(DEFAULT_SETTINGS.selectionShortcut, '');
+  assert.equal(normalizeSettings({}).selectionShortcut, '');
+  for (const value of ['', 'Ctrl+Shift+S', 'Alt+Q', 'Control+Alt+Space', 'CmdOrCtrl+F2', 'Alt+Shift+1']) {
+    assert.equal(selectionShortcutError(value, 'Alt+Space'), null, value);
+  }
+});
+
+test('the selection shortcut rejects copy keys, Super, missing Ctrl or Alt and bad values', () => {
+  for (const value of ['Ctrl+C', 'Control+C', 'CommandOrControl+C', 'Ctrl+Insert', 'Super+Shift+S',
+    'Ctrl+Super+S', 'Shift+S', 'Shift+F1', 'S', 'Ctrl+s', 'Ctrl + S', null, undefined, 42, {}]) {
+    assert.equal(selectionShortcutError(value, 'Alt+Space'), 'invalid', String(value));
+  }
+  // Ctrl+Shift+C is not a copy shortcut, so it stays allowed.
+  assert.equal(selectionShortcutError('Ctrl+Shift+C', 'Alt+Space'), null);
+});
+
+test('the selection shortcut cannot collide with the prompt shortcut, in any spelling', () => {
+  assert.equal(selectionShortcutError('Alt+Space', 'Alt+Space'), 'conflict');
+  assert.equal(selectionShortcutError('Shift+Control+G', 'Ctrl+Shift+G'), 'conflict');
+  assert.equal(selectionShortcutError('CmdOrCtrl+Shift+G', 'Ctrl+Shift+G'), 'conflict');
+  assert.equal(selectionShortcutError('Ctrl+Alt+G', 'Ctrl+Shift+G'), null);
+});
+
+test('normalizeSettings keeps a valid selection shortcut and drops invalid or colliding ones', () => {
+  const file = path.join(temporaryDirectory, 'selection.json');
+  const saved = saveSettings(file, { ...validSettings, selectionShortcut: 'Ctrl+Alt+S' });
+  assert.equal(saved.selectionShortcut, 'Ctrl+Alt+S');
+  assert.equal(loadSettings(file).selectionShortcut, 'Ctrl+Alt+S');
+  for (const selectionShortcut of ['Ctrl+C', 'Ctrl+Shift+G', 'Shift+Ctrl+G', 'Super+S', 'Shift+S', 7, null, []]) {
+    assert.equal(normalizeSettings({ ...validSettings, selectionShortcut }).selectionShortcut, '', String(selectionShortcut));
+  }
+  // The comparison uses the final prompt shortcut, including the default when the saved one is invalid.
+  assert.equal(normalizeSettings({ shortcut: 'Space', selectionShortcut: 'Alt+Space' }).selectionShortcut, '');
+  assert.equal(normalizeSettings({ shortcut: 'Ctrl+Shift+G', selectionShortcut: 'Alt+Space' }).selectionShortcut, 'Alt+Space');
+});
+
+test('templates default to an empty list and are persisted after validation', () => {
+  assert.deepEqual(DEFAULT_SETTINGS.templates, []);
+  assert.equal(Object.isFrozen(DEFAULT_SETTINGS.templates), true);
+  // Each normalized copy gets its own list, so changing one can't change the defaults.
+  const first = normalizeSettings(null);
+  first.templates.push({ name: 'x', text: 'y' });
+  assert.deepEqual(normalizeSettings(null).templates, []);
+  const file = path.join(temporaryDirectory, 'templates.json');
+  const templates = [{ name: 'Summarize', text: 'Summarize:' }, { name: 'Translate', text: 'Translate to English:' }];
+  assert.deepEqual(saveSettings(file, { ...validSettings, templates }).templates, templates);
+  assert.deepEqual(loadSettings(file).templates, templates);
+  const { templates: omitted, ...legacy } = validSettings;
+  assert.deepEqual(normalizeSettings(legacy).templates, []);
+  for (const value of [null, 'text', {}, 3]) assert.deepEqual(normalizeSettings({ templates: value }).templates, []);
+  assert.deepEqual(normalizeSettings({ templates: [{ name: ' A ', text: ' B ' }, { name: '', text: 'x' }] }).templates,
+    [{ name: 'A', text: 'B' }]);
+});
+
+test('a fresh install follows the system language and accepts only system, en and pt-BR', () => {
+  assert.equal(DEFAULT_SETTINGS.language, 'system');
+  assert.equal(loadSettings(path.join(temporaryDirectory, 'no-such-settings.json')).language, 'system');
+  for (const language of ['system', 'en', 'pt-BR']) {
+    const file = path.join(temporaryDirectory, 'language.json');
+    assert.equal(saveSettings(file, { ...validSettings, language }).language, language);
+    assert.equal(loadSettings(file).language, language);
+  }
+  for (const language of [undefined, null, '', 'pt', 'pt-PT', 'PT-BR', 'fr', 1, {}]) {
+    // Settings saved before the option existed (or with a bad value) keep the English interface.
+    assert.equal(normalizeSettings({ ...validSettings, language }).language, 'en', String(language));
+  }
+  const { language, ...olderFile } = validSettings;
+  assert.equal(normalizeSettings(olderFile).language, 'en');
+});
+
+test('the update check is off by default and its settings are validated', () => {
+  assert.equal(DEFAULT_SETTINGS.checkForUpdates, false);
+  assert.equal(DEFAULT_SETTINGS.lastUpdateCheckMs, 0);
+  const file = path.join(temporaryDirectory, 'updates.json');
+  const saved = saveSettings(file, { ...validSettings, checkForUpdates: true, lastUpdateCheckMs: 1700000000000 });
+  assert.equal(saved.checkForUpdates, true);
+  assert.equal(loadSettings(file).lastUpdateCheckMs, 1700000000000);
+  for (const value of ['true', 1, null, {}]) assert.equal(normalizeSettings({ checkForUpdates: value }).checkForUpdates, false);
+  for (const value of [-1, NaN, Infinity, '5', null]) {
+    assert.equal(normalizeSettings({ lastUpdateCheckMs: value }).lastUpdateCheckMs, 0, String(value));
+  }
+});
+
+test('the assistant defaults to Grok Bot and accepts only the three destinations', () => {
+  assert.equal(DEFAULT_SETTINGS.assistant, 'grokbot');
+  for (const assistant of ['grokbot', 'openbot', 'hermes']) {
+    assert.equal(normalizeSettings({ ...validSettings, assistant }).assistant, assistant);
+  }
+  for (const assistant of ['', 'OpenBot', 'other', null, 1]) {
+    assert.deepEqual(normalizeSettings({ ...validSettings, assistant }), validSettings);
+  }
+  // Settings from before this option keep sending to Grok Bot.
+  const { assistant, ...legacy } = validSettings;
+  assert.equal(normalizeSettings(legacy).assistant, 'grokbot');
+});
+
+test('the OpenBot agent id is validated and its name kept only with an id', () => {
+  const agent = { ...validSettings, assistant: 'openbot', openbotAgentId: 'agent-1', openbotAgentName: '  Fictional Helper ' };
+  assert.deepEqual(normalizeSettings(agent), { ...agent, openbotAgentName: 'Fictional Helper' });
+  for (const openbotAgentId of ['bad id', '../x', '.', '..', '.x', 'x'.repeat(129), 5]) {
+    const result = normalizeSettings({ ...agent, openbotAgentId });
+    assert.equal(result.openbotAgentId, '');
+    assert.equal(result.openbotAgentName, '');
+  }
+  assert.equal(normalizeSettings({ ...agent, openbotAgentName: 'n'.repeat(81) }).openbotAgentName, '');
+});
+
+test('Hermes settings: a local .exe path, strict model and provider names, continue on by default', () => {
+  assert.equal(DEFAULT_SETTINGS.hermesContinue, true);
+  const hermes = { ...validSettings, assistant: 'hermes', hermesPath: 'C:\\Tools\\hermes.exe', hermesModel: 'anthropic/claude-sonnet-4',
+    hermesProvider: 'openrouter', hermesContinue: false };
+  assert.deepEqual(normalizeSettings(hermes), hermes);
+  for (const [field, value] of [['hermesPath', 'hermes.exe'], ['hermesPath', 'C:\\Windows\\System32\\cmd.exe'], ['hermesPath', '\\\\server\\share\\hermes.exe'], ['hermesPath', 'C:\\x\\run.bat'],
+    ['hermesModel', '--yolo'], ['hermesModel', 'a b'], ['hermesProvider', 'x;y'], ['hermesProvider', 'p'.repeat(101)],
+    ['hermesContinue', 'no'], ['hermesContinue', null]]) {
+    assert.deepEqual(normalizeSettings({ ...hermes, [field]: value }), { ...hermes, [field]: DEFAULT_SETTINGS[field] }, `${field}=${value}`);
+  }
+});
+
+test('the reply timeout is 1 to 120 whole minutes, 10 by default', () => {
+  assert.equal(DEFAULT_SETTINGS.replyTimeoutMinutes, 10);
+  for (const value of [1, 30, 120]) assert.equal(normalizeSettings({ ...validSettings, replyTimeoutMinutes: value }).replyTimeoutMinutes, value);
+  for (const value of [0, 121, 2.5, '5', null]) {
+    assert.equal(normalizeSettings({ ...validSettings, replyTimeoutMinutes: value }).replyTimeoutMinutes, 10);
   }
 });

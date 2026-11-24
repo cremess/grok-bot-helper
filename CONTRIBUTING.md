@@ -69,6 +69,12 @@ without opening Grok Bot. To simulate a reply, update only the temporary convers
 message timestamped after sending; the app polls that file. This tests the flow without sending real
 messages or changing real Grok Bot files. This local testing script is not included in the repository.
 
+The OpenBot and Hermes clients (`src/lib/openbot-client.js`, `src/lib/hermes-client.js`) are tested against a
+fake HTTP server on port 0 and a fake `hermes` Node script, with fictional tokens in temporary directories. Don't
+point tests or scripts at the real OpenBot API or `hermes.exe`: that sends real messages, spends the user's quota and
+acts on their behalf. With `app.setPath('appData', <temporary directory>)`, the main process also looks for OpenBot's
+`OpenBot/automation` folder there, so a test script can write a fake `url` and `token` pointing to a fake server.
+
 ## Contribution workflow
 
 1. Create a branch from `main` with a `feat/` or `fix/` prefix.
