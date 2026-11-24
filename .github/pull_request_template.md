@@ -16,4 +16,4 @@
 - [ ] New UI text is added to `src/lib/i18n.js` and uses `t()` or `data-i18n` attributes.
 - [ ] No `innerHTML` was used.
 - [ ] No personal data or tokens were included.
-- [ ] Requested a review from the maintainer (@pedrofigueiredo25).
+- [ ] Requested a review from the maintainer (@cremess).

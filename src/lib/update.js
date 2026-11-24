@@ -2,7 +2,7 @@
 // public GitHub releases API, at most once a day, only when the user turned it on. Nothing about the
 // user is sent and only `tag_name` and `html_url` are read from the answer.
 
-const REPOSITORY = 'pedrofigueiredo25/grok-bot-helper';
+const REPOSITORY = 'cremess/grok-bot-helper';
 const RELEASES_URL = `https://api.github.com/repos/${REPOSITORY}/releases/latest`;
 const UPDATE_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const UPDATE_TIMEOUT_MS = 10000;

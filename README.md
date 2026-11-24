@@ -7,14 +7,14 @@
 <p align="center"><b>Your Grok Bot, one shortcut away — on Windows.</b></p>
 
 <p align="center">
-  <a href="https://github.com/pedrofigueiredo25/grok-bot-helper/actions/workflows/ci.yml"><img src="https://github.com/pedrofigueiredo25/grok-bot-helper/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/cremess/grok-bot-helper/actions/workflows/ci.yml"><img src="https://github.com/cremess/grok-bot-helper/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4" alt="Windows 10 | 11">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license"></a>
   <img src="https://img.shields.io/badge/status-community%20%C2%B7%20unofficial-8e4ec6" alt="Community, unofficial">
 </p>
 
 <p align="center">
-  <a href="https://github.com/pedrofigueiredo25/grok-bot-helper/releases/latest"><b>⬇ Download for Windows</b></a>
+  <a href="https://github.com/cremess/grok-bot-helper/releases/latest"><b>⬇ Download for Windows</b></a>
 </p>
 
 <p align="center">
@@ -70,7 +70,7 @@ On macOS, Grok Bot ships with a built-in quick prompt you can summon from anywhe
 1. A global shortcut opens a floating prompt (Electron, lives in the tray).
 2. When you send, the app opens a Grok Bot deep link — `grokbot://app/v1/prompt?id=<bot>&text=<text>` (up to 1000 characters; a longer message goes out as numbered parts, one link each, only after you confirm). Grok Bot may ask you to confirm *"Add message for Grok?"*; it has a *"Don't show again"* option. If you enable it, any `grokbot://` link can add text without asking, so decide with that in mind.
 3. To show replies and your bot list, the app **reads** Grok Bot's local cache in `%APPDATA%\Grok Bot` — nothing is written there and nothing leaves your PC.
-4. **Network:** by default the app makes no network requests at all; it only works with local files and Grok Bot links. With OpenBot as the assistant, it makes requests to OpenBot's local API on `127.0.0.1` only (they don't leave your PC); with Hermes, Hermes itself contacts the provider you set up in it. If you turn on **Settings → Data → Check for updates** (off by default), it asks the public GitHub API once a day for the latest release (`api.github.com/repos/pedrofigueiredo25/grok-bot-helper/releases/latest`), reads only the version number and the release page link, and shows a notice plus an **Update available** item in the tray menu when there's a newer version. No user data, no telemetry, no sign-in: GitHub only sees your IP address and the standard Electron user agent (app name and version, Windows version), like any browser request. If it fails, nothing happens.
+4. **Network:** by default the app makes no network requests at all; it only works with local files and Grok Bot links. With OpenBot as the assistant, it makes requests to OpenBot's local API on `127.0.0.1` only (they don't leave your PC); with Hermes, Hermes itself contacts the provider you set up in it. If you turn on **Settings → Data → Check for updates** (off by default), it asks the public GitHub API once a day for the latest release (`api.github.com/repos/cremess/grok-bot-helper/releases/latest`), reads only the version number and the release page link, and shows a notice plus an **Update available** item in the tray menu when there's a newer version. No user data, no telemetry, no sign-in: GitHub only sees your IP address and the standard Electron user agent (app name and version, Windows version), like any browser request. If it fails, nothing happens.
 
 ## Talk to Grok Bot, OpenBot or Hermes
 
@@ -108,7 +108,7 @@ The app runs the [Hermes Agent](https://github.com/NousResearch/hermes-agent) CL
 
 **Requirements:** Windows 10 or 11 (64-bit) and the [Grok Bot](https://cursor.com/download/bot) desktop app, opened at least once.
 
-**[⬇ Download the latest installer](https://github.com/pedrofigueiredo25/grok-bot-helper/releases/latest)** — grab `Grok-Bot-Helper-Setup-<version>.exe` from the release assets.
+**[⬇ Download the latest installer](https://github.com/cremess/grok-bot-helper/releases/latest)** — grab `Grok-Bot-Helper-Setup-<version>.exe` from the release assets.
 
 When you run the installer:
 
@@ -151,7 +151,7 @@ Settings are stored in `%APPDATA%\grok-bot-helper\settings.json`.
 ## Build from source
 
 ```powershell
-git clone https://github.com/pedrofigueiredo25/grok-bot-helper.git
+git clone https://github.com/cremess/grok-bot-helper.git
 cd grok-bot-helper
 npm install
 npm start

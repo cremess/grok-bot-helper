@@ -81,7 +81,7 @@ acts on their behalf. With `app.setPath('appData', <temporary directory>)`, the 
 2. Make small commits with imperative English messages, such as "Add text validation".
 3. Run `npm run check` and `npm test`, then perform the relevant manual test on Windows.
 4. Open a PR against `main`, fill in the template, and attach a screenshot for UI changes.
-5. Wait for CI to pass and ask the maintainer (@pedrofigueiredo25) for a review.
+5. Wait for CI to pass and ask the maintainer (@cremess) for a review.
 
 ## Report issues
 

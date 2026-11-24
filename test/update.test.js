@@ -3,10 +3,10 @@ const assert = require('node:assert/strict');
 const { RELEASES_URL, UPDATE_INTERVAL_MS, UPDATE_TIMEOUT_MS, parseVersion, compareVersions, isNewerVersion,
   isSafeReleaseUrl, parseRelease, updateNotice, shouldCheckForUpdate } = require('../src/lib/update');
 
-const page = 'https://github.com/pedrofigueiredo25/grok-bot-helper/releases/tag/v0.2.0';
+const page = 'https://github.com/cremess/grok-bot-helper/releases/tag/v0.2.0';
 
 test('asks the public releases API of this project, with a 10 s timeout, once a day', () => {
-  assert.equal(RELEASES_URL, 'https://api.github.com/repos/pedrofigueiredo25/grok-bot-helper/releases/latest');
+  assert.equal(RELEASES_URL, 'https://api.github.com/repos/cremess/grok-bot-helper/releases/latest');
   assert.equal(UPDATE_TIMEOUT_MS, 10000);
   assert.equal(UPDATE_INTERVAL_MS, 24 * 60 * 60 * 1000);
 });
@@ -45,17 +45,17 @@ test('isNewerVersion is true only for a strictly greater valid version', () => {
 
 test('only https release pages of this project on github.com may be opened', () => {
   assert.equal(isSafeReleaseUrl(page), true);
-  assert.equal(isSafeReleaseUrl('https://github.com/pedrofigueiredo25/grok-bot-helper/releases/latest'), true);
+  assert.equal(isSafeReleaseUrl('https://github.com/cremess/grok-bot-helper/releases/latest'), true);
   for (const url of [
-    'http://github.com/pedrofigueiredo25/grok-bot-helper/releases/tag/v0.2.0',
-    'https://github.com.evil.example/pedrofigueiredo25/grok-bot-helper/releases/tag/v0.2.0',
-    'https://evil.example/github.com/pedrofigueiredo25/grok-bot-helper/releases/',
-    'https://user:pass@github.com/pedrofigueiredo25/grok-bot-helper/releases/tag/v1',
-    'https://github.com:8443/pedrofigueiredo25/grok-bot-helper/releases/tag/v1',
+    'http://github.com/cremess/grok-bot-helper/releases/tag/v0.2.0',
+    'https://github.com.evil.example/cremess/grok-bot-helper/releases/tag/v0.2.0',
+    'https://evil.example/github.com/cremess/grok-bot-helper/releases/',
+    'https://user:pass@github.com/cremess/grok-bot-helper/releases/tag/v1',
+    'https://github.com:8443/cremess/grok-bot-helper/releases/tag/v1',
     'https://github.com/someone-else/grok-bot-helper/releases/tag/v1',
-    'https://gist.github.com/pedrofigueiredo25/grok-bot-helper/releases/tag/v1',
+    'https://gist.github.com/cremess/grok-bot-helper/releases/tag/v1',
     'javascript:alert(1)', 'file:///C:/Windows', 'grokbot://app/v1/open', '', 'not a url',
-    `https://github.com/pedrofigueiredo25/grok-bot-helper/releases/${'a'.repeat(2100)}`, null, 42,
+    `https://github.com/cremess/grok-bot-helper/releases/${'a'.repeat(2100)}`, null, 42,
   ]) assert.equal(isSafeReleaseUrl(url), false, String(url).slice(0, 80));
 });
 
