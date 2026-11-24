@@ -28,7 +28,7 @@ On macOS, Grok Bot ships with a built-in quick prompt you can summon from anywhe
 ## Features
 
 - **Quick prompt from anywhere** — press `Alt+Space` (configurable) in any app, type, hit `Enter`. Your message goes straight to the bot you picked.
-- **See the reply right there** — the latest reply shows up in the prompt with proper formatting (lists, bold, code). Switch to **Conversation** to see the recent back-and-forth. If the bot answers in several messages, the prompt keeps reading until it stops writing, and notifies you once.
+- **See the reply right there** — the latest reply shows up in the prompt with proper formatting (lists, bold, code). Use the **Latest / Chat** switch (or `Ctrl+L`) to see the recent back-and-forth. If the bot answers in several messages, the prompt keeps reading until it stops writing, and notifies you once.
 - **Send the text you selected** (optional) — pick a shortcut in Settings, select text in any app and press it: the prompt opens with that text, ready to send. Off by default.
 - **Long messages, in parts** — Grok Bot links take up to 1000 characters. For longer messages the prompt offers **Send in N parts**: it splits at paragraphs or sentences, numbers each part `(1/N)`, and sends them one at a time, waiting for each to arrive. You can cancel midway.
 - **Prompt templates** — save snippets like *Summarize:* or *Translate to English:* in Settings, then press `Ctrl+T` in the prompt to put one at the start of your message.
@@ -133,6 +133,7 @@ Installed copies of Grok Bot Helper check for releases and download new versions
 | `Shift+Enter` | New line |
 | `Esc` or click outside | Closes the prompt (unless it's pinned) |
 | `Ctrl+K` | Pick another bot (or OpenBot agent) |
+| `Ctrl+L` | Switch between the latest reply and the recent conversation |
 | `Ctrl+T` | Insert a saved template at the start of the message (add templates in Settings) |
 | `↑` / `↓` in an empty prompt | Browse your previous prompts |
 | `Ctrl+,` | Open settings |

@@ -46,7 +46,17 @@
         <button id="open-bot" class="icon-button" type="button" data-i18n-aria-label="prompt.openConversation" aria-label="Open conversation in Grok Bot" data-i18n-title="prompt.openConversation" title="Open conversation in Grok Bot">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 2h5v5m0-5L7 9m0-6H2v11h11V9"/></svg>
         </button>
-        <button id="conversation-toggle" class="text-button" type="button" aria-pressed="false" data-i18n="prompt.conversation">Conversation</button>
+        <div id="reply-view" role="radiogroup" data-i18n-aria-label="prompt.replyView" aria-label="Reply view">
+          <span class="reply-view-indicator" aria-hidden="true"></span>
+          <button id="reply-latest" type="button" role="radio" aria-checked="true" tabindex="0" data-i18n-title="prompt.replyView.latestHelp" title="Latest reply (Ctrl+L)">
+            <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v8H6l-4 3Z"/></svg>
+            <span data-i18n="prompt.replyView.latest">Latest</span>
+          </button>
+          <button id="reply-chat" type="button" role="radio" aria-checked="false" tabindex="-1" data-i18n-title="prompt.replyView.chatHelp" title="Recent conversation (Ctrl+L)">
+            <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 2.5h9v6H5l-3.5 2.5Zm11 3h2v8l-3-2H7.5"/></svg>
+            <span data-i18n="prompt.replyView.chat">Chat</span>
+          </button>
+        </div>
       </div>
       <div id="response-body" class="collapsed"></div>
       <button id="expand-response" class="text-button" type="button" aria-expanded="false" data-i18n="prompt.more">Show more</button>

@@ -45,7 +45,13 @@ footer { display: flex; align-items: center; gap: 10px; margin-top: 10px; color:
 #response-time { white-space: nowrap; }
 .text-button { padding: 3px 0; border: 0; background: transparent; color: var(--secondary); font-size: 12px; cursor: pointer; }
 .text-button:hover { color: var(--text); }
-#conversation-toggle { flex-shrink: 0; }
+#reply-view { position: relative; isolation: isolate; display: flex; flex-shrink: 0; height: 26px; margin-left: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+#reply-view button { position: relative; z-index: 1; display: flex; align-items: center; gap: 4px; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: var(--secondary); font-size: 12px; font-weight: 500; white-space: nowrap; }
+#reply-view button[aria-checked="true"], #reply-view button:hover { color: var(--text); }
+#reply-view button:focus-visible { outline-offset: 0; z-index: 2; }
+#reply-view svg { flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.reply-view-indicator { position: absolute; inset: 2px auto 2px 0; border-radius: 6px; background: color-mix(in srgb, var(--text) 10%, var(--surface)); transition: transform var(--transition), width var(--transition); pointer-events: none; }
+@media (prefers-color-scheme: light) { .reply-view-indicator { background: white; box-shadow: var(--shadow-sm); } }
 #response-body { line-height: 1.55; font-size: 14px; overflow-wrap: anywhere; }
 #response-body.collapsed { max-height: 105px; overflow: hidden; }
 #response-body.collapsed.overflowing { mask-image: linear-gradient(to bottom, black 65%, transparent); }

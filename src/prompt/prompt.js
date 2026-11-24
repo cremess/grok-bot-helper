@@ -94,7 +94,10 @@ const responseBody = document.getElementById('response-body');
 const responseTime = document.getElementById('response-time');
 const responseName = document.getElementById('response-name');
 const responseAvatar = document.getElementById('response-avatar');
-const conversationToggle = document.getElementById('conversation-toggle');
+const replyView = document.getElementById('reply-view');
+const latestView = document.getElementById('reply-latest');
+const chatView = document.getElementById('reply-chat');
+const replyViewIndicator = replyView.querySelector('.reply-view-indicator');
 const expandResponse = document.getElementById('expand-response');
 const emptyState = document.getElementById('empty-state');
 const emptyMessage = document.getElementById('empty-message');
@@ -366,6 +369,17 @@ function startRelativeTimer() {
   if (!document.hidden) relativeTimer = setInterval(updateTimes, 30000);
 }
 
+function positionReplyViewIndicator() {
+  if (response.hidden) return;
+  const selected = conversationView ? chatView : latestView;
+  replyViewIndicator.style.width = `${selected.offsetWidth}px`;
+  replyViewIndicator.style.transform = `translateX(${selected.offsetLeft}px)`;
+}
+
+const replyViewObserver = new ResizeObserver(positionReplyViewIndicator);
+replyViewObserver.observe(latestView);
+replyViewObserver.observe(chatView);
+
 function renderConversation(animate = false) {
   response.hidden = !conversation.ok || !conversation.latest;
   responseBody.replaceChildren();
@@ -374,8 +388,11 @@ function renderConversation(animate = false) {
   emptyMessage.textContent = grokBotFound ? t('prompt.empty', { bot: responseName.textContent }) : t('prompt.notFound');
   responseAvatar.textContent = destinationDetails.botInitial || 'G';
   responseAvatar.style.backgroundColor = destinationDetails.botColor || '#1080f3';
-  conversationToggle.textContent = conversationView ? t('prompt.latest') : t('prompt.conversation');
-  conversationToggle.setAttribute('aria-pressed', String(conversationView));
+  latestView.setAttribute('aria-checked', String(!conversationView));
+  latestView.tabIndex = conversationView ? -1 : 0;
+  chatView.setAttribute('aria-checked', String(conversationView));
+  chatView.tabIndex = conversationView ? 0 : -1;
+  positionReplyViewIndicator();
   responseBody.classList.toggle('collapsed', !userSized && !expanded && !conversationView);
   responseBody.classList.toggle('expanded', !userSized && (expanded || conversationView));
   expandResponse.hidden = userSized || conversationView;
@@ -468,9 +485,21 @@ function renderConversation(animate = false) {
   updateTimes();
 }
 
-conversationToggle.addEventListener('click', () => {
-  conversationView = !conversationView;
+function selectReplyView(showChat) {
+  if (conversationView === showChat) return;
+  conversationView = showChat;
   renderConversation();
+  if (replyView.contains(document.activeElement)) {
+    (showChat ? chatView : latestView).focus({ preventScroll: true });
+  }
+}
+
+latestView.addEventListener('click', () => selectReplyView(false));
+chatView.addEventListener('click', () => selectReplyView(true));
+replyView.addEventListener('keydown', (event) => {
+  if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+  event.preventDefault();
+  selectReplyView(event.target === latestView);
 });
 expandResponse.addEventListener('click', () => {
   expanded = !expanded;
@@ -746,6 +775,10 @@ document.addEventListener('keydown', (event) => {
     event.preventDefault();
     closeTemplates(false);
     picker.open();
+  } else if (event.ctrlKey && event.key.toLowerCase() === 'l' && !event.altKey && !event.shiftKey && !event.metaKey
+      && !response.hidden && !pickerContainer.querySelector('.bot-picker-popover:not([hidden])')) {
+    event.preventDefault();
+    if (!event.repeat) selectReplyView(!conversationView);
   } else if (event.ctrlKey && event.key.toLowerCase() === 't' && !event.altKey && !event.shiftKey) {
     event.preventDefault();
     if (templateMenu.hidden) openTemplates();
