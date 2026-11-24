@@ -24,6 +24,7 @@
       <section id="welcome" aria-labelledby="welcome-title" hidden>
         <h2 id="welcome-title" data-i18n="settings.welcome.title">Welcome to Grok Bot Helper</h2>
         <p id="welcome-message"></p>
+        <p data-i18n="settings.welcome.updates">Grok Bot Helper keeps itself up to date. You can turn this off below.</p>
       </section>
       <fieldset id="fields" disabled>
         <section class="settings-group" aria-labelledby="assistant-title">
@@ -146,10 +147,15 @@
             <button id="clear-history" class="small" type="button" data-i18n="settings.history.clear">Clear</button>
             <span id="clear-confirmation" role="group" data-i18n-aria-label="settings.history.confirmLabel" aria-label="Confirm clearing sent messages" hidden><span data-i18n="settings.history.confirm">Clear?</span> <button id="clear-yes" class="small" type="button" data-i18n="settings.history.yes">Yes</button> <button id="clear-no" class="small" type="button" data-i18n="settings.history.no">No</button></span>
           </div>
-          <label class="setting-row switch-row" for="check-for-updates">
+          <label class="setting-row switch-row" for="auto-update">
             <span class="row-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="M8 2v8m-3-3 3 3 3-3M3 13h10"/></svg></span>
-            <span class="row-copy"><span class="row-title" data-i18n="settings.rows.updates.title">Check for updates</span><span class="description" data-i18n="settings.rows.updates.help">Once a day, asks GitHub whether a newer version is out. This is the only time the app uses the network, and nothing about you is sent.</span></span><input id="check-for-updates" type="checkbox" role="switch">
-          </label></div>
+            <span class="row-copy"><span class="row-title" data-i18n="settings.rows.updates.title">Automatic updates</span><span class="description" data-i18n="settings.rows.updates.help">Downloads new versions from GitHub and installs them when you quit.</span></span><input id="auto-update" type="checkbox" role="switch">
+          </label>
+          <div class="update-controls">
+            <p id="update-status" class="description" role="status"></p>
+            <button id="check-update" class="small" type="button" disabled data-i18n="settings.updates.checkNow">Check now</button>
+            <button id="restart-update" class="small" type="button" hidden disabled data-i18n="settings.updates.restartNow">Restart now</button>
+          </div></div>
         </section>
       </fieldset>
     </main>

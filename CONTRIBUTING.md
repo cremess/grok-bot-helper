@@ -83,6 +83,30 @@ acts on their behalf. With `app.setPath('appData', <temporary directory>)`, the 
 4. Open a PR against `main`, fill in the template, and attach a screenshot for UI changes.
 5. Wait for CI to pass and ask the maintainer (@cremess) for a review.
 
+## Release steps
+
+1. Bump the version in `package.json` and `package-lock.json`.
+2. Run `npm run dist` locally. Pass `-- --publish never` to explicitly disable publishing during the build.
+3. Create a GitHub release tagged `vX.Y.Z` for that version and upload all three files from `dist/` before publishing:
+   - `Grok-Bot-Helper-Setup-X.Y.Z.exe`
+   - `Grok-Bot-Helper-Setup-X.Y.Z.exe.blockmap`
+   - `latest.yml`, which the updater reads to identify and verify the installer.
+
+### Test updates locally
+
+1. Build two versions that include the updater, using `npm run dist -- --publish never`. Save the lower-version installer separately and install it. Put `latest.yml`, the installer, and its blockmap from the higher-version build in one test directory.
+2. In that directory, serve the files with `py -m http.server 8765 --bind 127.0.0.1` or another local HTTP server.
+3. Quit the installed app if it is running. In PowerShell, set the feed and launch the lower-version installed executable from the same session:
+
+   ```powershell
+   $env:GROK_BOT_HELPER_UPDATE_FEED = 'http://127.0.0.1:8765/'
+   & '<path-to-installed-executable>'
+   ```
+
+4. In **Settings → Data**, use **Check now** with automatic updates enabled or wait for the startup check. After the update is ready, use **Restart now** and verify that Settings shows the higher version. Reinstall the lower version and repeat with **Quit** from the tray, then relaunch the app to verify installation on quit.
+
+The override accepts HTTP URLs with an explicit port on `127.0.0.1` or `localhost`. Close the PowerShell session or remove the environment variable when the test is finished.
+
 ## Report issues
 
 Open an issue with reproduction steps, the expected result, what happened, and the Windows and Grok Bot versions.

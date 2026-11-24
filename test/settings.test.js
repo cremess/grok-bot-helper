@@ -32,7 +32,7 @@ test('promptBounds validates integer bounds, copies and persists position and si
 });
 after(() => fs.rmSync(temporaryDirectory, { recursive: true, force: true }));
 
-const validSettings = { botId: 'bot_123-ABC', botName: '', shortcut: 'Ctrl+Shift+G', selectionShortcut: '', launchAtLogin: true, afterSend: 'wait', notifyOnReply: false, theme: 'system', language: 'system', promptBounds: null, templates: [], checkForUpdates: false, lastUpdateCheckMs: 0, assistant: 'grokbot', openbotAgentId: '', openbotAgentName: '', hermesPath: '', hermesModel: '', hermesProvider: '', hermesContinue: true, replyTimeoutMinutes: 10 };
+const validSettings = { botId: 'bot_123-ABC', botName: '', shortcut: 'Ctrl+Shift+G', selectionShortcut: '', launchAtLogin: true, afterSend: 'wait', notifyOnReply: false, theme: 'system', language: 'system', promptBounds: null, templates: [], autoUpdate: true, lastUpdateCheckMs: 0, assistant: 'grokbot', openbotAgentId: '', openbotAgentName: '', hermesPath: '', hermesModel: '', hermesProvider: '', hermesContinue: true, replyTimeoutMinutes: 10 };
 
 test('loading missing, empty or invalid files returns defaults', () => {
   assert.deepEqual(loadSettings(path.join(temporaryDirectory, 'missing.json')), DEFAULT_SETTINGS);
@@ -82,7 +82,7 @@ test('normalization requires a plain object and preserves defaults and input', (
     assert.deepEqual(normalizeSettings(raw), DEFAULT_SETTINGS);
   }
   assert.deepEqual(normalizeSettings(Object.assign(Object.create(null), validSettings)), validSettings);
-  const snapshot = { botId: '', botName: '', shortcut: 'Alt+Space', selectionShortcut: '', launchAtLogin: false, afterSend: 'wait', notifyOnReply: false, theme: 'system', language: 'system', promptBounds: null, templates: [], checkForUpdates: false, lastUpdateCheckMs: 0, assistant: 'grokbot', openbotAgentId: '', openbotAgentName: '', hermesPath: '', hermesModel: '', hermesProvider: '', hermesContinue: true, replyTimeoutMinutes: 10 };
+  const snapshot = { botId: '', botName: '', shortcut: 'Alt+Space', selectionShortcut: '', launchAtLogin: false, afterSend: 'wait', notifyOnReply: false, theme: 'system', language: 'system', promptBounds: null, templates: [], autoUpdate: true, lastUpdateCheckMs: 0, assistant: 'grokbot', openbotAgentId: '', openbotAgentName: '', hermesPath: '', hermesModel: '', hermesProvider: '', hermesContinue: true, replyTimeoutMinutes: 10 };
   const input = { ...validSettings };
   const result = normalizeSettings(input);
   result.botId = 'other';
@@ -270,17 +270,30 @@ test('a fresh install follows the system language and accepts only system, en an
   assert.equal(normalizeSettings(olderFile).language, 'en');
 });
 
-test('the update check is off by default and its settings are validated', () => {
-  assert.equal(DEFAULT_SETTINGS.checkForUpdates, false);
+test('automatic updates default to on and an explicit opt-out persists', () => {
+  assert.equal(DEFAULT_SETTINGS.autoUpdate, true);
   assert.equal(DEFAULT_SETTINGS.lastUpdateCheckMs, 0);
   const file = path.join(temporaryDirectory, 'updates.json');
-  const saved = saveSettings(file, { ...validSettings, checkForUpdates: true, lastUpdateCheckMs: 1700000000000 });
-  assert.equal(saved.checkForUpdates, true);
-  assert.equal(loadSettings(file).lastUpdateCheckMs, 1700000000000);
-  for (const value of ['true', 1, null, {}]) assert.equal(normalizeSettings({ checkForUpdates: value }).checkForUpdates, false);
+  const saved = saveSettings(file, { ...validSettings, autoUpdate: false, lastUpdateCheckMs: 1700000000000 });
+  assert.equal(saved.autoUpdate, false);
+  const loaded = loadSettings(file);
+  assert.equal(loaded.autoUpdate, false);
+  assert.equal(loaded.lastUpdateCheckMs, 1700000000000);
+  for (const value of ['true', 1, null, {}]) assert.equal(normalizeSettings({ autoUpdate: value }).autoUpdate, true);
   for (const value of [-1, NaN, Infinity, '5', null]) {
     assert.equal(normalizeSettings({ lastUpdateCheckMs: value }).lastUpdateCheckMs, 0, String(value));
   }
+});
+
+test('legacy update preferences are ignored during migration', () => {
+  const file = path.join(temporaryDirectory, 'legacy-updates.json');
+  for (const checkForUpdates of [false, true]) {
+    fs.writeFileSync(file, JSON.stringify({ checkForUpdates }));
+    const settings = loadSettings(file);
+    assert.equal(settings.autoUpdate, true);
+    assert.equal(Object.hasOwn(settings, 'checkForUpdates'), false);
+  }
+  assert.equal(normalizeSettings({ checkForUpdates: true, autoUpdate: false }).autoUpdate, false);
 });
 
 test('the assistant defaults to Grok Bot and accepts only the three destinations', () => {

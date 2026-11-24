@@ -7,7 +7,7 @@
     "type": "git",
     "url": "https://github.com/cremess/grok-bot-helper.git"
   },
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Unofficial Windows companion for Grok Bot: a global shortcut opens a floating prompt that talks to your bots.",
   "main": "src/main.js",
@@ -38,6 +38,14 @@
       "package.json"
     ],
     "asar": true,
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "cremess",
+        "repo": "grok-bot-helper",
+        "releaseType": "release"
+      }
+    ],
     "win": {
       "target": [
         {
@@ -59,5 +67,8 @@
       "deleteAppDataOnUninstall": false,
       "artifactName": "Grok-Bot-Helper-Setup-${version}.exe"
     }
+  },
+  "dependencies": {
+    "electron-updater": "6.8.12"
   }
 }

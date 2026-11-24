@@ -1,48 +1,51 @@
-# Task 20 — Rebrand to "Grok Bot Helper" + premium UI polish
+# Task 21 — Automatic updates with electron-updater (replaces the opt-in "check for updates")
 
-Read `AGENTS.md` first. Two parts; both are required.
+Read `AGENTS.md` first. `electron-updater@6.8.12` is **already installed** by Claude Code as a runtime dependency (reason: in-app automatic updates from GitHub Releases). Record that line in RESULT.md. Do not add anything else.
 
-## Part A — Rebrand to "Grok Bot Helper"
-The product is no longer "an assistant to send prompts"; it is a **general-purpose Windows helper for Grok Bot** (quick prompt today, more helpers later). Tagline: **"Your Grok Bot, one shortcut away."**
+## Goal
+Installed copies of Grok Bot Helper update themselves: check GitHub Releases, download in the background, install on quit, and let the user restart now. Today the app only has an opt-in check that opens the release page (`src/lib/update.js` + `checkForUpdate()` in `src/main.js`); **replace it** with electron-updater and keep the useful pieces (version helpers, safe URL check, i18n, tray item).
 
-1. Names everywhere (code, i18n strings, window titles, tray tooltip, balloons, notifications, `CONTRIBUTING.md`, PR template, comments): "GrokBot Assistant" / "grokbot-assistant" → **"Grok Bot Helper"** / **"grok-bot-helper"**. Do not touch `README.md`, `AGENTS.md`, `.handoff/HISTORY.md` (historical rows stay as they are).
-2. `package.json`: `"name": "grok-bot-helper"`, `"productName": "Grok Bot Helper"`, `"author": "Grok Bot Helper contributors"`, `"license": "MIT"`, `"repository": { "type": "git", "url": "https://github.com/pedrofigueiredo25/grok-bot-helper.git" }`; `build.appId` → `"app.grokbothelper.desktop"`, `build.productName` → `"Grok Bot Helper"`, `nsis.shortcutName` → `"Grok Bot Helper"`, `nsis.artifactName` → `"Grok-Bot-Helper-Setup-${version}.exe"`. Keep the description already set. Run nothing that modifies `package-lock.json` except editing its top-level `"name"` fields to match (both `name` and `packages[""].name`).
-3. `app.setAppUserModelId` → `'app.grokbothelper.desktop'`.
-4. **Data folder + migration**: userData becomes `path.join(app.getPath('appData'), 'grok-bot-helper')`. Create `src/lib/migrate.js` (pure, `node:fs`/`node:path`): `migrateUserData(oldDir, newDir)` copies `settings.json` and `history.json` from `oldDir` to `newDir` **only if** `newDir/settings.json` does not exist and the old file exists; creates `newDir`; never throws; returns `{ migrated: string[] }`. Call it in `main.js` before loading settings, with `oldDir = appData/grokbot-assistant`. Tests in `test/migrate.test.js` (temp dirs): migrates both, skips when new exists, no old folder, partial (only settings).
-5. i18n: add `app.name` = "Grok Bot Helper" and `app.tagline` = "Your Grok Bot, one shortcut away."; use them in the settings header (title "Settings", subtitle = tagline) and the welcome card title ("Welcome to Grok Bot Helper").
+## Files involved
+- `src/main.js`, `src/lib/update.js` (+ `test/update.test.js`), `src/lib/settings.js` (+ `test/settings.test.js`), `src/lib/i18n.js` (en + pt-BR), `src/settings/settings.html|css|js`, `src-settings preload` (`src/settings-preload.js`), `package.json` (`build.publish` only), `README.md` (Privacy/Network + Updates sections only), `CONTRIBUTING.md` (release steps only)
 
-## Part B — Premium UI polish (prompt, settings, bot picker)
-Goal: it should feel like Raycast / Linear / Arc. Concrete, verifiable items:
+## 1. Packaging (`package.json`)
+- Add to `build`: `"publish": [{ "provider": "github", "owner": "cremess", "repo": "grok-bot-helper", "releaseType": "release" }]`. This makes electron-builder write `app-update.yml` into the app and `latest.yml` next to the installer. Do **not** add publish tokens or scripts that upload anything.
 
-1. **One icon-button component.** Every icon-only button (pin, close, settings gear, copy, open-in-Grok-Bot, refresh, restore-default) uses a single `.icon-button` class from `src/ui/tokens.css`: `30×30`, `display: inline-grid; place-items: center; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--secondary)`; hover `background: var(--hover); color: var(--text)`; active `transform: scale(.94)`; focus-visible ring. Its SVG is `16×16`, `display: block`, `stroke-width: 1.75`, `stroke-linecap/linejoin: round`. **The close button must be an SVG "×" (two lines), not a text glyph** — today it is visibly off-center. All icons drawn on the same 16×16 grid so they look the same weight and are perfectly centered.
-2. **Prompt**
-   - Header: icon buttons in a tight group with 2 px gap; vertically centered with the bot picker; header height 44 px; the drag grip stays centered and subtle.
-   - Card surface: 1 px hairline top highlight (`inset 0 1px 0 rgba(255,255,255,.04)` in dark), sections separated by a 1 px `var(--border)` hairline between the reply area and the composer.
-   - **Composer**: the send control becomes a round **primary button** (32 px, accent gradient `#1080f3 → #5b3df5`, white up-arrow SVG) at the right of the textarea, disabled (40% opacity, no gradient) when the text is empty; keyboard hints become a single quiet line under the composer, 12 px, `kbd` chips 18 px tall with subtle border.
-   - Reply header: bot avatar 18 px + name (600) + time (secondary) on the left; actions on the right as `.icon-button`s, then the "Conversation" toggle as a small text button.
-   - **Empty state** (no conversation yet / Grok Bot not found): a centered, quiet block with a small icon and "No replies yet — say hi to {bot}." (or "Couldn't find Grok Bot on this PC.") instead of nothing.
-   - Typing indicator: three dots with a soft wave animation (respect `prefers-reduced-motion`).
-   - Markdown: comfortable line-height (1.55), paragraph spacing 8 px, code blocks with 10 px padding and 8 px radius, inline code with subtle background.
-3. **Bot picker**
-   - Trigger: 34 px (normal) / 28 px (compact), chevron 14 px, smooth hover; open state with accent ring.
-   - Popover: items 34 px, 8 px radius, hover `var(--hover)`, active (keyboard) item with accent-tinted background; check icon as SVG; search field with a magnifier SVG inside; section label 11 px uppercase.
-4. **Settings**
-   - Header with app icon 36 px, "Settings" + tagline.
-   - Rows: icon tiles 30 px with 16 px SVGs (same icon set), titles 14 px/600, descriptions 12.5 px secondary; controls aligned to the right on a consistent column.
-   - **Switches**: 36×20, knob animates with the standard transition; on = accent.
-   - **Segmented controls**: a sliding selected indicator (absolutely positioned pill that animates `transform`/`width` to the checked option); text never wraps.
-   - Footer: primary "Save" with gradient and subtle shadow; secondary "Close" ghost button; both 34 px.
-5. **Tokens**: add `--font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif` for titles; `--shadow-sm`, `--shadow-popover`; keep dark and light themes visually equivalent (check contrast of secondary text ≥ 4.5:1 on the card background in both themes).
-6. Keep everything accessible (ARIA, focus rings, keyboard) and keep the CSP / no-`innerHTML` rules.
+## 2. Settings (`src/lib/settings.js`)
+- Replace `checkForUpdates` with **`autoUpdate: true`** (boolean, default **true**). Migration in `normalizeSettings`: if `raw.autoUpdate` is a boolean use it; otherwise default `true` (ignore the old `checkForUpdates`). Keep `lastUpdateCheckMs` (finite ≥ 0).
+- Tests for default, explicit false, migration from an old file that only has `checkForUpdates`.
+
+## 3. Updater (`src/main.js` + pure helpers in `src/lib/update.js`)
+- Only when `app.isPackaged` (never in `npm start`). Use `const { autoUpdater } = require('electron-updater')`, required lazily inside the function that starts it (so dev runs and tests never load it).
+- Config: `autoUpdater.autoDownload = true`, `autoUpdater.autoInstallOnAppQuit = true`, `autoUpdater.allowPrerelease = false`, `autoUpdater.allowDowngrade = false`, logger off (no files written with user paths).
+- Schedule: first check ~30 s after startup, then every 6 h, only while `settings.autoUpdate` is true; turning it off stops the timer and turning it on starts it (and checks right away). Never two checks at the same time. Update `lastUpdateCheckMs` after each check.
+- **Test hook (loopback only):** if the environment variable `GROK_BOT_HELPER_UPDATE_FEED` is set **and** is an `http://127.0.0.1:<port>/…` or `http://localhost:<port>/…` URL (validate with a pure helper `isLoopbackFeed(url)` in `update.js`, with tests), call `autoUpdater.setFeedURL({ provider: 'generic', url })` before checking. Any other value is ignored. Document this in CONTRIBUTING (release section) as the way to test updates locally.
+- States kept in memory and exposed to the settings window: `idle`, `checking`, `available` (version), `downloading` (percent), `downloaded` (version), `up-to-date`, `error` (short code only; never show raw error text/paths).
+- When an update is **downloaded**: tray balloon "Update ready — Grok Bot Helper {version} will install when you quit. Restart now from the tray menu." (i18n), and the tray menu gets **"Restart to update to {version}"** at the top, which calls `autoUpdater.quitAndInstall(true, true)` (silent install, relaunch). Before calling it, set a flag so the app's own `before-quit`/`will-quit` handlers don't block quitting.
+- Keep the existing tray item "Update available…" only for the `available`/`downloading` states? No — remove the old "open release page" flow entirely; electron-updater handles downloading. Remove dead code (`checkForUpdate`, `openReleasePage`, `updateNotice` usage, `RELEASES_URL` fetch) and the corresponding tests that no longer apply; keep `parseVersion`/`compareVersions`/`isSafeReleaseUrl` only if still used (otherwise remove them and their tests).
+- No notification spam: show the balloon once per downloaded version.
+
+## 4. Settings UI
+- In the existing Updates row (or a new **Updates** group if none): toggle **"Automatic updates"** — help "Downloads new versions from GitHub and installs them when you quit."; a status line showing the current version and the state, e.g. "Version 0.3.0 · Up to date", "Downloading 0.3.1… 42%", "0.3.1 is ready — restart to update" with a **"Restart now"** button (only in the downloaded state); and a small **"Check now"** button (disabled while checking/downloading or when the toggle is off).
+- New IPC via `settings-preload.js`: `updateStatus()`, `checkForUpdates()`, `restartToUpdate()`, and an event `onUpdateStatus(callback)` pushed by main whenever the state changes. In dev (`!app.isPackaged`) the status is "Updates are only available in the installed app" and the buttons are disabled.
+- Welcome screen: add one quiet line under the welcome text: "Grok Bot Helper keeps itself up to date. You can turn this off below." (i18n).
+- Settings save/load includes `autoUpdate` (boolean; invalid → `invalid-option`).
+
+## 5. i18n
+- All new strings in **en and pt-BR**. Remove keys that are no longer used.
+
+## 6. Docs
+- `README.md`: in the privacy/network part, replace "no network requests by default" with an accurate statement: the only network request Grok Bot Helper makes by default is checking `github.com/cremess/grok-bot-helper` releases for updates (can be turned off in Settings → Automatic updates); OpenBot/Hermes behavior unchanged. Add a short **Updates** section: installed copies update automatically; the change takes effect after quitting or "Restart to update".
+- `CONTRIBUTING.md` release steps: bump version → `npm run dist` → create a GitHub release `vX.Y.Z` and upload **all three** files from `dist/`: `Grok-Bot-Helper-Setup-X.Y.Z.exe`, `Grok-Bot-Helper-Setup-X.Y.Z.exe.blockmap`, `latest.yml` (the updater needs `latest.yml`). Plus the local test recipe with `GROK_BOT_HELPER_UPDATE_FEED`.
 
 ## Acceptance criteria
 - `npm test` and `npm run check` pass.
-- `git grep -n -i "grokbot assistant\|grokbot-assistant"` only matches `README.md`, `AGENTS.md`, `.handoff/HISTORY.md`, and the migration code/tests (`oldDir` name). Report the output in RESULT.md.
-- No behavior changes other than the rebrand, migration and visuals.
+- `node -e "require('electron-updater')"` is never executed in tests; dev `npm start` never loads electron-updater.
+- No raw error messages or file paths shown to the user or written to disk by the updater.
 
 ## Do NOT
-- Do not touch `README.md`, `AGENTS.md`, `LICENSE`, `assets/`, `build/`, `scripts/build-icons.js`.
-- Do not add dependencies, run the app, build the installer, commit or push.
+- Do not add dependencies, upload releases, set tokens, run the app or build the installer. Do not commit or push.
+- Do not change behavior unrelated to updates.
 
 ## When done
 Replace the whole content of `.handoff/RESULT.md` with the result of this task.

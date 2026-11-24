@@ -36,12 +36,52 @@ const record = document.getElementById('record');
 const save = document.getElementById('save');
 const launchAtLogin = document.getElementById('launch-at-login');
 const notifyOnReply = document.getElementById('notify-on-reply');
-const checkForUpdates = document.getElementById('check-for-updates');
+const autoUpdate = document.getElementById('auto-update');
+const updateStatusLine = document.getElementById('update-status');
+const checkUpdate = document.getElementById('check-update');
+const restartUpdate = document.getElementById('restart-update');
+const updateStateKeys = {
+  idle: 'settings.updates.idle',
+  checking: 'settings.updates.checking',
+  available: 'settings.updates.available',
+  downloading: 'settings.updates.downloading',
+  downloaded: 'settings.updates.downloaded',
+  'up-to-date': 'settings.updates.upToDate',
+  error: 'settings.updates.error',
+};
+let updateStatus;
+
+function renderUpdateStatus() {
+  if (!updateStatus) return;
+  const { installed, enabled, currentVersion, state, restarting } = updateStatus;
+  const stateKey = state === 'idle' && !enabled ? 'settings.updates.off' : updateStateKeys[state];
+  updateStatusLine.textContent = installed
+    ? t('settings.updates.status', { currentVersion, state: t(stateKey, updateStatus) })
+    : t('settings.updates.installedOnly');
+  checkUpdate.disabled = !installed || !enabled || !autoUpdate.checked || restarting
+    || ['checking', 'available', 'downloading'].includes(state);
+  restartUpdate.hidden = state !== 'downloaded';
+  restartUpdate.disabled = !installed || restarting;
+}
+
+autoUpdate.addEventListener('change', renderUpdateStatus);
+checkUpdate.addEventListener('click', () => window.grokbotSettings.checkForUpdates().catch(() => showError()));
+restartUpdate.addEventListener('click', () => window.grokbotSettings.restartToUpdate().catch(() => showError()));
+window.grokbotSettings.onUpdateStatus((status) => {
+  updateStatus = status;
+  renderUpdateStatus();
+});
+window.grokbotSettings.updateStatus().then((status) => {
+  if (!updateStatus) updateStatus = status;
+  renderUpdateStatus();
+}).catch(() => showError());
+
 const themeOptions = [...document.querySelectorAll('input[name="theme"]')];
 const languageOptions = [...document.querySelectorAll('input[name="language"]')];
 function renderGeneral(settings) {
   notifyOnReply.checked = settings.notifyOnReply;
-  checkForUpdates.checked = settings.checkForUpdates === true;
+  autoUpdate.checked = settings.autoUpdate === true;
+  renderUpdateStatus();
   for (const option of themeOptions) option.checked = option.value === settings.theme;
   for (const option of languageOptions) option.checked = option.value === settings.language;
   updateSegments();
@@ -584,7 +624,7 @@ form.addEventListener('submit', async (event) => {
       launchAtLogin: launchAtLogin.checked,
       afterSend: afterSendOptions.find((option) => option.checked)?.value,
       notifyOnReply: notifyOnReply.checked,
-      checkForUpdates: checkForUpdates.checked,
+      autoUpdate: autoUpdate.checked,
       theme: themeOptions.find((option) => option.checked)?.value,
       language: languageOptions.find((option) => option.checked)?.value,
       templates: templates.map(({ name, text }) => ({ name, text })),

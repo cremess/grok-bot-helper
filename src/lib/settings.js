@@ -20,8 +20,7 @@ const DEFAULT_SETTINGS = Object.freeze({
   language: 'system',
   promptBounds: null,
   templates: Object.freeze([]),
-  // The update check is the only network access, so it is opt-in.
-  checkForUpdates: false,
+  autoUpdate: true,
   lastUpdateCheckMs: 0,
   // Where messages go: 'grokbot' (deep links, the default), 'openbot' (local API) or 'hermes' (local CLI).
   assistant: 'grokbot',
@@ -130,7 +129,7 @@ function normalizeSettings(raw) {
     settings.promptBounds = { x, y, width, height };
   }
   settings.templates = normalizeTemplates(raw.templates);
-  if (typeof raw.checkForUpdates === 'boolean') settings.checkForUpdates = raw.checkForUpdates;
+  if (typeof raw.autoUpdate === 'boolean') settings.autoUpdate = raw.autoUpdate;
   if (Number.isFinite(raw.lastUpdateCheckMs) && raw.lastUpdateCheckMs >= 0) settings.lastUpdateCheckMs = raw.lastUpdateCheckMs;
   if (isAssistant(raw.assistant)) settings.assistant = raw.assistant;
   if (raw.openbotAgentId === '' || isValidAgentId(raw.openbotAgentId)) settings.openbotAgentId = raw.openbotAgentId;

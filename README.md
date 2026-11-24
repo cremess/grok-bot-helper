@@ -23,7 +23,7 @@
 
 On macOS, Grok Bot ships with a built-in quick prompt you can summon from anywhere with a shortcut. **On Windows that feature doesn't exist yet** — so we built it. Grok Bot Helper is a small tray app that brings that "press a shortcut, talk to your bot" experience to Windows, and is meant to grow into a general-purpose helper around the Grok Bot desktop app.
 
-> **Unofficial, community project.** Not affiliated with xAI or the makers of Grok Bot. It relies on Grok Bot links and local files that are not documented and may change with Grok Bot updates. It only **reads** those files on your computer and, with Grok Bot as the assistant (the default), never sends your data anywhere. If you choose OpenBot or Hermes instead, your message goes to that assistant on your PC: OpenBot through its local API, Hermes by running `hermes.exe`, which then sends it to the model provider you configured in Hermes (see [what that involves](#talk-to-grok-bot-openbot-or-hermes)). The one optional network request the app makes itself (the update check, off by default) is described below.
+> **Unofficial, community project.** Not affiliated with xAI or the makers of Grok Bot. It relies on Grok Bot links and local files that are not documented and may change with Grok Bot updates. It only **reads** those files on your computer and, with Grok Bot as the assistant (the default), never sends your data anywhere. If you choose OpenBot or Hermes instead, your message goes to that assistant on your PC: OpenBot through its local API, Hermes by running `hermes.exe`, which then sends it to the model provider you configured in Hermes (see [what that involves](#talk-to-grok-bot-openbot-or-hermes)). The installed app checks GitHub for updates by default. See [Updates](#updates).
 
 ## Features
 
@@ -70,7 +70,7 @@ On macOS, Grok Bot ships with a built-in quick prompt you can summon from anywhe
 1. A global shortcut opens a floating prompt (Electron, lives in the tray).
 2. When you send, the app opens a Grok Bot deep link — `grokbot://app/v1/prompt?id=<bot>&text=<text>` (up to 1000 characters; a longer message goes out as numbered parts, one link each, only after you confirm). Grok Bot may ask you to confirm *"Add message for Grok?"*; it has a *"Don't show again"* option. If you enable it, any `grokbot://` link can add text without asking, so decide with that in mind.
 3. To show replies and your bot list, the app **reads** Grok Bot's local cache in `%APPDATA%\Grok Bot` — nothing is written there and nothing leaves your PC.
-4. **Network:** by default the app makes no network requests at all; it only works with local files and Grok Bot links. With OpenBot as the assistant, it makes requests to OpenBot's local API on `127.0.0.1` only (they don't leave your PC); with Hermes, Hermes itself contacts the provider you set up in it. If you turn on **Settings → Data → Check for updates** (off by default), it asks the public GitHub API once a day for the latest release (`api.github.com/repos/cremess/grok-bot-helper/releases/latest`), reads only the version number and the release page link, and shows a notice plus an **Update available** item in the tray menu when there's a newer version. No user data, no telemetry, no sign-in: GitHub only sees your IP address and the standard Electron user agent (app name and version, Windows version), like any browser request. If it fails, nothing happens.
+4. **Network.** By default, the installed app only uses the network to check releases at `github.com/cremess/grok-bot-helper` and download updates from GitHub. Turn this off under **Settings → Data → Automatic updates**. If you select OpenBot, the app makes requests to OpenBot's local API on `127.0.0.1`. If you select Hermes, Hermes itself contacts the provider you configured.
 
 ## Talk to Grok Bot, OpenBot or Hermes
 
@@ -119,6 +119,10 @@ When you run the installer:
 
 To uninstall: **Windows Settings → Apps**.
 
+## Updates
+
+Installed copies of Grok Bot Helper check for releases and download new versions in the background. Once an update is ready, the app installs it when you quit. To install and reopen the app immediately, choose **Restart to update** from the tray menu or **Restart now** in Settings.
+
 ## Usage
 
 | Action | What it does |
@@ -134,7 +138,7 @@ To uninstall: **Windows Settings → Apps**.
 | `Ctrl+,` | Open settings |
 | Double-click the header | Reset the prompt's size and position |
 
-Tray icon: left-click opens the prompt; right-click shows **Open prompt**, **Settings…**, **Reset prompt position** and **Quit** (plus **Update available** when the optional update check found a newer version).
+Tray icon: left-click opens the prompt; right-click shows **Open prompt**, **Settings…**, **Reset prompt position** and **Quit**.
 
 Settings are stored in `%APPDATA%\grok-bot-helper\settings.json`.
 
