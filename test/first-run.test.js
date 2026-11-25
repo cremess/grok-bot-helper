@@ -13,11 +13,11 @@ test('uses the preferred shortcut when registration succeeds and stops trying', 
 
 test('uses the second shortcut when the preferred one fails', () => {
   const attempts = [];
-  assert.deepEqual(pickShortcut('Alt+Space', (shortcut) => {
+  assert.deepEqual(pickShortcut('Ctrl+Space', (shortcut) => {
     attempts.push(shortcut);
     return shortcut === 'Ctrl+Shift+Space';
   }), { shortcut: 'Ctrl+Shift+Space', changed: true });
-  assert.deepEqual(attempts, ['Alt+Space', 'Ctrl+Shift+Space']);
+  assert.deepEqual(attempts, ['Ctrl+Space', 'Ctrl+Shift+Space']);
 });
 
 test('reports failure and preserves the preferred shortcut when none register', () => {
@@ -35,7 +35,7 @@ test('does not retry the preferred shortcut when it is already an alternative', 
     attempts.push(shortcut);
     return false;
   });
-  assert.deepEqual(attempts, ['Alt+Shift+G', 'Alt+Space', 'Ctrl+Shift+Space', 'Ctrl+Alt+G']);
+  assert.deepEqual(attempts, ['Alt+Shift+G', 'Ctrl+Space', 'Ctrl+Shift+Space', 'Ctrl+Alt+G']);
 });
 
 test('first run depends on the settings file being absent', () => {

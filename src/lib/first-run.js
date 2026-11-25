@@ -1,5 +1,5 @@
 const FALLBACK_SHORTCUTS = Object.freeze([
-  'Alt+Space', 'Ctrl+Shift+Space', 'Alt+Shift+G', 'Ctrl+Alt+G',
+  'Ctrl+Space', 'Ctrl+Shift+Space', 'Alt+Shift+G', 'Ctrl+Alt+G',
 ]);
 
 function pickShortcut(preferred, tryRegister) {

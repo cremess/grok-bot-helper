@@ -9,7 +9,7 @@ const { isHermesPathFormat, isValidHermesName } = require('./hermes-client');
 const DEFAULT_SETTINGS = Object.freeze({
   botId: '',
   botName: '',
-  shortcut: 'Alt+Space',
+  shortcut: 'Ctrl+Space',
   // Empty means off: the "send selected text" shortcut is opt-in so it never takes keys by surprise.
   selectionShortcut: '',
   launchAtLogin: false,

@@ -27,7 +27,7 @@ On macOS, Grok Bot ships with a built-in quick prompt you can summon from anywhe
 
 ## Features
 
-- **Quick prompt from anywhere** — press `Alt+Space` (configurable) in any app, type, hit `Enter`. Your message goes straight to the bot you picked.
+- **Quick prompt from anywhere** — press `Ctrl+Space` (configurable) in any app, type, hit `Enter`. Your message goes straight to the bot you picked.
 - **See the reply right there** — the latest reply shows up in the prompt with proper formatting (lists, bold, code). Use the **Latest / Chat** switch (or `Ctrl+L`) to see the recent back-and-forth. If the bot answers in several messages, the prompt keeps reading until it stops writing, and notifies you once.
 - **Send the text you selected** (optional) — pick a shortcut in Settings, select text in any app and press it: the prompt opens with that text, ready to send. Off by default.
 - **Long messages, in parts** — Grok Bot links take up to 1000 characters. For longer messages the prompt offers **Send in N parts**: it splits at paragraphs or sentences, numbers each part `(1/N)`, and sends them one at a time, waiting for each to arrive. You can cancel midway.
@@ -69,7 +69,7 @@ On macOS, Grok Bot ships with a built-in quick prompt you can summon from anywhe
 
 1. A global shortcut opens a floating prompt (Electron, lives in the tray).
 2. When you send, the app opens a Grok Bot deep link — `grokbot://app/v1/prompt?id=<bot>&text=<text>` (up to 1000 characters; a longer message goes out as numbered parts, one link each, only after you confirm). Grok Bot may ask you to confirm *"Add message for Grok?"*; it has a *"Don't show again"* option. If you enable it, any `grokbot://` link can add text without asking, so decide with that in mind.
-   The link places the message in Grok Bot’s text box. Grok Bot Helper checks that the focused box contains your exact message, then presses **Ctrl+Enter**. Turn off **Settings → Behavior → Send automatically** to send each message or numbered part yourself.
+   The link places the message in Grok Bot’s text box. Grok Bot Helper checks that the box contains your exact message, then uses Grok Bot’s **Send** button, even when Grok Bot is in the background. Turn off **Settings → Behavior → Send automatically** to send each message or numbered part yourself.
 3. To show replies and your bot list, the app **reads** Grok Bot's local cache in `%APPDATA%\Grok Bot` — nothing is written there and nothing leaves your PC.
 4. **Network.** By default, the installed app only uses the network to check releases at `github.com/cremess/grok-bot-helper` and download updates from GitHub. Turn this off under **Settings → Data → Automatic updates**. If you select OpenBot, the app makes requests to OpenBot's local API on `127.0.0.1`. If you select Hermes, Hermes itself contacts the provider you configured.
 
@@ -116,7 +116,7 @@ When you run the installer:
 1. It installs for your user only, in one click, no admin rights needed.
 2. The installer isn't code-signed yet, so Windows SmartScreen may say *"Windows protected your PC"*. Click **More info → Run anyway**.
 3. On first launch a welcome screen lists your Grok Bot bots (the most used one is preselected). Click **Save and get started**.
-4. Press the shortcut it shows (default `Alt+Space`; if that's taken, the app picks a free one and tells you).
+4. Press the shortcut it shows (default `Ctrl+Space`; if that's taken, the app tries the fallback shortcuts).
 
 To uninstall: **Windows Settings → Apps**.
 
@@ -128,7 +128,7 @@ Installed copies of Grok Bot Helper check for releases and download new versions
 
 | Action | What it does |
 | --- | --- |
-| Shortcut (default `Alt+Space`) | Opens / closes the prompt |
+| Shortcut (default `Ctrl+Space`) | Opens / closes the prompt |
 | Selected-text shortcut (off by default, set it in Settings) | Copies the text selected in the app in front and opens the prompt with it (up to 1000 characters, added after any draft) |
 | `Enter` | Sends the message (to Grok Bot: over 1000 characters, click **Send in N parts** to split it, up to 10 parts; OpenBot and Hermes take up to 20 000 characters at once) |
 | `Shift+Enter` | New line |
@@ -148,10 +148,10 @@ Settings are stored in `%APPDATA%\grok-bot-helper\settings.json`.
 
 ## Troubleshooting
 
-- **Message stays in Grok Bot’s box** — confirm the link if prompted. Check the text in Grok Bot, then press **Ctrl+Enter** to send it. For automatic sending, enable **Send automatically** and leave the composer focused.
+- **Message stays in Grok Bot’s box** — confirm the link if prompted. Check the text in Grok Bot, then use **Send**. Enable **Send automatically** in Settings to have Grok Bot Helper send your messages.
 - **Draft conflict** — Grok Bot kept an earlier draft. Send or clear that draft in Grok Bot, then retry your message from the helper.
 
-- **The shortcut does nothing** — check the tray icon is there. Another app may own the shortcut (PowerToys Run uses `Alt+Space` by default); the app shows a tray notice when it can't register it. Pick another one in Settings.
+- **The shortcut does nothing** — check the tray icon is there. Another app may own the shortcut. The app shows a tray notice when it can't register it. Pick another one in Settings.
 - **"Your message didn't reach Grok Bot"** — you may be out of Grok Bot usage (the prompt tells you when it resets), you cancelled Grok Bot's confirmation, or Grok Bot isn't running.
 - **No bots in the list** — open Grok Bot once, then click the refresh button next to the bot picker in Settings.
 - **No OpenBot agents** — open OpenBot and turn on **Local scripts** for the agent (agent settings → Permissions). See [OpenBot](#openbot).

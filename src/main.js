@@ -18,7 +18,7 @@ const { readConversation, recentExchanges, latestReply, replyState, resolveAgent
   waitDecision, grokWaitPhase, NOT_DELIVERED_MS } = require('./lib/transcript');
 const { readUsage, isBlocked, formatReset } = require('./lib/usage');
 const { avatarColor, avatarInitial } = require('./lib/avatar');
-const { loadSettings, saveSettings, isValidShortcut, selectionShortcutError, DEFAULT_SETTINGS, LANGUAGES } = require('./lib/settings');
+const { loadSettings, saveSettings, isValidShortcut, canonicalShortcut, selectionShortcutError, DEFAULT_SETTINGS, LANGUAGES } = require('./lib/settings');
 const { promptPosition, isBoundsVisible } = require('./lib/position');
 const { pickShortcut, isFirstRun } = require('./lib/first-run');
 const { validateTemplates } = require('./lib/templates');
@@ -37,6 +37,7 @@ let settingsWindow;
 let settings;
 let registeredShortcut;
 let registeredSelectionShortcut;
+const warnedShortcutAccelerators = new Set();
 let capturingSelection = false;
 const FIRST_UPDATE_DELAY_MS = 30 * 1000;
 const UPDATE_INTERVAL_MS = 6 * 60 * 60 * 1000;
@@ -734,6 +735,8 @@ function pressCopy() {
   });
 }
 
+// Keep the command fixed and pass the expected draft only through stdin. Invoke the send
+// button in the same Grok Bot window only after verifying the composer text twice.
 const AUTO_SEND_COMMAND = String.raw`& {
 $ErrorActionPreference = 'Stop'
 [Console]::InputEncoding = [Text.UTF8Encoding]::new($false)
@@ -745,71 +748,99 @@ function Normalize([string]$value) {
 }
 $expected = Normalize ([Console]::In.ReadToEnd())
 if (!$expected) { exit ${AUTO_SEND_EXIT.noComposer} }
-$seconds = if ($args.Count) { [int]$args[0] } else { 6 }
-Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms
-Add-Type @'
-using System;
-using System.Runtime.InteropServices;
-public static class ComposerWindow {
-  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
-  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
-}
-'@
-function ForegroundProcess($window) {
-  [uint32]$owner = 0
-  [void][ComposerWindow]::GetWindowThreadProcessId($window, [ref]$owner)
-  if ($owner -and (Get-Process -Id $owner -ErrorAction SilentlyContinue).ProcessName -ceq 'Grok Bot') { return $owner }
-}
-function FocusedText($element, $owner) {
-  if (!$element -or $element.Current.ProcessId -ne $owner) { return }
-  $type = $element.Current.ControlType
-  if ($type -ne [System.Windows.Automation.ControlType]::Edit -and
-      $type -ne [System.Windows.Automation.ControlType]::Document) { return }
+$seconds = if ($args.Count) { [int]$args[0] } else { 8 }
+Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+$root = [System.Windows.Automation.AutomationElement]::RootElement
+$children = [System.Windows.Automation.TreeScope]::Children
+$descendants = [System.Windows.Automation.TreeScope]::Descendants
+$controlType = [System.Windows.Automation.AutomationElement]::ControlTypeProperty
+$editCondition = [System.Windows.Automation.PropertyCondition]::new($controlType, [System.Windows.Automation.ControlType]::Edit)
+$buttonCondition = [System.Windows.Automation.PropertyCondition]::new($controlType, [System.Windows.Automation.ControlType]::Button)
+function ComposerText($element) {
   $pattern = $null
   if ($element.TryGetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern, [ref]$pattern)) {
     return Normalize ($pattern.DocumentRange.GetText(-1))
   }
   if ($element.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$pattern)) {
-    if (!$pattern.Current.IsReadOnly) { return Normalize $pattern.Current.Value }
+    return Normalize $pattern.Current.Value
   }
+}
+function ConfirmSend($composer, $button) {
+  # Sent when the composer no longer holds our text or the button stopped being a send action.
+  # (An empty composer may read as '', "\n" or even the field's accessible name, so don't require '').
+  $confirmation = [Diagnostics.Stopwatch]::StartNew()
+  while ($confirmation.ElapsedMilliseconds -lt 3000) {
+    try {
+      if (![string]::Equals((ComposerText $composer), $expected, [StringComparison]::Ordinal)) { exit ${AUTO_SEND_EXIT.sent} }
+      if ($button.Current.Name -notmatch '^(enviar|send)( message| mensagem)?$') { exit ${AUTO_SEND_EXIT.sent} }
+    } catch {
+      # The provider may be updating the composer. Retry the read only.
+    }
+    Start-Sleep -Milliseconds 200
+  }
+  exit ${AUTO_SEND_EXIT.timeout}
 }
 $clock = [Diagnostics.Stopwatch]::StartNew()
 $sawWindow = $false
 $sawComposer = $false
-$mismatchSince = $null
+$mismatchSince = @{}
 while ($clock.Elapsed.TotalSeconds -lt $seconds) {
-  $different = $false
+  $matching = $false
+  $currentMismatches = @{}
+  $windows = @()
   try {
-    $window = [ComposerWindow]::GetForegroundWindow()
-    $owner = ForegroundProcess $window
-    if ($owner) {
-      $sawWindow = $true
-      $element = [System.Windows.Automation.AutomationElement]::FocusedElement
-      $actual = FocusedText $element $owner
-      if ($null -ne $actual) {
-        $sawComposer = $true
-        if ([string]::Equals($actual, $expected, [StringComparison]::Ordinal)) {
-          Start-Sleep -Milliseconds 120
-          $focused = [System.Windows.Automation.AutomationElement]::FocusedElement
-          if ([System.Windows.Automation.Automation]::Compare($element, $focused) -and
-              [string]::Equals((FocusedText $focused $owner), $expected, [StringComparison]::Ordinal) -and
-              (ForegroundProcess $window) -eq $owner -and
-              [System.Windows.Automation.Automation]::Compare($focused, [System.Windows.Automation.AutomationElement]::FocusedElement) -and
-              [ComposerWindow]::GetForegroundWindow() -eq $window) {
-            try { [System.Windows.Forms.SendKeys]::SendWait('^{ENTER}') }
-            catch { exit ${AUTO_SEND_EXIT.timeout} }
-            exit ${AUTO_SEND_EXIT.sent}
-          }
-        } else { $different = $actual.Length -gt 0 }
-      }
+    $owners = @(Get-Process -Name 'Grok Bot' -ErrorAction SilentlyContinue |
+      Where-Object { $_.ProcessName -ceq 'Grok Bot' } |
+      Select-Object -ExpandProperty Id)
+    if ($owners.Count) {
+      $windows = $root.FindAll($children, [System.Windows.Automation.Condition]::TrueCondition)
     }
-  } catch { $different = $false }
-  if ($different) {
-    if ($null -eq $mismatchSince) { $mismatchSince = $clock.ElapsedMilliseconds }
-    if ($clock.ElapsedMilliseconds - $mismatchSince -ge 1500) { exit ${AUTO_SEND_EXIT.mismatch} }
-  } else { $mismatchSince = $null }
-  Start-Sleep -Milliseconds 150
+  } catch {
+    # Retry enumeration if the provider is temporarily unavailable.
+  }
+  foreach ($window in $windows) {
+    try {
+      if ($window.Current.ProcessId -notin $owners) { continue }
+      $sawWindow = $true
+      foreach ($composer in $window.FindAll($descendants, $editCondition)) {
+        if ($composer.Current.ClassName -notlike '*sand-prompt-field*') { continue }
+        $sawComposer = $true
+        $actual = ComposerText $composer
+        if ([string]::Equals($actual, $expected, [StringComparison]::Ordinal)) {
+          $matching = $true
+          foreach ($button in $window.FindAll($descendants, $buttonCondition)) {
+            $state = $button.Current
+            if ($state.ClassName -notlike '*sand-prompt-send*' -or !$state.IsEnabled -or
+                $state.Name -notmatch '^(enviar|send)( message| mensagem)?$') { continue }
+            $invoke = $null
+            if (!$button.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$invoke)) { continue }
+            if (![string]::Equals((ComposerText $composer), $expected, [StringComparison]::Ordinal)) { break }
+            try { $invoke.Invoke() }
+            catch { exit ${AUTO_SEND_EXIT.timeout} }
+            ConfirmSend $composer $button
+          }
+        } elseif ($actual) {
+          $id = $composer.GetRuntimeId() -join ','
+          $currentMismatches[$id] = if ($mismatchSince.ContainsKey($id)) {
+            $mismatchSince[$id]
+          } else { $clock.ElapsedMilliseconds }
+        }
+      }
+    } catch {
+      # Windows and controls can disappear while Grok Bot switches chats.
+    }
+  }
+  if ($matching) {
+    $mismatchSince = @{}
+  } else {
+    $mismatchSince = $currentMismatches
+    foreach ($since in $mismatchSince.Values) {
+      if ($clock.ElapsedMilliseconds - $since -ge 3000) { exit ${AUTO_SEND_EXIT.mismatch} }
+    }
+  }
+  Start-Sleep -Milliseconds 200
 }
+# Keep the existing exit code name for a missing Grok Bot window.
 if (!$sawWindow) { exit ${AUTO_SEND_EXIT.notForeground} }
 if (!$sawComposer) { exit ${AUTO_SEND_EXIT.noComposer} }
 exit ${AUTO_SEND_EXIT.timeout}
@@ -819,11 +850,11 @@ async function sendComposer(request, signal) {
   request.waitStartedAt = request.sentAt;
   if (!request.autoSend) return null;
   if (signal.aborted) return { ok: false, error: 'not-sent' };
-  const seconds = readPromptConfirmDismissed(GROK_BOT_DIRECTORY) === true ? 6 : 25;
+  const seconds = readPromptConfirmDismissed(GROK_BOT_DIRECTORY) === true ? 8 : 25;
   const powershell = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
   const code = await new Promise((resolve) => {
     const child = execFile(powershell, ['-NoProfile', '-NonInteractive', '-Command', AUTO_SEND_COMMAND, String(seconds)],
-      { windowsHide: true, shell: false, signal, timeout: (seconds + 3) * 1000 }, (error) => {
+      { windowsHide: true, shell: false, signal, timeout: (seconds + 5) * 1000 }, (error) => {
         resolve(error ? error.code : AUTO_SEND_EXIT.sent);
       });
     child.stdin.on('error', () => {}); // The process can exit before reading stdin.
@@ -897,6 +928,16 @@ async function sendSelection() {
   showPrompt({ prefill: { text, clipped, empty: !text } });
 }
 
+function warnShortcutUnavailable(accelerator) {
+  const key = canonicalShortcut(accelerator) ?? accelerator;
+  if (warnedShortcutAccelerators.has(key)) return;
+  warnedShortcutAccelerators.add(key);
+  tray.displayBalloon({
+    title: t('app.name'),
+    content: t('balloon.shortcutUnavailable', { shortcut: accelerator }),
+  });
+}
+
 function applySelectionShortcut(accelerator) {
   if (registeredSelectionShortcut) {
     globalShortcut.unregister(registeredSelectionShortcut);
@@ -911,10 +952,7 @@ function applySelectionShortcut(accelerator) {
   } catch {
     // Also warn when Electron rejects the accelerator.
   }
-  tray.displayBalloon({
-    title: t('app.name'),
-    content: t('balloon.shortcutUnavailable', { shortcut: accelerator }),
-  });
+  warnShortcutUnavailable(accelerator);
   return false;
 }
 
@@ -1101,10 +1139,7 @@ function applyShortcut(accelerator) {
     // Also warn when Electron rejects the accelerator.
   }
 
-  tray.displayBalloon({
-    title: t('app.name'),
-    content: t('balloon.shortcutUnavailable', { shortcut: accelerator }),
-  });
+  warnShortcutUnavailable(accelerator);
   return false;
 }
 

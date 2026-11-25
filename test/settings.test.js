@@ -82,7 +82,7 @@ test('normalization requires a plain object and preserves defaults and input', (
     assert.deepEqual(normalizeSettings(raw), DEFAULT_SETTINGS);
   }
   assert.deepEqual(normalizeSettings(Object.assign(Object.create(null), validSettings)), validSettings);
-  const snapshot = { botId: '', botName: '', shortcut: 'Alt+Space', selectionShortcut: '', launchAtLogin: false, autoSend: true, afterSend: 'wait', notifyOnReply: false, theme: 'system', language: 'system', promptBounds: null, templates: [], autoUpdate: true, lastUpdateCheckMs: 0, assistant: 'grokbot', openbotAgentId: '', openbotAgentName: '', hermesPath: '', hermesModel: '', hermesProvider: '', hermesContinue: true, replyTimeoutMinutes: 10 };
+  const snapshot = { botId: '', botName: '', shortcut: 'Ctrl+Space', selectionShortcut: '', launchAtLogin: false, autoSend: true, afterSend: 'wait', notifyOnReply: false, theme: 'system', language: 'system', promptBounds: null, templates: [], autoUpdate: true, lastUpdateCheckMs: 0, assistant: 'grokbot', openbotAgentId: '', openbotAgentName: '', hermesPath: '', hermesModel: '', hermesProvider: '', hermesContinue: true, replyTimeoutMinutes: 10 };
   const input = { ...validSettings };
   const result = normalizeSettings(input);
   result.botId = 'other';
@@ -239,7 +239,8 @@ test('normalizeSettings keeps a valid selection shortcut and drops invalid or co
     assert.equal(normalizeSettings({ ...validSettings, selectionShortcut }).selectionShortcut, '', String(selectionShortcut));
   }
   // The comparison uses the final prompt shortcut, including the default when the saved one is invalid.
-  assert.equal(normalizeSettings({ shortcut: 'Space', selectionShortcut: 'Alt+Space' }).selectionShortcut, '');
+  assert.equal(normalizeSettings({ shortcut: 'Space', selectionShortcut: 'Ctrl+Space' }).selectionShortcut, '');
+  assert.equal(normalizeSettings({ shortcut: 'Alt+Space' }).shortcut, 'Alt+Space');
   assert.equal(normalizeSettings({ shortcut: 'Ctrl+Shift+G', selectionShortcut: 'Alt+Space' }).selectionShortcut, 'Alt+Space');
 });
 
