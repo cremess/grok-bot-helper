@@ -6,7 +6,7 @@ const os = require('node:os');
 const { encodeBase32, findPersistenceFile } = require('../src/lib/roster');
 const { escapeRegex, resolveAgentId, findTranscriptFile, parseTranscript,
   readConversation, latestReply, recentExchanges, userMessageSince, replyState, trackTranscriptChange,
-  waitDecision, REPLY_SETTLE_MS, NOT_DELIVERED_MS, REPLY_TIMEOUT_MS } = require('../src/lib/transcript');
+  grokWaitPhase, waitDecision, REPLY_SETTLE_MS, NOT_DELIVERED_MS, REPLY_TIMEOUT_MS } = require('../src/lib/transcript');
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'grokbot-transcript-'));
 after(() => {
@@ -224,6 +224,7 @@ test('waitDecision keeps reading after the first reply until the transcript is q
 });
 
 test('waitDecision without a reply keeps the delivery and timeout rules', () => {
+  assert.equal(NOT_DELIVERED_MS, 120000);
   assert.equal(waitDecision(), 'waiting');
   assert.equal(waitDecision({ delivered: false, elapsedMs: NOT_DELIVERED_MS - 1 }), 'waiting');
   assert.equal(waitDecision({ delivered: false, elapsedMs: NOT_DELIVERED_MS }), 'not-delivered');
@@ -260,6 +261,27 @@ test('a bot answering with several messages is followed until it stops writing',
   assert.deepEqual(shown, ['b2', 'b3']);
   assert.equal(seen.id, 'b3');
   assert.equal(tick, 4 + REPLY_SETTLE_MS / 1000);
+});
+
+test('confirmed sends show the lag hint after 20 seconds until a reply appears', () => {
+  const request = { autoSent: true, delivered: true, waitStartedAt: 5000 };
+  assert.equal(grokWaitPhase(request, 24999), 'sent');
+  assert.equal(grokWaitPhase(request, 25000), 'sent-with-hint');
+  assert.equal(grokWaitPhase({ ...request, reply: {} }, 25001), undefined);
+  assert.equal(grokWaitPhase({ delivered: false }, 25000), 'awaiting-delivery');
+  assert.equal(grokWaitPhase({ delivered: true }, 25000), undefined);
+});
+
+test('late replies to earlier parts do not finish the final reply wait', () => {
+  const earlier = { id: 'b1', role: 'bot', text: 'First reply', timestampMs: 10 };
+  const final = { id: 'u2', role: 'user', text: '(2/2) End', timestampMs: 20 };
+  const answer = { ...earlier, id: 'b2', timestampMs: 30 };
+  for (const baseline of [{ knownIds: new Set() }, { afterMs: 0 }]) {
+    const request = { ...baseline, expectPrefix: '(2/2)' };
+    assert.equal(replyState([earlier], request).reply, null);
+    assert.deepEqual(replyState([earlier, final], request), { delivered: true, reply: null });
+    assert.equal(replyState([earlier, final, answer], request).reply, answer);
+  }
 });
 
 test('replyState with expectPrefix only counts the expected part as delivered', () => {

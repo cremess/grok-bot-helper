@@ -62,6 +62,8 @@ const errors = {
   busy: t('errors.busy'),
   'too-long': t('errors.tooLong'),
   'invalid-bot-id': t('errors.configuredBot'),
+  'draft-conflict': t('errors.draftConflict'),
+  'not-sent': t('errors.notSent'),
   'open-failed': t('errors.open'),
   'no-agent': t('prompt.openbot.pick'),
   'hermes-missing': t('prompt.hermes.missing'),
@@ -109,7 +111,7 @@ let waiting = false;
 let partial = false;
 let timedOut = false;
 let notDelivered = false;
-let awaitingDelivery = false;
+let waitPhase;
 let sent;
 let conversationView = false;
 let expanded = false;
@@ -132,6 +134,7 @@ const picker = BotPicker.create({
       setBot(selected.bot);
       conversation = selected.conversation;
       waiting = Boolean(selected.waiting);
+      waitPhase = selected.waitPhase;
       partial = false;
       timedOut = false;
       assistantError = selected.assistantError;
@@ -154,6 +157,12 @@ function configurePicker() {
       : { includeDefault: true, heading: t('picker.heading'), empty: t('picker.empty'), badgeFirst: true });
 }
 
+function renderDefaultPickerName() {
+  if (assistant === 'grokbot' && !destinationDetails.botId) {
+    applyDefaultPickerName(pickerContainer, destinationDetails.botName, true);
+  }
+}
+
 function setBot(details) {
   destinationDetails = details;
   const next = ['openbot', 'hermes'].includes(details.assistant) ? details.assistant : 'grokbot';
@@ -170,6 +179,7 @@ function setBot(details) {
   if (assistant === 'grokbot') {
     picker.setValue({ mode: details.botId ? 'list' : 'default', botId: details.botId || '', botName: details.botName || '' });
   } else picker.setValue({ mode: 'list', botId: details.botId || '', botName: details.botName || '' });
+  renderDefaultPickerName();
   const name = details.botName || 'OpenBot';
   textarea.placeholder = assistant === 'grokbot' ? t('prompt.placeholder') : t('prompt.assistant.placeholder', { bot: name });
   textarea.setAttribute('aria-label', assistant === 'grokbot' ? t('prompt.message') : t('prompt.assistant.message', { bot: name }));
@@ -239,6 +249,7 @@ async function loadPickerBots() {
     if (assistant === 'grokbot') {
       grokBotFound = result.ok;
       picker.setBots(result.ok ? result.bots : []);
+      renderDefaultPickerName();
     } else {
       grokBotFound = true;
       const bots = Array.isArray(result.bots) ? result.bots : [];
@@ -252,6 +263,7 @@ async function loadPickerBots() {
     if (version !== rosterVersion) return;
     grokBotFound = assistant !== 'grokbot';
     picker.setBots([]);
+    renderDefaultPickerName();
     if (assistant === 'openbot') openbotStatus = { state: 'error', agents: [] };
     renderAssistantNotice();
     renderConversation();
@@ -383,7 +395,7 @@ replyViewObserver.observe(chatView);
 function renderConversation(animate = false) {
   response.hidden = !conversation.ok || !conversation.latest;
   responseBody.replaceChildren();
-  responseName.textContent = destinationDetails.botName || (destinationDetails.botId ? t('bot.fallback', { id: destinationDetails.botId.slice(0, 8) }) : t('bot.default'));
+  responseName.textContent = destinationDetails.botName || (destinationDetails.botId ? t('bot.fallback', { id: destinationDetails.botId.slice(0, 8) }) : 'Grok Bot');
   emptyState.hidden = !response.hidden || waiting || timedOut || notDelivered || Boolean(assistantError);
   emptyMessage.textContent = grokBotFound ? t('prompt.empty', { bot: responseName.textContent }) : t('prompt.notFound');
   responseAvatar.textContent = destinationDetails.botInitial || 'G';
@@ -413,12 +425,23 @@ function renderConversation(animate = false) {
   waitingArea.replaceChildren();
   waitingArea.hidden = !waiting && !timedOut && !notDelivered && !assistantError;
   if (waiting) {
-    if (sent && !partial) waitingArea.append(bubble(sent));
+    const confirmed = waitPhase === 'sent' || waitPhase === 'sent-with-hint';
+    if (sent && !partial) {
+      const message = bubble(sent);
+      if (confirmed) {
+        const marker = document.createElement('small');
+        marker.className = 'sent-marker';
+        marker.textContent = t('prompt.sentMarker');
+        message.append(marker);
+      }
+      waitingArea.append(message);
+    }
     const status = document.createElement('p');
     status.className = 'waiting-status';
     status.append(partial ? t('prompt.moreComing', { bot: responseName.textContent })
-      : awaitingDelivery ? t('prompt.awaitingDelivery')
-        : t('prompt.waiting', { bot: responseName.textContent }));
+      : confirmed ? t('prompt.sentWaiting', { bot: responseName.textContent })
+        : waitPhase === 'awaiting-delivery' ? t('prompt.awaitingDelivery')
+          : t('prompt.waiting', { bot: responseName.textContent }));
     const dots = document.createElement('span');
     dots.className = 'waiting-dots';
     dots.setAttribute('aria-hidden', 'true');
@@ -427,12 +450,18 @@ function renderConversation(animate = false) {
       dot.textContent = '.';
       dots.append(dot);
     }
-    if (!awaitingDelivery) status.append(dots);
+    if (!waitPhase) status.append(dots);
     status.append(textButton(t('prompt.stop'), async () => {
       try { await window.grokbot.stopWaiting(); }
       catch { showError(t('errors.stop')); }
     }));
     waitingArea.append(status);
+    if (waitPhase === 'sent-with-hint') {
+      const hint = document.createElement('small');
+      hint.className = 'reply-hint';
+      hint.textContent = t('prompt.replyHint');
+      waitingArea.append(hint);
+    }
   } else if (notDelivered) {
     if (sent) {
       const failed = bubble(sent);
@@ -524,7 +553,7 @@ window.grokbot.onConversation((data) => {
   partial = waiting && Boolean(data.partial);
   timedOut = Boolean(data.timedOut);
   notDelivered = Boolean(data.notDelivered);
-  awaitingDelivery = Boolean(data.awaitingDelivery);
+  waitPhase = data.waitPhase;
   if (data.usage) setUsage(data.usage);
   sent = data.sent;
   renderConversation(Boolean(changed && (!waiting || partial)));
@@ -572,8 +601,8 @@ function showError(message) {
   updateLayout();
 }
 
-function showPartsProgress({ part, total }) {
-  noticeArea.replaceChildren(t('prompt.parts.progress', { part, total }), textButton(t('prompt.parts.cancel'), () => {
+function showPartsProgress({ part, total, manualSend }) {
+  noticeArea.replaceChildren(t(manualSend ? 'prompt.parts.manual' : 'prompt.parts.progress', { part, total }), textButton(t('prompt.parts.cancel'), () => {
     window.grokbot.cancelParts().catch(() => {});
   }));
   noticeArea.hidden = false;
@@ -804,7 +833,7 @@ document.addEventListener('keydown', (event) => {
 });
 
 window.grokbot.onShow(({ botId, botName, botColor, botInitial, history: savedHistory, conversation: data, waiting: isWaiting, sent: sentMessage,
-  partial: isPartial, usage: usageData, notDelivered: failedDelivery, awaitingDelivery: awaitingReceipt, pinned: isPinned, userSized: isUserSized,
+  partial: isPartial, usage: usageData, notDelivered: failedDelivery, waitPhase: currentWaitPhase, pinned: isPinned, userSized: isUserSized,
   prefill, parts: partsProgress, templates: savedTemplates, assistant: destination, maxLength: limit, assistantError: failure }) => {
   if (Number.isInteger(limit) && limit > 0) maxLength = limit;
   showPinned(Boolean(isPinned));
@@ -838,7 +867,7 @@ window.grokbot.onShow(({ botId, botName, botColor, botInitial, history: savedHis
   partial = waiting && Boolean(isPartial);
   timedOut = false;
   notDelivered = Boolean(failedDelivery);
-  awaitingDelivery = Boolean(awaitingReceipt);
+  waitPhase = currentWaitPhase;
   setUsage(usageData);
   sent = sentMessage;
   conversationView = false;

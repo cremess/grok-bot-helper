@@ -29,7 +29,10 @@
     'prompt.stop': "Stop",
     'prompt.retry': "Try again",
     'prompt.sendAnyway': "Send anyway",
-    'prompt.awaitingDelivery': "Waiting for Grok Bot to receive your message… Confirm in Grok Bot if prompted.",
+    'prompt.awaitingDelivery': "Waiting for Grok Bot to receive your message… If it's in Grok Bot's text box, press Ctrl+Enter there.",
+    'prompt.sentMarker': "Sent ✓",
+    'prompt.sentWaiting': "Sent. Waiting for {bot}'s reply…",
+    'prompt.replyHint': "Replies can take up to a minute to show up here.",
     'prompt.deliveryFailed': "Delivery failed",
     'prompt.deliveryHelp': "The confirmation may have been canceled, or Grok Bot may be closed.",
     'prompt.timeout': "The reply is taking a while. Check Grok Bot.",
@@ -141,14 +144,19 @@
     'picker.heading': "Your bots",
     'picker.mostUsed': "most used",
     'picker.empty': "No bots found",
-    'bot.default': "default bot",
+    'errors.draftConflict': "Grok Bot already has another draft in this chat, so nothing was sent. Send or clear it in Grok Bot, then try again.",
+    'errors.notSent': "Your message is in Grok Bot's text box but couldn't be sent automatically. Press Ctrl+Enter in Grok Bot to send it.",
+    'prompt.manualSend': "Your message was placed in Grok Bot. Press Ctrl+Enter there to send it.",
+    'prompt.parts.manual': "Part {part} of {total}. Press Ctrl+Enter in Grok Bot to send it.",
+    'settings.rows.autoSend.title': "Send automatically",
+    'settings.rows.autoSend.help': "Presses Ctrl+Enter in Grok Bot for you after checking the message is the one you wrote.",
     'tray.openPrompt': "Open prompt",
     'tray.settings': "Settings…",
     'tray.resetPosition': "Reset prompt position",
     'tray.quit': "Quit",
     'balloon.ready.title': "Grok Bot Helper is ready",
     'bot.fallback': "bot {id}",
-    'picker.compactDefault': "Grok",
+    'picker.compactDefault': "Grok Bot",
     'picker.selectedLabel': "Destination bot: {name}",
     'picker.shortcutTitle': "{name} (Ctrl+K)",
     'prompt.waiting': "{bot} is replying",
@@ -287,7 +295,10 @@
     'prompt.stop': "Parar",
     'prompt.retry': "Tentar de novo",
     'prompt.sendAnyway': "Enviar mesmo assim",
-    'prompt.awaitingDelivery': "Esperando o Grok Bot receber sua mensagem… Confirme no Grok Bot se ele pedir.",
+    'prompt.awaitingDelivery': "Aguardando o Grok Bot receber sua mensagem… Se ela estiver na caixa de texto do Grok Bot, pressione Ctrl+Enter lá.",
+    'prompt.sentMarker': "Enviada ✓",
+    'prompt.sentWaiting': "Enviada. Aguardando a resposta de {bot}…",
+    'prompt.replyHint': "A resposta pode levar até um minuto para aparecer aqui.",
     'prompt.deliveryFailed': "Falha na entrega",
     'prompt.deliveryHelp': "A confirmação pode ter sido cancelada ou o Grok Bot pode estar fechado.",
     'prompt.timeout': "A resposta está demorando. Confira no Grok Bot.",
@@ -394,19 +405,24 @@
     'picker.to': "Para ",
     'picker.search': "Buscar bots…",
     'picker.searchLabel': "Buscar bots",
-    'picker.default': "Padrão do Grok Bot",
+    'picker.default': "Bot padrão do Grok Bot",
     'picker.manual': "Outro bot (colar link ou ID)…",
     'picker.heading': "Seus bots",
     'picker.mostUsed': "mais usado",
     'picker.empty': "Nenhum bot encontrado",
-    'bot.default': "bot padrão",
+    'errors.draftConflict': "O Grok Bot já tem outro rascunho nesta conversa. Envie ou apague o rascunho no Grok Bot e tente novamente. Sua mensagem não foi enviada.",
+    'errors.notSent': "Sua mensagem está na caixa de texto do Grok Bot, mas o envio automático falhou. Pressione Ctrl+Enter no Grok Bot para enviá-la.",
+    'prompt.manualSend': "Sua mensagem foi colocada no Grok Bot. Pressione Ctrl+Enter lá para enviá-la.",
+    'prompt.parts.manual': "Parte {part} de {total}. Pressione Ctrl+Enter no Grok Bot para enviá-la.",
+    'settings.rows.autoSend.title': "Enviar automaticamente",
+    'settings.rows.autoSend.help': "Pressiona Ctrl+Enter no Grok Bot depois de conferir se a mensagem é a que você escreveu.",
     'tray.openPrompt': "Abrir prompt",
     'tray.settings': "Configurações…",
     'tray.resetPosition': "Redefinir posição do prompt",
     'tray.quit': "Sair",
     'balloon.ready.title': "O Grok Bot Helper está pronto",
     'bot.fallback': "bot {id}",
-    'picker.compactDefault': "Grok",
+    'picker.compactDefault': "Grok Bot",
     'picker.selectedLabel': "Bot de destino: {name}",
     'picker.shortcutTitle': "{name} (Ctrl+K)",
     'prompt.waiting': "{bot} está respondendo",
@@ -568,7 +584,16 @@
     }
   }
 
-  const api = { STRINGS, LOCALES, DEFAULT_LOCALE, LANGUAGE_NAMES, t, applyI18n, resolveLocale, setLocale, getLocale,
+  function applyDefaultPickerName(container, name, compact = false) {
+    const trigger = container.querySelector('.bot-picker-trigger');
+    const label = name || 'Grok Bot';
+    trigger.querySelector('.bot-picker-label strong').textContent = label;
+    trigger.querySelector('.avatar').textContent = [...label][0];
+    trigger.setAttribute('aria-label', t('picker.selectedLabel', { name: label }));
+    trigger.title = compact ? t('picker.shortcutTitle', { name: label }) : label;
+  }
+
+  const api = { applyDefaultPickerName, STRINGS, LOCALES, DEFAULT_LOCALE, LANGUAGE_NAMES, t, applyI18n, resolveLocale, setLocale, getLocale,
     intlLocale };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else {

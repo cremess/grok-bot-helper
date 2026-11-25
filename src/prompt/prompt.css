@@ -74,6 +74,8 @@ footer { display: flex; align-items: center; gap: 10px; margin-top: 10px; color:
 .bubble.bot { background: var(--surface); }
 .bubble small { display: block; font-size: 11px; color: var(--secondary); }
 #waiting-area { margin-bottom: 10px; }
+.sent-marker { margin-left: 6px; }
+.sent-marker, .reply-hint { color: var(--secondary); font-size: 12px; }
 .waiting-status { color: var(--secondary); font-size: 13px; margin: 6px 0; }
 .waiting-dots span { display: inline-block; animation: dots 1.2s infinite; }
 .waiting-dots span:nth-child(2) { animation-delay: .15s; }

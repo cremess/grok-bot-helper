@@ -94,6 +94,12 @@ function replyState(entries, { knownIds, knownUntilMs = 0, afterMs, expectPrefix
     && (typeof expectPrefix !== 'string' || entry.text.startsWith(expectPrefix));
   const isNew = (entry) => !knownIds.has(entry.id) && (entry.timestampMs === 0 || entry.timestampMs > knownUntilMs);
   const fresh = knownIds instanceof Set ? entries.filter(isNew) : null;
+  if (typeof expectPrefix === 'string') {
+    // A delayed disk write can contain replies to earlier parts of the same send.
+    const candidates = fresh ?? entries.filter((entry) => entry.timestampMs >= (afterMs ?? 0));
+    const index = candidates.findIndex(ours);
+    return { delivered: index >= 0, reply: index >= 0 ? latestReply(candidates.slice(index + 1)) : null };
+  }
   if (fresh) {
     return { delivered: fresh.some(ours), reply: latestReply(fresh) };
   }
@@ -102,8 +108,15 @@ function replyState(entries, { knownIds, knownUntilMs = 0, afterMs, expectPrefix
     reply: latestReply(entries, { afterMs }) };
 }
 
+function grokWaitPhase(request, now = Date.now()) {
+  if (!request || request.reply) return undefined;
+  if (!request.delivered) return 'awaiting-delivery';
+  if (request.autoSent) return now - request.waitStartedAt >= 20000 ? 'sent-with-hint' : 'sent';
+  return undefined;
+}
+
 const REPLY_SETTLE_MS = 4000;
-const NOT_DELIVERED_MS = 45000;
+const NOT_DELIVERED_MS = 120000;
 const REPLY_TIMEOUT_MS = 10 * 60 * 1000;
 
 // Remembers when the transcript file last changed, using the local clock for "when". Takes the result of
@@ -132,4 +145,4 @@ function waitDecision({ delivered = false, hasReply = false, elapsedMs = 0, quie
 
 module.exports = { replyState, escapeRegex, resolveAgentId, findTranscriptFile, parseTranscript,
   readConversation, latestReply, recentExchanges, userMessageSince, trackTranscriptChange, waitDecision,
-  REPLY_SETTLE_MS, NOT_DELIVERED_MS, REPLY_TIMEOUT_MS };
+  grokWaitPhase, REPLY_SETTLE_MS, NOT_DELIVERED_MS, REPLY_TIMEOUT_MS };

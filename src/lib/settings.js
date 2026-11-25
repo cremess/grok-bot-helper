@@ -13,6 +13,7 @@ const DEFAULT_SETTINGS = Object.freeze({
   // Empty means off: the "send selected text" shortcut is opt-in so it never takes keys by surprise.
   selectionShortcut: '',
   launchAtLogin: false,
+  autoSend: true,
   afterSend: 'wait',
   notifyOnReply: false,
   theme: 'system',
@@ -114,6 +115,7 @@ function normalizeSettings(raw) {
     settings.selectionShortcut = raw.selectionShortcut;
   }
   if (typeof raw.launchAtLogin === 'boolean') settings.launchAtLogin = raw.launchAtLogin;
+  if (typeof raw.autoSend === 'boolean') settings.autoSend = raw.autoSend;
   if (raw.afterSend === 'wait' || raw.afterSend === 'hide') settings.afterSend = raw.afterSend;
   if (typeof raw.notifyOnReply === 'boolean') settings.notifyOnReply = raw.notifyOnReply;
   if (['system', 'dark', 'light'].includes(raw.theme)) settings.theme = raw.theme;

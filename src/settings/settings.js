@@ -35,6 +35,7 @@ const shortcut = document.getElementById('shortcut');
 const record = document.getElementById('record');
 const save = document.getElementById('save');
 const launchAtLogin = document.getElementById('launch-at-login');
+const autoSend = document.getElementById('auto-send');
 const notifyOnReply = document.getElementById('notify-on-reply');
 const autoUpdate = document.getElementById('auto-update');
 const updateStatusLine = document.getElementById('update-status');
@@ -79,6 +80,7 @@ window.grokbotSettings.updateStatus().then((status) => {
 const themeOptions = [...document.querySelectorAll('input[name="theme"]')];
 const languageOptions = [...document.querySelectorAll('input[name="language"]')];
 function renderGeneral(settings) {
+  autoSend.checked = settings.autoSend;
   notifyOnReply.checked = settings.notifyOnReply;
   autoUpdate.checked = settings.autoUpdate === true;
   renderUpdateStatus();
@@ -168,6 +170,7 @@ function renderAssistant(value) {
   const assistant = selectedAssistant();
   updateSegments();
   assistantHelp.textContent = t(`settings.assistant.${assistant}Help`);
+  document.getElementById('auto-send-row').hidden = assistant !== 'grokbot';
   destinationGroup.hidden = assistant !== 'grokbot';
   openbotFields.hidden = assistant !== 'openbot';
   hermesFields.hidden = assistant !== 'hermes';
@@ -457,12 +460,15 @@ document.getElementById('restore').addEventListener('click', () => {
   renderShortcut();
 });
 
+const pickerContainer = document.getElementById('bot-picker');
+let defaultBotName;
 const picker = BotPicker.create({
-  container: document.getElementById('bot-picker'),
+  container: pickerContainer,
   includeManual: true,
   onSelect(option) {
     preselectFirstBot = false;
     selection = { mode: option.mode, botId: option.botId || '', botName: option.botName || '' };
+    if (selection.mode === 'default') applyDefaultPickerName(pickerContainer, defaultBotName);
     manualField.hidden = selection.mode !== 'manual';
     if (!manualField.hidden) bot.focus();
   },
@@ -471,6 +477,7 @@ const picker = BotPicker.create({
 function renderBots() {
   picker.setBots(bots);
   picker.setValue(selection);
+  if (selection.mode === 'default') applyDefaultPickerName(pickerContainer, defaultBotName);
   manualField.hidden = selection.mode !== 'manual';
 }
 
@@ -485,9 +492,11 @@ async function loadBots() {
   refresh.disabled = true;
   try {
     const result = await window.grokbotSettings.bots();
+    defaultBotName = result.defaultBotName;
     bots = result.ok && Array.isArray(result.bots) ? result.bots : [];
   } catch {
     bots = [];
+    defaultBotName = undefined;
   } finally {
     refresh.disabled = false;
   }
@@ -623,6 +632,7 @@ form.addEventListener('submit', async (event) => {
       botInput: bot.value, shortcut: currentShortcut, selectionShortcut: currentSelectionShortcut,
       launchAtLogin: launchAtLogin.checked,
       afterSend: afterSendOptions.find((option) => option.checked)?.value,
+      autoSend: autoSend.checked,
       notifyOnReply: notifyOnReply.checked,
       autoUpdate: autoUpdate.checked,
       theme: themeOptions.find((option) => option.checked)?.value,

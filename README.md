@@ -69,6 +69,7 @@ On macOS, Grok Bot ships with a built-in quick prompt you can summon from anywhe
 
 1. A global shortcut opens a floating prompt (Electron, lives in the tray).
 2. When you send, the app opens a Grok Bot deep link — `grokbot://app/v1/prompt?id=<bot>&text=<text>` (up to 1000 characters; a longer message goes out as numbered parts, one link each, only after you confirm). Grok Bot may ask you to confirm *"Add message for Grok?"*; it has a *"Don't show again"* option. If you enable it, any `grokbot://` link can add text without asking, so decide with that in mind.
+   The link places the message in Grok Bot’s text box. Grok Bot Helper checks that the focused box contains your exact message, then presses **Ctrl+Enter**. Turn off **Settings → Behavior → Send automatically** to send each message or numbered part yourself.
 3. To show replies and your bot list, the app **reads** Grok Bot's local cache in `%APPDATA%\Grok Bot` — nothing is written there and nothing leaves your PC.
 4. **Network.** By default, the installed app only uses the network to check releases at `github.com/cremess/grok-bot-helper` and download updates from GitHub. Turn this off under **Settings → Data → Automatic updates**. If you select OpenBot, the app makes requests to OpenBot's local API on `127.0.0.1`. If you select Hermes, Hermes itself contacts the provider you configured.
 
@@ -146,6 +147,9 @@ Settings are stored in `%APPDATA%\grok-bot-helper\settings.json`.
 **About the selected-text shortcut:** it presses `Ctrl+C` for you in the app in front (through PowerShell and .NET `SendKeys`, both part of Windows), reads the copied text and then puts your previous clipboard back. Text, HTML, RTF and images are restored; other formats (such as copied files) can't be. The copied text is never logged or saved. If Windows clipboard history (`Win+V`) is on, the copied selection may show up there. It doesn't press `Ctrl+C` in a terminal (cmd, PowerShell, Windows Terminal), where it would stop the running program. If the clipboard held a secret marked by a password manager as private, it is cleared instead of written back, so the secret doesn't lose that mark. It needs Ctrl or Alt and can't use the Windows key or `Ctrl+C` itself; release the keys after pressing it so the copy isn't mixed with them.
 
 ## Troubleshooting
+
+- **Message stays in Grok Bot’s box** — confirm the link if prompted. Check the text in Grok Bot, then press **Ctrl+Enter** to send it. For automatic sending, enable **Send automatically** and leave the composer focused.
+- **Draft conflict** — Grok Bot kept an earlier draft. Send or clear that draft in Grok Bot, then retry your message from the helper.
 
 - **The shortcut does nothing** — check the tray icon is there. Another app may own the shortcut (PowerToys Run uses `Alt+Space` by default); the app shows a tray notice when it can't register it. Pick another one in Settings.
 - **"Your message didn't reach Grok Bot"** — you may be out of Grok Bot usage (the prompt tells you when it resets), you cancelled Grok Bot's confirmation, or Grok Bot isn't running.

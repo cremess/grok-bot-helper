@@ -11,10 +11,11 @@ app.setPath('userData', userData);
 const { createTrayIcon, appIconPath } = require('./icon');
 const { buildPromptLink, parseBotId, isValidBotId, MAX_TEXT_LENGTH, MAX_PARTS, splitMessage } = require('./lib/link');
 const { clipSelection, selectionPollDecision, restorePlan } = require('./lib/selection');
+const { readPromptConfirmDismissed, AUTO_SEND_EXIT } = require('./lib/composer');
 const { listBots } = require('./lib/roster');
 const { loadHistory, addToHistory, saveHistory } = require('./lib/history');
 const { readConversation, recentExchanges, latestReply, replyState, resolveAgentId, trackTranscriptChange,
-  waitDecision, NOT_DELIVERED_MS } = require('./lib/transcript');
+  waitDecision, grokWaitPhase, NOT_DELIVERED_MS } = require('./lib/transcript');
 const { readUsage, isBlocked, formatReset } = require('./lib/usage');
 const { avatarColor, avatarInitial } = require('./lib/avatar');
 const { loadSettings, saveSettings, isValidShortcut, selectionShortcutError, DEFAULT_SETTINGS, LANGUAGES } = require('./lib/settings');
@@ -49,6 +50,7 @@ let quittingForUpdate = false;
 const notifiedUpdateVersions = new Set();
 // A long message being sent in parts: { cancelled, part, total }.
 let partsJob;
+let singleSend;
 const settingsLocation = {};
 const GROK_BOT_DIRECTORY = path.join(app.getPath('appData'), 'Grok Bot', 'sand-client-persistence');
 // OpenBot's local API. The client reads the address and token from OpenBot's automation folder when it
@@ -137,11 +139,13 @@ function botDetails() {
     return { assistant: 'hermes', maxLength, botId: 'hermes', botName: 'Hermes', botColor: avatarColor('purple'), botInitial: 'H' };
   }
   const roster = listBots(GROK_BOT_DIRECTORY);
-  const bot = roster.ok ? roster.bots.find((item) => item.id === settings.botId) : undefined;
-  const botName = settings.botName || bot?.name || '';
+  const agentId = resolveAgentId(GROK_BOT_DIRECTORY, settings.botId);
+  const bot = roster.ok ? roster.bots.find((item) => item.id === agentId) : undefined;
+  const botName = settings.botName || bot?.name || (settings.botId ? '' : 'Grok Bot');
   return { assistant: 'grokbot', maxLength, botId: settings.botId, botName,
-    botColor: settings.botId ? avatarColor(bot?.color, settings.botId) : '#1080f3',
-    botInitial: settings.botId ? avatarInitial(botName) : 'G' };
+    // With "Grok Bot default" the avatar follows the bot it resolves to, so it matches the name shown.
+    botColor: bot || settings.botId ? avatarColor(bot?.color, agentId || settings.botId) : '#1080f3',
+    botInitial: bot || settings.botId ? avatarInitial(botName) : 'G' };
 }
 
 // The OpenBot agents with Local scripts on, with avatars, and the state the UI explains when there are none.
@@ -169,8 +173,12 @@ function updateSettingsBackground() {
 function resetDestination() {
   clearTimeout(hideTimer);
   sendingPrompt = false;
-  // Grok Bot parts still going out stop when the destination is no longer Grok Bot.
-  if (partsJob && !usesGrokBot()) partsJob.cancelled = true;
+  // Stop a pending composer check before switching destinations.
+  singleSend?.abort();
+  if (partsJob) {
+    partsJob.cancelled = true;
+    partsJob.controller.abort();
+  }
   stopWaiting();
   deliveryFailure = undefined;
   clearUnread();
@@ -430,38 +438,46 @@ async function partBaseline(botId) {
   return baseline;
 }
 
-// Sends every part in order and returns the outcome. Each part must show up in the transcript before the
-// next one goes out, so the parts arrive in order and a failure stops the rest.
+// Pace confirmed sends and poll for manual delivery before advancing to the next part.
 async function runParts({ text, parts, links, job }) {
   const botId = settings.botId;
   const mode = settings.afterSend;
-  const { total } = job;
+  const { autoSend, total } = job;
   let request;
   try {
     for (let index = 0; index < total; index += 1) {
       if (job.cancelled || settings.botId !== botId) return { ok: false, error: 'cancelled', sentParts: index, total };
       job.part = index + 1;
-      promptWindow.webContents.send('prompt:parts-progress', { part: job.part, total });
+      job.manualSend = !autoSend;
+      promptWindow.webContents.send('prompt:parts-progress', { part: job.part, total, manualSend: job.manualSend });
       const baseline = await partBaseline(botId);
       // partBaseline can take up to a second; recheck before handing the part to Grok Bot.
       if (job.cancelled || !usesGrokBot() || settings.botId !== botId) {
         return { ok: false, error: 'cancelled', sentParts: index, total };
       }
-      request = { sentAt: Date.now(), botId, mode, ...baseline, expectPrefix: `(${index + 1}/${total})`,
+      request = { sentAt: Date.now(), botId, mode, autoSend, ...baseline, expectPrefix: `(${index + 1}/${total})`,
         sent: { role: 'user', text: parts[index], timestampMs: Date.now() } };
       try {
         await shell.openExternal(links[index].url);
       } catch {
         return { ok: false, error: 'part-failed', part: job.part, total };
       }
+      const failure = await sendComposer(request, job.controller.signal);
+      if (job.cancelled) return { ok: false, error: 'cancelled', sentParts: index, total, pendingPart: job.part };
+      if (failure) return failure;
       if (index === 0) {
         history = addToHistory(history, text);
         try { saveHistory(historyFile, history); } catch { /* Keep history in memory. */ }
       }
-      const delivered = await waitForDelivery(request, job);
+      if (autoSend && !request.delivered) {
+        job.manualSend = true;
+        promptWindow.webContents.send('prompt:parts-progress', { part: job.part, total, manualSend: true });
+      }
+      const delivered = request.delivered || await waitForDelivery(request, job);
       // The part was already handed to Grok Bot; if its confirmation is still open it can still arrive.
       if (job.cancelled) return { ok: false, error: 'cancelled', sentParts: index, total, pendingPart: job.part };
       if (!delivered) return { ok: false, error: 'part-failed', part: job.part, total };
+      if (index + 1 < total) await new Promise((resolve) => setTimeout(resolve, 1500));
     }
   } finally {
     partsJob = undefined;
@@ -488,7 +504,7 @@ function waitForDelivery(request, job) {
       if (job.cancelled) return resolve(false);
       const result = readConversation(GROK_BOT_DIRECTORY, request.agentId);
       if (result.ok && sentState(request, result.entries).delivered) return resolve(true);
-      if (Date.now() - request.sentAt >= NOT_DELIVERED_MS) return resolve(false);
+      if (Date.now() - request.waitStartedAt >= NOT_DELIVERED_MS) return resolve(false);
       setTimeout(check, 500);
     };
     setTimeout(check, 500);
@@ -525,9 +541,10 @@ function startWaiting(request) {
   stopWaiting();
   deliveryFailure = undefined;
   pending = request;
+  pending.waitPhase = grokWaitPhase(pending);
   if (pending.mode === 'wait' && !pinned) promptWindow.setAlwaysOnTop(false);
   promptWindow.webContents.send('prompt:conversation', {
-    ...loadConversation(), waiting: true, sent: pending.sent,
+    ...loadConversation(), waiting: true, sent: pending.sent, waitPhase: pending.waitPhase,
   });
   responsePoll = setInterval(() => {
     const result = readConversation(GROK_BOT_DIRECTORY, pending.agentId);
@@ -537,7 +554,7 @@ function startWaiting(request) {
     // Keep the last reply seen: a read caught while Grok Bot rewrites entries shouldn't lose it.
     if (state.reply) pending.reply = state.reply;
     pending.watch = trackTranscriptChange(pending.watch, result, now);
-    const elapsed = now - pending.sentAt;
+    const elapsed = now - pending.waitStartedAt;
     const status = waitDecision({ delivered: pending.delivered, hasReply: Boolean(pending.reply),
       elapsedMs: elapsed, quietMs: now - pending.watch.changedAt });
     if (status === 'settling') {
@@ -554,12 +571,11 @@ function startWaiting(request) {
     const reply = status === 'replied' ? pending.reply : null;
     const notDelivered = status === 'not-delivered';
     if (status === 'waiting') {
-      const awaitingDelivery = !pending.delivered && elapsed >= 15000;
-      if (pending.awaitingDelivery !== awaitingDelivery) {
-        pending.awaitingDelivery = awaitingDelivery;
+      const phase = grokWaitPhase(pending, now);
+      if (pending.waitPhase !== phase) {
+        pending.waitPhase = phase;
         promptWindow.webContents.send('prompt:conversation', {
-          ...loadConversation(), waiting: true, sent: pending.sent,
-          awaitingDelivery,
+          ...loadConversation(), waiting: true, sent: pending.sent, waitPhase: phase,
         });
       }
       return;
@@ -582,7 +598,7 @@ function startWaiting(request) {
     if (reply && !promptWindow.isVisible()) {
       const roster = listBots(GROK_BOT_DIRECTORY);
       const name = settings.botName || (roster.ok && roster.bots.find((bot) => bot.id === request.agentId)?.name)
-        || (settings.botId ? t('bot.fallback', { id: settings.botId.slice(0, 8) }) : t('bot.default'));
+        || (settings.botId ? t('bot.fallback', { id: settings.botId.slice(0, 8) }) : 'Grok Bot');
       notifyReply(name, reply.text);
     }
   }, 1000);
@@ -683,8 +699,8 @@ function showPrompt(extra = {}) {
     ...botDetails(),
     conversation: loadConversation(), waiting: Boolean(pending), partial: Boolean(pending?.reply), sent: pending?.sent,
     ...(grokBot ? deliveryFailure : assistantState()),
-    awaitingDelivery: Boolean(pending && !pending.delivered && Date.now() - pending.sentAt >= 15000),
-    parts: partsJob ? { part: partsJob.part, total: partsJob.total } : undefined,
+    waitPhase: grokWaitPhase(pending),
+    parts: partsJob ? { part: partsJob.part, total: partsJob.total, manualSend: partsJob.manualSend } : undefined,
     templates: settings.templates,
     // Grok Bot's usage limit doesn't apply to OpenBot or Hermes.
     usage: grokBot ? usageDetails() : {},
@@ -716,6 +732,114 @@ function pressCopy() {
     execFile(powershell, ['-NoProfile', '-NonInteractive', '-Command', COPY_COMMAND],
       { windowsHide: true, timeout: 4000 }, (error) => (error ? reject(error) : resolve()));
   });
+}
+
+const AUTO_SEND_COMMAND = String.raw`& {
+$ErrorActionPreference = 'Stop'
+[Console]::InputEncoding = [Text.UTF8Encoding]::new($false)
+# Match JavaScript's trim whitespace, including BOM and excluding U+0085.
+$trimChars = [char[]](@(9..13) + @(32,160,5760) + @(8192..8202) + @(8232,8233,8239,8287,12288,65279))
+function Normalize([string]$value) {
+  $lines = $value.Replace([char]160, [char]32) -split '\r\n?|\n'
+  return (($lines.ForEach({ $_.TrimEnd($trimChars) }) -join [char]10).Trim($trimChars))
+}
+$expected = Normalize ([Console]::In.ReadToEnd())
+if (!$expected) { exit ${AUTO_SEND_EXIT.noComposer} }
+$seconds = if ($args.Count) { [int]$args[0] } else { 6 }
+Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class ComposerWindow {
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+}
+'@
+function ForegroundProcess($window) {
+  [uint32]$owner = 0
+  [void][ComposerWindow]::GetWindowThreadProcessId($window, [ref]$owner)
+  if ($owner -and (Get-Process -Id $owner -ErrorAction SilentlyContinue).ProcessName -ceq 'Grok Bot') { return $owner }
+}
+function FocusedText($element, $owner) {
+  if (!$element -or $element.Current.ProcessId -ne $owner) { return }
+  $type = $element.Current.ControlType
+  if ($type -ne [System.Windows.Automation.ControlType]::Edit -and
+      $type -ne [System.Windows.Automation.ControlType]::Document) { return }
+  $pattern = $null
+  if ($element.TryGetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern, [ref]$pattern)) {
+    return Normalize ($pattern.DocumentRange.GetText(-1))
+  }
+  if ($element.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern, [ref]$pattern)) {
+    if (!$pattern.Current.IsReadOnly) { return Normalize $pattern.Current.Value }
+  }
+}
+$clock = [Diagnostics.Stopwatch]::StartNew()
+$sawWindow = $false
+$sawComposer = $false
+$mismatchSince = $null
+while ($clock.Elapsed.TotalSeconds -lt $seconds) {
+  $different = $false
+  try {
+    $window = [ComposerWindow]::GetForegroundWindow()
+    $owner = ForegroundProcess $window
+    if ($owner) {
+      $sawWindow = $true
+      $element = [System.Windows.Automation.AutomationElement]::FocusedElement
+      $actual = FocusedText $element $owner
+      if ($null -ne $actual) {
+        $sawComposer = $true
+        if ([string]::Equals($actual, $expected, [StringComparison]::Ordinal)) {
+          Start-Sleep -Milliseconds 120
+          $focused = [System.Windows.Automation.AutomationElement]::FocusedElement
+          if ([System.Windows.Automation.Automation]::Compare($element, $focused) -and
+              [string]::Equals((FocusedText $focused $owner), $expected, [StringComparison]::Ordinal) -and
+              (ForegroundProcess $window) -eq $owner -and
+              [System.Windows.Automation.Automation]::Compare($focused, [System.Windows.Automation.AutomationElement]::FocusedElement) -and
+              [ComposerWindow]::GetForegroundWindow() -eq $window) {
+            try { [System.Windows.Forms.SendKeys]::SendWait('^{ENTER}') }
+            catch { exit ${AUTO_SEND_EXIT.timeout} }
+            exit ${AUTO_SEND_EXIT.sent}
+          }
+        } else { $different = $actual.Length -gt 0 }
+      }
+    }
+  } catch { $different = $false }
+  if ($different) {
+    if ($null -eq $mismatchSince) { $mismatchSince = $clock.ElapsedMilliseconds }
+    if ($clock.ElapsedMilliseconds - $mismatchSince -ge 1500) { exit ${AUTO_SEND_EXIT.mismatch} }
+  } else { $mismatchSince = $null }
+  Start-Sleep -Milliseconds 150
+}
+if (!$sawWindow) { exit ${AUTO_SEND_EXIT.notForeground} }
+if (!$sawComposer) { exit ${AUTO_SEND_EXIT.noComposer} }
+exit ${AUTO_SEND_EXIT.timeout}
+}`;
+
+async function sendComposer(request, signal) {
+  request.waitStartedAt = request.sentAt;
+  if (!request.autoSend) return null;
+  if (signal.aborted) return { ok: false, error: 'not-sent' };
+  const seconds = readPromptConfirmDismissed(GROK_BOT_DIRECTORY) === true ? 6 : 25;
+  const powershell = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+  const code = await new Promise((resolve) => {
+    const child = execFile(powershell, ['-NoProfile', '-NonInteractive', '-Command', AUTO_SEND_COMMAND, String(seconds)],
+      { windowsHide: true, shell: false, signal, timeout: (seconds + 3) * 1000 }, (error) => {
+        resolve(error ? error.code : AUTO_SEND_EXIT.sent);
+      });
+    child.stdin.on('error', () => {}); // The process can exit before reading stdin.
+    child.stdin.end(request.sent.text, 'utf8');
+  });
+  if (code === AUTO_SEND_EXIT.mismatch) return { ok: false, error: 'draft-conflict' };
+  if (signal.aborted) return { ok: false, error: 'not-sent' };
+  request.waitStartedAt = Date.now();
+  if (code !== AUTO_SEND_EXIT.sent) return null;
+  request.autoSent = true;
+  request.delivered = true;
+  if (request.mode === 'wait' && promptWindow.isVisible()) {
+    promptWindow.showInactive();
+    promptWindow.moveTop();
+  }
+  return null;
 }
 
 function snapshotClipboard() {
@@ -1018,7 +1142,11 @@ if (!app.requestSingleInstanceLock()) {
         ...bot, avatar: { color: avatarColor(bot.color, bot.id), initial: avatarInitial(bot.name) },
       })) };
     };
-    ipcMain.handle('settings:bots', botsWithAvatars);
+    ipcMain.handle('settings:bots', () => {
+      const result = botsWithAvatars();
+      const defaultId = resolveAgentId(GROK_BOT_DIRECTORY, '');
+      return { ...result, defaultBotName: result.bots?.find((bot) => bot.id === defaultId)?.name };
+    });
     ipcMain.handle('settings:openbot-agents', openBotAgents);
     ipcMain.handle('settings:open-openbot', openOpenBot);
     ipcMain.handle('settings:hermes-info', () => ({ defaultPath: HERMES_DEFAULT_PATH,
@@ -1068,8 +1196,8 @@ if (!app.requestSingleInstanceLock()) {
         botId = settings.botId;
         botName = settings.botName;
       }
-      const { shortcut, selectionShortcut, launchAtLogin, afterSend, notifyOnReply, theme, language, autoUpdate } = payload;
-      if (typeof notifyOnReply !== 'boolean' || typeof autoUpdate !== 'boolean'
+      const { shortcut, selectionShortcut, launchAtLogin, afterSend, autoSend, notifyOnReply, theme, language, autoUpdate } = payload;
+      if (typeof autoSend !== 'boolean' || typeof notifyOnReply !== 'boolean' || typeof autoUpdate !== 'boolean'
           || !['system', 'dark', 'light'].includes(theme)) {
         return { ok: false, error: 'invalid-option' };
       }
@@ -1133,7 +1261,7 @@ if (!app.requestSingleInstanceLock()) {
         settings = saveSettings(settingsLocation.path, {
           ...settings,
           botId, botName, shortcut, selectionShortcut, launchAtLogin: Boolean(launchAtLogin), afterSend,
-          notifyOnReply, theme, language, templates: templates.templates, autoUpdate,
+          autoSend, notifyOnReply, theme, language, templates: templates.templates, autoUpdate,
           assistant, ...openbot, ...hermes,
         });
         if (autoUpdate !== previousSettings.autoUpdate) scheduleUpdateChecks({ immediate: true });
@@ -1238,7 +1366,7 @@ if (!app.requestSingleInstanceLock()) {
     promptWindow.webContents.on('will-navigate', (event) => event.preventDefault());
     promptWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     promptWindow.on('blur', () => {
-      if (!pinned && !sendingPrompt && !partsJob && !waitingInPlace() && currentAssistantJob()?.phase !== 'sending') {
+      if (!pinned && !sendingPrompt && !singleSend && !partsJob && !waitingInPlace() && currentAssistantJob()?.phase !== 'sending') {
         promptWindow.hide();
       }
     });
@@ -1287,7 +1415,7 @@ if (!app.requestSingleInstanceLock()) {
     });
     ipcMain.handle('prompt:submit', async (_event, payload) => {
       const text = typeof payload === 'string' ? payload : payload?.text;
-      if (partsJob) return { ok: false, error: 'busy' };
+      if (partsJob || (usesGrokBot() && singleSend)) return { ok: false, error: 'busy' };
       if (!usesGrokBot()) return submitToAssistant(payload);
       const result = buildPromptLink({ text, botId: settings.botId });
       if (result.error === 'too-long') {
@@ -1304,12 +1432,19 @@ if (!app.requestSingleInstanceLock()) {
         return { ok: false, error: 'open-failed' };
       }
 
-      const request = { sentAt: Date.now(), botId: settings.botId, mode: settings.afterSend,
+      const request = { sentAt: Date.now(), botId: settings.botId, mode: settings.afterSend, autoSend: settings.autoSend,
         ...conversationBaseline(settings.botId),
         sent: { role: 'user', text: text.trim(), timestampMs: Date.now() } };
+      const controller = new AbortController();
+      singleSend = controller;
       try {
         sendingPrompt = true;
         await shell.openExternal(result.url);
+        const failure = await sendComposer(request, controller.signal);
+        if (failure) {
+          sendingPrompt = false;
+          return failure;
+        }
         history = addToHistory(history, text);
         try { saveHistory(historyFile, history); } catch { /* Sending already succeeded; keep history in memory. */ }
         clearTimeout(hideTimer);
@@ -1327,6 +1462,8 @@ if (!app.requestSingleInstanceLock()) {
       } catch {
         sendingPrompt = false;
         return { ok: false, error: 'open-failed' };
+      } finally {
+        singleSend = undefined;
       }
     });
     // Sends a long message as numbered parts, one at a time (see runParts). The user confirms this in the
@@ -1334,7 +1471,7 @@ if (!app.requestSingleInstanceLock()) {
     // returned directly; once sending starts, the outcome also goes out as a 'prompt:parts-progress' event,
     // so a prompt that was hidden, reopened or reloaded meanwhile still learns how it ended.
     ipcMain.handle('prompt:submit-parts', async (_event, payload) => {
-      if (partsJob || sendingPrompt) return { ok: false, error: 'busy' };
+      if (partsJob || singleSend || sendingPrompt) return { ok: false, error: 'busy' };
       // Only Grok Bot links have a length limit; OpenBot and Hermes take the whole message at once.
       if (!usesGrokBot()) return { ok: false, error: 'unexpected' };
       const text = payload?.text;
@@ -1354,7 +1491,7 @@ if (!app.requestSingleInstanceLock()) {
         return { ok: false, error: 'limit', resetText: usage.resetText, percentUsed: usage.percentUsed };
       }
 
-      const job = { cancelled: false, part: 0, total: parts.length };
+      const job = { controller: new AbortController(), autoSend: settings.autoSend, cancelled: false, part: 0, total: parts.length };
       partsJob = job;
       // A reply wait from an earlier message would read the same transcript; this send takes over.
       stopWaiting();
@@ -1370,7 +1507,10 @@ if (!app.requestSingleInstanceLock()) {
       return { ...result, finished: true };
     });
     ipcMain.handle('prompt:cancel-parts', () => {
-      if (partsJob) partsJob.cancelled = true;
+      if (partsJob) {
+        partsJob.cancelled = true;
+        partsJob.controller.abort();
+      }
       return { ok: true };
     });
     ipcMain.handle('prompt:hide', () => promptWindow.hide());
@@ -1430,6 +1570,8 @@ if (!app.requestSingleInstanceLock()) {
     clearTimeout(hideTimer);
     stopUpdateChecks();
     stopWaiting();
+    singleSend?.abort();
+    partsJob?.controller.abort();
     stopAllAssistantJobs();
     globalShortcut.unregisterAll();
   });

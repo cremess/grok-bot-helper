@@ -97,6 +97,10 @@
               <div class="row-copy"><h3 id="after-send-title" data-i18n="settings.rows.afterSend.title">After sending</h3><p id="after-send-help"></p></div>
               <div class="segmented row-control"><label><input type="radio" name="after-send" value="wait" checked aria-describedby="after-send-help"><span data-i18n="settings.rows.afterSend.wait">Wait for reply</span></label><label><input type="radio" name="after-send" value="hide" aria-describedby="after-send-help"><span data-i18n="settings.rows.afterSend.hide">Close and notify</span></label></div>
             </div>
+            <label id="auto-send-row" class="setting-row switch-row" for="auto-send">
+              <span class="row-icon" aria-hidden="true"></span>
+              <span class="row-copy"><span class="row-title" data-i18n="settings.rows.autoSend.title">Send automatically</span><span class="description" id="auto-send-help" data-i18n="settings.rows.autoSend.help">Presses Ctrl+Enter in Grok Bot for you after checking the message is the one you wrote.</span></span><input id="auto-send" type="checkbox" role="switch" aria-describedby="auto-send-help">
+            </label>
             <label class="setting-row switch-row" for="notify-on-reply">
               <span class="row-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 12h10l-1.5-2V6a3.5 3.5 0 0 0-7 0v4ZM6.5 14h3"/></svg></span>
               <span class="row-copy"><span class="row-title" data-i18n="settings.rows.notify.title">Notify when a reply arrives</span><span class="description" data-i18n="settings.rows.notify.help">Shows a Windows notification when the prompt is closed.</span></span><input id="notify-on-reply" type="checkbox" role="switch">

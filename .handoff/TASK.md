@@ -1,39 +1,23 @@
-# Task 22 — Replace the "Conversation / Latest reply" toggle with a clear segmented control
+# Task 23 (part 2) — Trust a confirmed auto-send and tolerate Grok Bot's disk lag
 
-Read `AGENTS.md` first.
+Part 1 (auto-send helper, `autoSend` setting, "default bot" label) is **accepted**. Keep it as is.
 
-## Problem
-In the prompt's reply header there is a text button that flips between "Conversation" and "Latest reply". It shows the **mode you would switch to**, not the mode you are in, so users can't tell what they're looking at (when it says "Conversation" you are actually seeing the latest reply). It also looks like plain text, not a control.
+## New evidence (Claude Code, from the maintainer's real test)
+Grok Bot writes the conversation to disk **lazily**: a message sent at 09:17:17 only appeared in the transcript file at 09:18:09 (~52 s later). Our "did it reach Grok Bot?" check gives up after **45 s**, so it reported "didn't reach" for a message that did arrive. Replies are also visible on disk only after that lag.
 
-## Goal
-A small **segmented control** that always shows both views, with the current one selected — the same visual language as the segmented controls in Settings (sliding selected pill).
-
-## Files involved
-- `src/prompt/prompt.html`, `src/prompt/prompt.css`, `src/prompt/prompt.js`, `src/lib/i18n.js` (en + pt-BR), `src/ui/tokens.css` only if a shared token is needed.
-
-## Specification
-1. **Placement**: same place as today (right side of the reply header), after the copy and open-in-Grok-Bot icon buttons, separated from them by 8 px. Vertically centered with the header row.
-2. **Control**:
-   - Two segments, each with a 14 px SVG icon + short label:
-     - **Latest** (icon: a single message bubble) — shows the latest reply.
-     - **Chat** (icon: two overlapping bubbles) — shows the recent conversation.
-     - pt-BR labels: **Última** / **Conversa**.
-   - Height 26 px, font 12 px/500, container radius 8 px with `var(--surface)` background and 1 px `var(--border)`; 2 px inner padding.
-   - Selected segment: a pill (radius 6 px) with `var(--hover)`-like raised background (`color-mix(in srgb, var(--text) 10%, var(--surface))` in dark, white with `--shadow-sm` in light) and `var(--text)` color; unselected segments use `var(--secondary)` and get `var(--text)` on hover.
-   - The pill **slides** between segments (animate `transform`/`width` with the standard transition; respect `prefers-reduced-motion`).
-   - Accessibility: `role="radiogroup"` with `aria-label` ("Reply view" / "Visualização da resposta"); each segment is `role="radio"` with `aria-checked`, roving `tabindex` (only the selected one is tabbable), Left/Right arrow keys switch, Enter/Space select. Focus ring visible.
-   - Each segment has a `title` tooltip: "Latest reply" / "Recent conversation" (pt-BR: "Última resposta" / "Conversa recente").
-3. **Keyboard shortcut** in the prompt: `Ctrl+L` toggles between the two views (do not interfere when the bot picker is open). Add it to i18n and mention it in the tooltip, e.g. "Latest reply (Ctrl+L)".
-4. **Behavior** stays the same as today: switching views re-renders, the Chat view scrolls to the newest message, the "Show more" logic only applies to Latest, the user-sized layout still fills the space, the choice resets to Latest each time the prompt opens (current behavior). Remove the old toggle button, its i18n keys (`prompt.conversation`, `prompt.latest` if no longer used) and dead CSS.
-5. **Hide the control** when there is no conversation to show (same condition that hides the reply area today) and while waiting state shows only the sent bubble with no prior conversation.
-6. Update `README.md` mentions of the old toggle: "Switch to **Conversation** …" → "Use the **Latest / Chat** switch (or `Ctrl+L`) …"; and the Usage table gets a row for `Ctrl+L`.
+## Changes (`src/main.js`, `src/prompt/prompt.js|css`, `src/lib/i18n.js` en + pt-BR, tests if logic moves to `src/lib/`)
+1. **Auto-send success = delivered.** When the auto-send helper returns `sent` (exit 0), treat the message as delivered right away: do **not** run the "message reached Grok Bot" timeout for it. The prompt shows the sent bubble with a small **"Sent ✓"** marker (pt-BR "Enviada ✓") and the status line becomes **"Sent. Waiting for {bot}'s reply…"** (pt-BR "Enviada. Aguardando a resposta de {bot}…"); after 20 s without a reply, add a quiet hint: **"Replies can take up to a minute to show up here."** (pt-BR "A resposta pode levar até um minuto para aparecer aqui."). Then wait for the reply as today (up to 10 min, "Stop" still available).
+2. **Manual / not auto-sent path** (autoSend off, or helper returned `not-sent`): raise the "didn't reach Grok Bot" window from 45 s to **120 s**, and while waiting show **"Waiting for Grok Bot to receive your message… If it's in Grok Bot's text box, press Ctrl+Enter there."** (pt-BR equivalent). Only after 120 s with no user message on disk show the "didn't reach" state.
+3. **Multi-part sends**: same rule per part — a part confirmed by the helper counts as delivered; the next part waits only for the previous part's helper success (not for the disk), with a 1.5 s gap between parts so Grok Bot processes them in order.
+4. Keep "a single wait timer at a time" and all existing safety checks. Do not change the helper script.
+5. Add tests for any pure logic you extract (e.g. a function that decides the waiting state from `{ autoSent, elapsedMs, userMessageSeen, replySeen }`).
 
 ## Acceptance criteria
-- `npm test` and `npm run check` pass (update tests that check i18n keys if needed; both locales must have the same keys).
-- No `innerHTML`; CSP unchanged.
+- `npm test` and `npm run check` pass.
+- No false "didn't reach" for an auto-sent message, however long Grok Bot takes to write to disk (until the 10-min reply timeout).
 
 ## Do NOT
-- Do not change anything else in the prompt or settings. Do not add dependencies, run the app, commit or push.
+- Do not add dependencies, run the app, build, commit or push.
 
 ## When done
-Replace the whole content of `.handoff/RESULT.md` with the result of this task.
+Replace the whole content of `.handoff/RESULT.md` with the result of this part.
