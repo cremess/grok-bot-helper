@@ -7,7 +7,7 @@
     "type": "git",
     "url": "https://github.com/cremess/grok-bot-helper.git"
   },
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "description": "Unofficial Windows companion for Grok Bot: a global shortcut opens a floating prompt that talks to your bots.",
   "main": "src/main.js",
